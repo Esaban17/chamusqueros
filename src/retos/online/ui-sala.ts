@@ -254,7 +254,7 @@ export function entrarEnSala(sh: Shell, inicial: RespuestaSala, transporte: Tran
     } catch (e) {
       if (!(e instanceof ErrorCliente) || e.esRed) return;   // sin red: el guardián y el refresco lo reintentan
       if (['sala_vencida', 'sala_inexistente', 'no_miembro'].includes(e.codigo)) { mostrarError(e); return; }
-      const espera = e.codigo === 'aun_no' ? (e.faltanMs ?? 400) + 60 : e.codigo === 'limite' ? (e.reintentarSeg ?? 2) * 1000 : 0;
+      const espera = e.codigo === 'aun_no' ? (e.faltanMs ?? 1500) + 60 : e.codigo === 'limite' ? (e.reintentarSeg ?? 2) * 1000 : 0;
       if (espera && intento < 6 && activo && vMax === v) setTimeout(() => { if (activo && vMax === v) void intentarVencer(v, intento + 1); }, Math.min(espera, 5000));
     }
   }

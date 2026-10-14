@@ -77,7 +77,7 @@ function grafo(raices: string[]): Map<string, string[]> {
 }
 const g = grafo(archivosOnline);
 for (const [f, camino] of g) for (const p of PROHIBIDOS) assert.ok(!f.endsWith(p), `el modo en línea llega a ${p}: ${camino.join(' → ')}`);
-for (const necesario of ['trivia-puro.ts', 'pingpong.ts', 'ui-ping.ts', 'ui-preguntas.ts', 'ui-dedonde.ts']) {
+for (const necesario of ['trivia-puro.ts', 'pingpong.ts', 'ui-ping.ts', 'ui-preguntas.ts', 'ui-dedonde-linea.ts']) {
   assert.ok([...g.keys()].some((f) => f.endsWith(necesario)), `el grafo debería incluir ${necesario} (si no, la prueba no está mirando bien)`);
 }
 // El grafo SÍ detectaría el problema: trivia.ts arrastra el banco.

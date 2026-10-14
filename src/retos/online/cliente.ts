@@ -10,7 +10,8 @@ const K_ID = 'chamusqueros:id';              // el mismo del ranking de carreras
 const K_TOKEN = 'chamusqueros:retos-token';  // secreto del dispositivo: nunca en la URL ni en un registro
 const K_SALA = 'chamusqueros:sala';          // solo el código de la última sala, sin ningún secreto
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+// ponytail: solo un filtro de forma laxo (el servidor es quien valida el secreto); uno estricto dejaría sin perfil a quien lo guardó otro bloque con otro formato
+const TOKEN_RE = /^[\w=+/-]{20,200}$/;
 const TIEMPO_MS = 10_000;
 
 // ---------- Almacenamiento (todo con try/catch) ----------

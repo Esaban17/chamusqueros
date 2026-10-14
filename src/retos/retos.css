@@ -102,6 +102,7 @@
   /* En línea: "Salir" flota arriba a la derecha; la franja de jugadores, el aviso de conexión y los títulos le dejan su lugar */
   .rt-vs, .rt-conexion { margin-right: 88px; }
   .rt-vista h1 { padding-right: 88px; }
+  .rt-vista .rt-cabecera, .rt-vista .rt-cabecera h1 { padding-right: 0; }   /* en juego, la franja de jugadores ya deja el lugar de "Salir" */
   .rt-ctx { font-size: 15px; }
   .rt-form { gap: 8px; }
 }

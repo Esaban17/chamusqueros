@@ -1,6 +1,5 @@
 // Registro de pintores: qué módulo dibuja cada categoría en línea (se elige por `juego.cat`). Cada uno se baja con import() al usarse.
-// El de "¿De dónde es?" es del bloque C (`montarDeDonde` en src/retos/ui-dedonde.ts): ya está conectado aquí; si C cambia el nombre o el
-// archivo, es esta única línea.
+// El de "¿De dónde es?" es del bloque C (`montarDeDonde` en src/retos/ui-dedonde-linea.ts): ya está conectado aquí (`dedonde: montarDeDonde`).
 import type { DeDondePublico, MontarJuego, PingPublico, PreguntasPublico } from './protocolo';
 
 export interface Pintores {
@@ -14,5 +13,5 @@ export const PINTORES: Pintores = {
   pais: () => import('./ui-ping').then((m) => m.montarPing),
   club: () => import('./ui-ping').then((m) => m.montarPing),
   preguntas: () => import('./ui-preguntas').then((m) => m.montarPreguntas),
-  dedonde: () => import('../ui-dedonde').then((m) => m.montarDeDonde),   // <- C
+  dedonde: () => import('../ui-dedonde-linea').then((m) => m.montarDeDonde),   // <- C
 };
