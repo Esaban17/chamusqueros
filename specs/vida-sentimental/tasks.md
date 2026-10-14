@@ -24,6 +24,7 @@ Todas las tareas se verifican con `npm run simulate -- 5000` y `npm run build` a
 - [x] T12 Revisión de contenido: leer todos los textos de `amor.ts` con la lista RS-01 a RS-06, anotar el resultado en el reporte y corregir lo que falle; confirmar sin Guatemala fuera de `GT` y con "del" y "al" correctos. Depende de T3 a T8. (RS-01 a RS-07, RF-14, CA-9, CA-11)
 - [x] T13 Verificación final: `npm run build`, `npm run simulate -- 5000`, captura de un evento con "Vida sentimental" y comprobación de los CA contra los números. Depende de T9, T11, T12. (CA-1 a CA-13)
 - [x] T14 La hija del técnico sigue al técnico: bandera `amor_club_<id>`, pasos 2 y 3 en ese club y evento `amor_hija_fin`; `simulate` exige 0 pasos en otro club. Depende de T4, T10. (RF-16, CA-14)
+- [x] T15 Lo mismo para la pareja del compañero: bandera `amor_clubc_<id>`, paso 2 en ese club y evento `amor_companero_fin`. Depende de T5, T14. (RF-16, CA-14)
 
 ## Trazabilidad
 | Requisito | Tareas |
@@ -43,6 +44,6 @@ Todas las tareas se verifican con `npm run simulate -- 5000` y `npm run build` a
 | RF-13 | T9, T10 |
 | RF-14 | T12, T10 |
 | RF-15 | T1, T11 |
-| RF-16 | T14 |
+| RF-16 | T14, T15 |
 | RS-01 a RS-07 | T10, T12 |
 | D-02 | T1 |

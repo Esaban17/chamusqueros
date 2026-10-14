@@ -263,7 +263,8 @@ console.log(`Amor: rutas abiertas al terminar ${(100 * amorOpen / N).toFixed(2)}
 if (amorOpen / N >= 0.02) amorErrors.add('2% o más de las carreras terminan con una ruta abierta (CA-3)');
 console.log(`Amor, hija del técnico: ${hijaMoved} de ${hijaPairs} pasos 2 o 3 jugados en otro club que el del paso 1 (RF-16, debe ser 0) · cierres por cambio de club: ${eventCount.amor_hija_fin ?? 0}`);
 if (hijaMoved > 0) amorErrors.add(`${hijaMoved} pasos de la hija del técnico en otro club (RF-16)`);
-console.log(`Amor, pareja de un compañero: ${compOtro} de ${eventCount.amor_companero_2 ?? 0} paso 2 en otro club que el del paso 1 (no se corrige: la pareja es de un compañero, no del técnico)`);
+console.log(`Amor, pareja de un compañero: ${compOtro} de ${eventCount.amor_companero_2 ?? 0} pasos 2 jugados en otro club que el del paso 1 (RF-16, debe ser 0) · cierres por cambio de club: ${eventCount.amor_companero_fin ?? 0}`);
+if (compOtro > 0) amorErrors.add(`${compOtro} pasos de la pareja del compañero en otro club (RF-16)`);
 console.log(`Amor, pareja de un compañero: ${compMoved} de ${compStep} cambiaron de club en el paso 2 (${compStep ? ((100 * compMoved) / compStep).toFixed(1) : '0'}%; esperado entre 20% y 40%)`);
 if (compStep >= 50 && (compMoved / compStep < 0.2 || compMoved / compStep > 0.4)) amorErrors.add('la salida del club en amor_companero_2 queda fuera de 20%-40% (CA-5)');
 console.log(`Amor: ${amorTexts.size} textos emitidos revisados con la lista de términos prohibidos.`);

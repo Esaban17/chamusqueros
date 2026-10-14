@@ -119,7 +119,7 @@ Todo lo nuevo termina en `process.exitCode = 1` al fallar, como los chequeos act
 Además `npm run build` y una captura de pantalla de un evento con el rótulo "Vida sentimental" (sin nueva UI).
 
 ## Riesgos
-- **Cambio de club entre pasos de la hija** (resuelto, RF-16): el paso 1 pone `amor_club_<id>`; los pasos 2 y 3 exigen esa bandera (`ctx.club.id`); `amor_hija_fin` (peso 3, `once`) sale si la ruta está abierta y esa bandera ya no corresponde al club actual, y borra todas las banderas de la ruta. Todo dentro de `amor.ts`, sin tocar `applyEffects`. `simulate` exige 0 pasos en otro club.
+- **Cambio de club entre pasos de la hija** (resuelto, RF-16): el paso 1 pone `amor_club_<id>`; los pasos 2 y 3 exigen esa bandera (`ctx.club.id`); `amor_hija_fin` (peso 3, `once`) sale si la ruta está abierta y esa bandera ya no corresponde al club actual, y borra todas las banderas de la ruta. Todo dentro de `amor.ts`, sin tocar `applyEffects`. `simulate` exige 0 pasos en otro club. Igual para la pareja del compañero: `amor_clubc_<id>` y `amor_companero_fin`.
 - **Rutas de amor y ofertas de club**: los pasos de ruta bajan la chance de oferta a 30 % mientras duran (3 pasos como máximo). Se vigila el porcentaje de `contrato` (CA-7).
 - **Fusión con ramas paralelas** (mercado y nacionalidad): las líneas compartidas son una unión de tipos, una entrada de rótulo, una importación y una condición; los choques serían de una línea. Sin cambios en `drawEvent`, `transferOffer`, `statsBar`, `simulateNationalTeam` ni eventos de Selección.
 - **Coherencia con lo existente**: `med_gol_grande` conserva el chiste "A mi novia… y a la otra" para menores de 24 años, sin estado; se acepta porque es un chiste de un solo uso y no afirma una pareja. Se deja aparte de esta feature.

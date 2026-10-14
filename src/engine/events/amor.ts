@@ -12,6 +12,7 @@ import { o, opt, has } from '../helpers';
 // - amor_hija → amor_hija_2 → fin: la hija del técnico (amor_hija_publica cambia el texto y las chances del paso 3)
 // - amor_club_<id del club>: el club donde arrancó esa ruta. Los pasos 2 y 3 solo salen en ese club; si el jugador se va, amor_hija_fin la cierra.
 // - amor_traicion → amor_companero_2: la pareja de un compañero
+// - amor_clubc_<id del club>: el club donde arrancó esa ruta (el compañero es de ese club); si el jugador se va, amor_companero_fin la cierra.
 // Toda ruptura borra FIN. Ninguna lista de `flag` repite una bandera de su `unflag`.
 
 /** Perilla de frecuencia: multiplica el peso de los eventos de entrada (ver "Frecuencia" del plan). */
@@ -27,6 +28,7 @@ const peso = (w: number) => Math.min(w * PESO, 2.9);
 
 /** Bandera con el club donde arrancó la ruta de la hija. ponytail: el nombre lleva el id porque las banderas solo valen 1. */
 const clubDeRuta = (id: string) => `amor_club_${id}`;
+const clubDeCompanero = (id: string) => `amor_clubc_${id}`;
 const rutaHija = (p: Player) => has(p, 'amor_hija') || has(p, 'amor_hija_2');
 
 const algun = (p: Player, banderas: string[]) => banderas.some((b) => has(p, b));
@@ -200,11 +202,11 @@ export const AMOR_EVENTS: EventTemplate[] = [
     when: (p) => adulto(p) && soltero(p) && p.age >= 19 && p.age <= 31,
     weight: peso(0.8),
     once: true,
-    options: () => [
+    options: (p, ctx) => [
       opt('Cortar la charla con respeto',
         o(1, 'Cambiaste de tema con una sonrisa y pasaron la noche hablando del partido del domingo. Tu compañero no supo nada, pero en el vestuario se nota que sos de fiar.', { morale: 6, coach: 3 })),
       opt('Seguirle la corriente',
-        o(1, 'La charla se alargó, se pasaron los números y te fuiste sonriendo… con un cosquilleo de que esto va a salir caro.', { morale: 2, flag: 'amor_traicion' })),
+        o(1, 'La charla se alargó, se pasaron los números y te fuiste sonriendo… con un cosquilleo de que esto va a salir caro.', { morale: 2, flag: ['amor_traicion', clubDeCompanero(ctx.club.id)] })),
     ],
   },
   {
@@ -213,20 +215,43 @@ export const AMOR_EVENTS: EventTemplate[] = [
     title: 'Tu compañero se entera',
     text: () =>
       'Alguien vio los mensajes y en el vestuario ya corre el rumor. Tu compañero te espera junto al casillero, con los brazos cruzados y la mirada fija en el piso. Todos fingen amarrarse los tacos.',
-    when: (p) => adulto(p) && has(p, 'amor_traicion'),
+    when: (p, ctx) => adulto(p) && has(p, 'amor_traicion') && has(p, clubDeCompanero(ctx.club.id)),
     weight: 3,
     once: true,
-    options: () => [
-      opt('Dar la cara y pedir disculpas',
-        o(0.75, 'Hubo una discusión larga y tensa, de esas con silencios en los que se oye el ventilador. El técnico los citó a una reunión del grupo y nadie te saluda por unos días.', { coach: -6, morale: -8, unflag: 'amor_traicion' }),
-        o(0.25, 'Tu compañero aceptó las disculpas, pero el club decidió que el vestuario no daba para los dos y te buscó una salida.', { transfer: 'any', morale: -6, unflag: 'amor_traicion' })),
-      opt('Negarlo todo',
-        o(0.5, 'Los mensajes llegaron a la prensa y tu desmentido duró un día. Fue tema en todos los programas de chismes y el club cortó por lo sano.', { fame: -6, morale: -10, transfer: 'any', unflag: 'amor_traicion' }),
-        o(0.5, 'Te creyeron a medias. Nadie dice nada, pero te miran con duda en cada pase y en cada broma.', { coach: -3, morale: -4, unflag: 'amor_traicion' })),
-      opt('Pedirle al técnico que medie',
-        o(0.75, 'El técnico los sentó a los dos y les dio un sermón de media hora sobre el respeto. La tensión sigue, aunque el clima es más civilizado.', { coach: -6, morale: -6, unflag: 'amor_traicion' }),
-        o(0.25, 'El técnico pensó en el bien del grupo y concluyó que un cambio de aire te vendría bien. Te lo dijo con mucho tacto.', { transfer: 'any', morale: -6, unflag: 'amor_traicion' })),
-    ],
+    options: (p, ctx) => {
+      const fin = ['amor_traicion', clubDeCompanero(ctx.club.id)];
+      return [
+        opt('Dar la cara y pedir disculpas',
+          o(0.75, 'Hubo una discusión larga y tensa, de esas con silencios en los que se oye el ventilador. El técnico los citó a una reunión del grupo y nadie te saluda por unos días.', { coach: -6, morale: -8, unflag: fin }),
+          o(0.25, 'Tu compañero aceptó las disculpas, pero el club decidió que el vestuario no daba para los dos y te buscó una salida.', { transfer: 'any', morale: -6, unflag: fin })),
+        opt('Negarlo todo',
+          o(0.45, 'Los mensajes llegaron a la prensa y tu desmentido duró un día. Fue tema en todos los programas de chismes y el club cortó por lo sano.', { fame: -6, morale: -10, transfer: 'any', unflag: fin }),
+          o(0.55, 'Te creyeron a medias. Nadie dice nada, pero te miran con duda en cada pase y en cada broma.', { coach: -3, morale: -4, unflag: fin })),
+        opt('Pedirle al técnico que medie',
+          o(0.75, 'El técnico los sentó a los dos y les dio un sermón de media hora sobre el respeto. La tensión sigue, aunque el clima es más civilizado.', { coach: -6, morale: -6, unflag: fin }),
+          o(0.25, 'El técnico pensó en el bien del grupo y concluyó que un cambio de aire te vendría bien. Te lo dijo con mucho tacto.', { transfer: 'any', morale: -6, unflag: fin })),
+      ];
+    },
+  },
+  {
+    id: 'amor_companero_fin',
+    category: 'amor',
+    title: 'Enredo archivado',
+    text: () =>
+      'Con el cambio de club, el enredo con la pareja de tu ex compañero quedó atrás. En el vestuario nuevo nadie sabe nada, el rumor se enfrió solo y respirás aliviado.',
+    // La ruta sigue abierta pero el jugador ya no está en el club donde empezó (RF-16).
+    when: (p, ctx) => adulto(p) && has(p, 'amor_traicion') && !has(p, clubDeCompanero(ctx.club.id)),
+    weight: 3,
+    once: true,
+    options: (p) => {
+      const fin = ['amor_traicion', ...Object.keys(p.flags).filter((f) => f.startsWith('amor_clubc_'))];
+      return [
+        opt('Respirar hondo y empezar de cero',
+          o(1, 'Te prometiste ser más prudente. Con la cabeza fría y un vestuario nuevo, el asunto pasó a ser una anécdota.', { morale: 2, unflag: fin })),
+        opt('Aprender la lección y no mirar atrás',
+          o(1, 'Fue un enredo de los que enseñan. Nadie salió peor parado y vos, un poco más sensato.', { morale: 1, unflag: fin })),
+      ];
+    },
   },
 
   // ---------- Famosa o influencer ----------
