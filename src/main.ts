@@ -204,7 +204,8 @@ function home() {
   const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
   const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
   const number = last.number ?? 10;
-  const go = (what: 'start' | 'ranking', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
+  const go = (what: 'start' | 'ranking' | 'retos', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
+  const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);color:var(--muted)">Duelo de 2 en un solo celular</span>', cls);
   render(`
     <div class="brand">Chamus<span>queros</span></div>
     <section class="hero center">
@@ -212,6 +213,7 @@ function home() {
       <p>Creá a tu futbolista y viví su carrera entera en dos minutos.</p>
     </section>
     ${go('start', 'Empezar mi carrera')}
+    ${retos('btn secondary')}
     ${top
       ? `<div class="record">
           <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg>
@@ -257,6 +259,17 @@ function home() {
     </section>
 
     <section class="land">
+      <h2>Retos Fútbol</h2>
+      <p>Jugá de a dos con un solo celular: ping pong de futbolistas por país o por club, y preguntas de fútbol. Gana quien se lleve 2 de 3.</p>
+      <ul>
+        <li><b>Ping pong de país:</b> se turnan para decir futbolistas de un país, sin repetir.</li>
+        <li><b>Ping pong de club:</b> lo mismo con los futbolistas de un club.</li>
+        <li><b>Preguntas:</b> 5 preguntas de fútbol para cada uno.</li>
+      </ul>
+      ${retos('btn secondary')}
+    </section>
+
+    <section class="land">
       <h2>${best.length ? 'Tus mejores carreras' : 'Ranking global'}</h2>
       ${best.length
         ? `<ol class="best">${best.map((b, i) => `<li><span class="n">${i + 1}</span><span class="who"><b>${esc(String(b.name))}</b><small>${esc(String(b.verdict))}</small></span><span class="pts">${Number(b.score) || 0} pts</span></li>`).join('')}</ol>`
@@ -270,7 +283,10 @@ function home() {
     </section>
     ${footer()}
   `);
-  app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = b.dataset.go === 'start' ? createForm : rankingScreen));
+  // Retos Fútbol vive en su propio paquete: solo se descarga cuando alguien toca el botón.
+  const abrirRetos = () => import('./retos/index').then((m) => m.montarRetos(app, home)).catch(() => alert('No se pudo cargar Retos Fútbol. Revisá tu conexión e intentá de nuevo.'));
+  const destino = { start: createForm, ranking: rankingScreen, retos: abrirRetos };
+  app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = destino[b.dataset.go as keyof typeof destino]));
 }
 
 /** Enlace de donación: abre otra pestaña sin acceso a la del juego ni a la dirección de origen. */
