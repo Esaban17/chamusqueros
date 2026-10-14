@@ -1,5 +1,7 @@
 # Plan: tienda de estilo de vida
 
+> Nota de implementación: las constantes y cifras de efectos de este plan (entrenador 0,04 por estrella, tope de ánimo 8, tope físico 3) son las del primer borrador; los valores finales están calibrados en `specs/tienda/spec.md` (sección "Calibración") y en `src/engine/tienda.ts`. El garaje es una colección (resolución del orquestador) y el acceso incluye el resumen de temporada; `buy`/`hire` devuelven `Resultado | Rechazo` y `validar` trae una `causa` además del motivo.
+
 Stack: el del repo (TypeScript vanilla, Vite, DOM por strings y `render()`, CSS). Sin dependencias nuevas. Dos archivos nuevos en el motor y la interfaz (`src/engine/tienda.ts`, `src/ui/tienda.ts`), uno chico de ayuda (`src/ui/esc.ts`) y cambios acotados en el resto. Las reglas viven en funciones puras de `tienda.ts`; `Career` solo expone métodos delgados que las usan.
 
 ## Conflictos con el código actual (y cómo se resuelven)

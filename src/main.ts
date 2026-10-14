@@ -1,5 +1,5 @@
 import './style.css';
-import { Career, earned, summarize, verdictFor, yearsText, type CareerSummary } from './engine/engine';
+import { Career, summarize, verdictFor, yearsText, type CareerSummary } from './engine/engine';
 import { ALL_CLUBS, clubById, viewClub, type Club } from './engine/clubs';
 import { COUNTRIES, countryOf, moneyShort, type Country } from './engine/countries';
 import { de } from './engine/helpers';
@@ -19,6 +19,8 @@ import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT,
 import { TIERS, drawCareerCard } from './ui/card';
 import { celebrate } from './ui/celebrate';
 import { mountMinigame } from './ui/minigames';
+import { esc } from './ui/esc';
+import { bindTienda, comprasDestacadasHtml, estadoInicial, tiendaHtml } from './ui/tienda';
 import { flag } from './ui/flags';
 import { AWARD_LABEL, ICON, palmares, porSeleccion, type TrophyIcon } from './ui/palmares';
 
@@ -35,9 +37,6 @@ const NT_LABEL = ['', 'Convocado a la Selección', 'Fijo en la Selección', 'Tit
 let career: Career | null = null;
 let lastResolution: Resolution | null = null;
 let freshSeasons = 0;
-
-const esc = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 function store<T>(key: string, fallback: T): T {
   try {
@@ -179,10 +178,11 @@ const tierTag = (club: Club) => (club.abroad ? countryOf(club.country).name : cl
 /** Club de una temporada visto desde la nacionalidad del jugador (afuera = extranjero). */
 const seasonClub = (id: string) => viewClub(clubById(id), career!.home);
 
-function render(html: string) {
+function render(html: string, keepScroll = false) {
+  const y = window.scrollY;
   app.innerHTML = `<div class="flag"></div>${html}`;
   bindCrests(app);
-  window.scrollTo({ top: 0 });
+  window.scrollTo({ top: keepScroll ? y : 0 });
 }
 
 // ---------- Portada ----------
@@ -440,6 +440,7 @@ const fullName = () => (career ? `${career.player.setup.firstName} ${career.play
 
 function debut() {
   const c = career!;
+
   const club = c.club;
   const [first, second] = c.home.leagues;
   const where =
@@ -543,6 +544,8 @@ function seasonCard(r: SeasonRecord) {
     <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
     <div class="totals">${stats.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('')}</div>
     <p class="meta money">Ganaste <b>${esc(cash(r.salary))}</b> en la temporada</p>
+    ${r.gastos?.personal ? `<p class="meta money">Pagaste <b>${esc(cash(r.gastos.personal))}</b> a tu personal</p>` : ''}
+    ${(r.gastos?.despidos ?? []).map((d) => `<p class="chip down">${esc(d)}</p>`).join('')}
     ${r.injured ? '<p class="chip down">Temporada marcada por una lesión</p>' : ''}
     ${trophies.length ? `<ul class="trophies">${trophies.join('')}</ul>` : ''}
     ${r.nt ? ntBlock(r.nt) : ''}
@@ -551,11 +554,16 @@ function seasonCard(r: SeasonRecord) {
 }
 
 /** Lo que pasó en las temporadas recién jugadas (1 a 3 según el modo), antes de la siguiente decisión. */
-function seasonSummary(played: SeasonRecord[]) {
+function seasonSummary(played: SeasonRecord[], first = true) {
   const over = career!.isOver;
   render(`${playerHead()}${played.map(seasonCard).join('')}
+    ${over ? '' : '<button class="btn secondary" id="shop">Tienda</button>'}
     <button class="btn big" id="next">${over ? 'Ver mi carrera' : 'Seguir'}</button>`);
   document.getElementById('next')!.onclick = () => (over ? finish() : gameScreen());
+  // Desde aquí la tienda es segura: la decisión que sigue todavía no se mostró, así que no hay un minijuego a medio jugar.
+  const shop = document.getElementById('shop');
+  if (shop) shop.onclick = () => tiendaScreen(() => seasonSummary(played, false));
+  if (!first) return; // al volver de la tienda no se celebra otra vez
   // Solo aquí, al revelar las temporadas nuevas: el historial no la repite. El Mundial, si lo hay, manda.
   const cups = played.flatMap((r) => (r.nt?.groups ?? []).filter((g) => g.out === 'Campeón').map((g) => g.comp));
   const top = cups.find((c) => c.startsWith('Mundial')) ?? cups[0];
@@ -574,11 +582,21 @@ function playerHead() {
     <div class="who">
       <h2>${esc(fullName())}</h2>
       <p class="meta">${POSITION_NAMES[p.setup.position]} · ${p.age} años · ${esc(career!.home.name)}${nt}</p>
-      <p class="meta money">Ganado <b>${esc(cash(earned(p)))}</b> · Contrato ${esc(cash(p.contract.salary))} por temporada · ${yearsText(p.contract.until - p.year + 1)}</p>
+      <p class="meta money">Saldo <b>${esc(cash(career!.saldo))}</b> · Contrato ${esc(cash(p.contract.salary))} por temporada · ${yearsText(p.contract.until - p.year + 1)}</p>
       <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
       ${club.stadium ? `<p class="meta">${esc(club.stadium)} · ${esc(club.city)}</p>` : ''}
     </div>
   </header>`;
+}
+
+/** La tienda (specs/tienda). volver: a dónde regresa "Volver al juego"; el juego en sí no se toca, así que queda en el mismo punto. */
+function tiendaScreen(volver: () => void) {
+  const estado = estadoInicial();
+  const draw = (keepScroll: boolean) => {
+    render(`${playerHead()}${tiendaHtml(career!, estado, cash)}`, keepScroll);
+    bindTienda(document.getElementById('tienda')!, career!, estado, () => draw(true), volver);
+  };
+  draw(false);
 }
 
 function statsBar() {
@@ -626,7 +644,7 @@ function seasonLog() {
 }
 
 function chipClass(change: string) {
-  if (change.startsWith('+') || change.startsWith('Convocado') || change.startsWith('Ahora jugás con') || change.endsWith('avanza en la eliminatoria') || change.startsWith('Más peso')) return 'up';
+  if (change.startsWith('+') || change.startsWith('Convocado') || change.startsWith('Ahora jugás con') || change.endsWith('avanza en la eliminatoria') || change.startsWith('Más peso') || change === 'Lesión evitada') return 'up';
   if (change.startsWith('-') || change === 'Lesión') return 'down';
   return '';
 }
@@ -664,7 +682,11 @@ function gameScreen() {
           ${ev.minigame ? '<div class="mg" id="mg"></div>' : `<div class="options">${ev.options.map((o, i) => `<button class="btn secondary" data-opt="${i}">${esc(o.label)}</button>`).join('')}</div>`}
         </section>`
       : '';
-  render(`${playerHead()}${statsBar()}${eventHtml}${seasonLog()}`);
+  // La tienda reinicia la pantalla al volver: con un minijuego a medio jugar se perdería la jugada, así que ahí no se ofrece.
+  const shop = !career!.isOver && !(ev?.minigame && !res) ? '<button class="btn secondary" id="shop">Tienda</button>' : '';
+  render(`${playerHead()}${statsBar()}${eventHtml}${shop}${seasonLog()}`);
+  const shopBtn = document.getElementById('shop');
+  if (shopBtn) shopBtn.onclick = () => tiendaScreen(gameScreen);
   app.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) => {
     b.onclick = () => {
       lastResolution = career!.choose(Number(b.dataset.opt));
@@ -730,9 +752,14 @@ function finish() {
       </div>
     </section>
     <section class="panel">
-      <span class="eyebrow">Dinero ganado</span>
-      <p class="money-total">${esc(cash(s.earned))}</p>
-      <p class="meta">Suma de los contratos de ${p.seasons.length} temporadas. No cuenta para el puntaje.</p>
+      <span class="eyebrow">Dinero de la carrera</span>
+      <div class="totals t-totales">
+        <div><b>${esc(cash(s.earned))}</b><span>Ganado</span></div>
+        <div><b>${esc(cash(career!.gastado))}</b><span>Gastado</span></div>
+        <div><b class="saldo">${esc(cash(career!.saldo))}</b><span>Saldo</span></div>
+      </div>
+      ${comprasDestacadasHtml(p) ? `<p class="meta">Lo mejor que compraste: ${comprasDestacadasHtml(p)}</p>` : ''}
+      <p class="meta">Los contratos de ${p.seasons.length} temporadas, menos lo que gastaste. No cuenta para el puntaje.</p>
     </section>
     ${trophies.length ? `<section class="panel"><span class="eyebrow">Palmarés</span><ul class="trophies">${trophies
       .map((t) => trophy(t.icon, t.label, `${t.icon === 'copa' ? 'Campeón ' : ''}${t.count === 1 ? '1 vez' : `${t.count} veces`}`))
