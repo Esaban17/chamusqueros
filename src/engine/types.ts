@@ -50,6 +50,8 @@ export interface SeasonRecord {
   note?: string; // por ejemplo, un cambio de club por falta de minutos
   /** Partidos con la Selección mayor en la temporada. debut: los primeros de su carrera. */
   nt?: { debut: boolean; matches: NtMatch[]; groups?: NtGroup[]; team?: string; cambio?: boolean };
+  /** Salario de la temporada, en quetzales: el del contrato con el que se jugó. */
+  salary: number;
 }
 
 /** Grupo de Guatemala en un torneo de la temporada, con la tabla final ya ordenada. */
@@ -124,6 +126,14 @@ export interface Player {
   cambioSel?: CambioSel;
   /** Ascendencia oculta de otro país: ninguna pantalla la lee, solo el evento que la revela. */
   herencia?: { country: string; side: 'madre' | 'padre' };
+  /** Contrato vigente con p.clubId. Siempre existe: lo firma el debut y cada cambio de club. */
+  contract: Contract;
+}
+
+/** salary: quetzales por temporada. until: año de inicio de la última temporada cubierta (años que quedan = until - year + 1). */
+export interface Contract {
+  salary: number;
+  until: number;
 }
 
 /** to: código de la nueva Selección; from: la de origen; caps y goals: los de la Selección anterior al cambiar. */
@@ -179,6 +189,8 @@ export interface Effects {
   natGoals?: number;
   wcProgress?: number; // suma al avance de la eliminatoria
   natTeam?: string; // código del país cuya Selección pasa a representar (solo una vez por carrera)
+  /** Contrato que se firma con transferTo: el mismo que mostró la oferta. Sin él, el motor calcula uno al cambiar de club. */
+  contract?: Contract;
 }
 
 export interface Outcome {
@@ -209,6 +221,8 @@ export interface GameEvent {
   title: string;
   text: string;
   options: EventOption[];
+  /** Solo la oferta de traspaso: un club por opción (las primeras), con lo que se mostró. La última opción es quedarse. */
+  offers?: { clubId: string; salary: number; years: number }[];
 }
 
 export interface EventTemplate {

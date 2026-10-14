@@ -1,5 +1,6 @@
 import { HOME_CLUBS_BY_DEPT, clubById, clubsOf, viewClub, ALL_CLUBS, type Club } from './clubs';
-import { CONFED_CUP, countryOf, type Confed, type Country } from './countries';
+import { salaryFor } from './contracts';
+import { CONFED_CUP, countryOf, moneyShort, type Confed, type Country } from './countries';
 import { ALL_EVENTS } from './events';
 import { seleccionDe, sortearHerencia } from './nacionalidad';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
@@ -7,6 +8,7 @@ import {
   MODE_SEASONS,
   type AwardKind,
   type Effects,
+  type Contract,
   type EventCategory,
   type EventContext,
   type EventOption,
@@ -131,6 +133,11 @@ export const seasonLabel = (year: number) => `${year}-${String((year + 1) % 100)
 /** Próximo Mundial cuyo verano (año) es >= al año dado. */
 const nextWorldCup = (year: number) => FIRST_WORLD_CUP + Math.max(0, Math.ceil((year - FIRST_WORLD_CUP) / 4)) * 4;
 
+export const yearsText = (n: number) => `${n} ${n === 1 ? 'año' : 'años'}`;
+
+/** Dinero de la carrera: la suma de lo ganado en cada temporada (no hay un saldo aparte que pueda descuadrarse). */
+export const earned = (p: Player) => p.seasons.reduce((t, r) => t + r.salary, 0);
+
 export class Career {
   readonly rng: Rng;
   readonly player: Player;
@@ -176,8 +183,10 @@ export class Career {
       flags: {},
       peakRating: 0,
       retired: false,
+      contract: { salary: 0, until: START_YEAR }, // se firma abajo, con el club del debut
     };
     this.player.clubId = this.debutClub(setup.dept).id;
+    this.signContract(this.club);
     this.player.peakRating = this.player.rating;
     // Ascendencia oculta con un rng propio: no gasta el principal y las carreras sin ella siguen igual que antes.
     const herencia = sortearHerencia(createRng(seed ^ 0x9e3779b9), this.home.code);
@@ -311,12 +320,15 @@ export class Career {
       cleanSheets,
       injured,
       nt,
+      salary: p.contract.salary, // el contrato con el que se jugó, aunque estuviera lesionado o sin minutos
     };
     p.seasons.push(record);
     this.progress(apps / MATCHES[tier], clubTitles, goals);
     this.checkPlayingTime(record);
     p.age++;
     p.year++;
+    // Contrato vencido: se renueva solo con el club actual, con el nivel y la fama de ahora. Si checkPlayingTime firmó otro, ya cubre este año.
+    if (p.contract.until < p.year) this.signContract(this.club);
     return record;
   }
 
@@ -656,6 +668,21 @@ export class Career {
     p.fame += (goals * 0.25 + titles * 4 + (share > 0.65 ? 1.5 : 0)) * visibility;
   }
 
+  /**
+   * Firma un contrato con el club (el del jugador, p.clubId, ya cambiado). terms: los de una oferta ya mostrada; sin ellos,
+   * salario calculado ahora y 1 a 4 años. start: primera temporada cubierta (por defecto la actual).
+   */
+  private signContract(club: Club, terms?: Contract, start = this.player.year): Contract {
+    const p = this.player;
+    p.contract = terms ?? { salary: salaryFor(club, p.rating, p.fame), until: start + randInt(this.rng, 1, 4) - 1 };
+    return p.contract;
+  }
+
+  /** "Contrato: Q350 mil por temporada · 3 años", visto en la moneda de la nacionalidad. from: primera temporada cubierta. */
+  private contractNote(c: Contract, from = this.player.year) {
+    return `Contrato: ${moneyShort(this.home, c.salary)} por temporada · ${yearsText(c.until - from + 1)}`;
+  }
+
   /** Si pasa dos temporadas casi sin jugar, baja a un club donde sí tenga minutos. */
   private checkPlayingTime(record: SeasonRecord) {
     const p = this.player;
@@ -673,7 +700,9 @@ export class Career {
     p.clubId = dest.id;
     p.coach = 55;
     const tierNote = dest.tier !== current.tier ? ` (${dest.league})` : '';
-    record.note = `Sin minutos: pasó a ${dest.name}${tierNote}`;
+    // Corre antes de p.year++: el club nuevo arranca la temporada siguiente.
+    const deal = this.signContract(dest, undefined, p.year + 1);
+    record.note = `Sin minutos: pasó a ${dest.name}${tierNote}. ${this.contractNote(deal, p.year + 1)}`;
   }
 
   private checkForcedRetirement() {
@@ -764,35 +793,58 @@ export class Career {
     this.recentCategories = [category, ...this.recentCategories].slice(0, 3);
   }
 
-  private transferOffer(target: Club): GameEvent {
+  /**
+   * Los clubes que ofrecen: el mejor (suitor) y de 1 a 3 más. findClub ya acota el prestigio por el nivel del jugador.
+   * ponytail: hasta 8 sorteos y sin reintentos después; si el mercado no da un segundo club, se queda en uno (como antes).
+   */
+  private offers(suitor: Club): Club[] {
+    const current = this.club;
+    const list = [suitor];
+    const want = randInt(this.rng, 2, 4);
+    // Nadie ofrece bajar de división dentro del país: "parecido" no es un club de una liga inferior.
+    const lower = (c: Club) => !c.abroad && !current.abroad && c.tier > current.tier;
+    // Uno parecido, uno mejor (del extranjero si puede) y otro mejor; se repite en ese orden.
+    const kinds: Effects['transfer'][] = ['any', this.abroadOk() ? 'abroadUp' : 'up', 'up'];
+    for (let i = 0; i < 8 && list.length < want; i++) {
+      const c = this.findClub(kinds[i % 3]!);
+      if (c && !lower(c) && !list.some((x) => x.id === c.id)) list.push(c);
+    }
+    return list.sort((a, b) => b.prestige - a.prestige);
+  }
+
+  private transferOffer(suitor: Club): GameEvent {
     const p = this.player;
     const current = this.club;
-    const jump =
-      target.abroad ? 'del extranjero' : target.tier < current.tier ? `de ${target.league}` : 'de otro club';
-    const options: EventOption[] = [
-      {
-        label: `Me voy a ${target.name}`,
-        outcomes: [
-          { p: 0.75, text: `Firmaste con ${target.name}. Nueva etapa.`, effects: { transferTo: target.id, morale: 8, fame: 4 } },
-          { p: 0.25, text: `Firmaste con ${target.name}, pero la adaptación cuesta.`, effects: { transferTo: target.id, morale: -6 } },
-        ],
-      },
-      {
-        label: `Me quedo en ${current.name}`,
-        outcomes: [
-          { p: 0.7, text: 'La afición y el técnico valoran tu lealtad.', effects: { morale: 6, fame: 3, coach: 8 } },
-          { p: 0.3, text: 'Te quedaste con la duda de qué hubiera pasado.', effects: { morale: -8 } },
-        ],
-      },
-    ];
+    const clubs = this.offers(suitor);
+    // El contrato se calcula ahora y se firma tal cual aunque el ánimo y la fama del resultado cambien el nivel o la fama.
+    const deals = clubs.map((c) => ({ club: c, contract: { salary: salaryFor(c, p.rating, p.fame), until: p.year + randInt(this.rng, 1, 4) - 1 } }));
+    const years = (c: Contract) => c.until - p.year + 1;
+    const options: EventOption[] = deals.map(({ club, contract }) => ({
+      label: `Ir a ${club.name} · ${club.league}, ${countryOf(club.country).name} · ${moneyShort(this.home, contract.salary)} por temporada · ${yearsText(years(contract))}`,
+      outcomes: [
+        { p: 0.75, text: `Firmaste con ${club.name}. Nueva etapa.`, effects: { transferTo: club.id, contract, morale: 8, fame: 4 } },
+        { p: 0.25, text: `Firmaste con ${club.name}, pero la adaptación cuesta.`, effects: { transferTo: club.id, contract, morale: -6 } },
+      ],
+    }));
+    options.push({
+      label: `Me quedo en ${current.name}`,
+      outcomes: [
+        { p: 0.7, text: 'La afición y el técnico valoran tu lealtad.', effects: { morale: 6, fame: 3, coach: 8 } },
+        { p: 0.3, text: 'Te quedaste con la duda de qué hubiera pasado.', effects: { morale: -8 } },
+      ],
+    });
+    const first = clubs[0];
+    const jump = first.abroad ? 'del extranjero' : first.tier < current.tier ? `de ${first.league}` : 'de otro club';
+    const push = p.age >= 28 ? 'Puede ser la última gran oportunidad.' : 'Tu representante dice que es ahora o nunca.';
     return {
       id: 'oferta',
       category: 'contrato',
-      title: `Oferta ${jump}`,
-      text: `${target.name} (${target.city}) hizo una oferta formal por vos. ${
-        p.age >= 28 ? 'Puede ser la última gran oportunidad.' : 'Tu representante dice que es ahora o nunca.'
-      }`,
+      title: clubs.length > 1 ? 'Varios clubes quieren ficharte' : `Oferta ${jump}`,
+      text: `${
+        clubs.length > 1 ? `Llegaron ${clubs.length} ofertas formales por vos.` : `${first.name} (${first.city}) hizo una oferta formal por vos.`
+      } ${push} Hoy cobrás ${moneyShort(this.home, p.contract.salary)} por temporada en ${current.name}, con contrato por ${yearsText(years(p.contract))} más.`,
       options,
+      offers: deals.map(({ club, contract }) => ({ clubId: club.id, salary: contract.salary, years: years(contract) })),
     };
   }
 
@@ -878,9 +930,17 @@ export class Career {
       p.clubId = dest.id;
       p.coach = 50;
       changes.push(`Nuevo club: ${dest.name}`);
+      changes.push(this.contractNote(this.signContract(dest, e.contract)));
     }
     if (e.retire) this.retire();
     return changes;
+  }
+
+  /** Puede irse al extranjero: 30 años o menos, nivel 64 o más (o ya juega afuera) y en primera división (o afuera). */
+  private abroadOk() {
+    const p = this.player;
+    const current = this.club;
+    return p.age <= 30 && (p.rating >= 64 || current.abroad) && current.tier <= 1;
   }
 
   findClub(kind: NonNullable<Effects['transfer']>): Club | null {
@@ -893,8 +953,7 @@ export class Career {
       case 'suitor':
         return this.suitor;
       case 'up': {
-        const abroadOk = p.age <= 30 && (p.rating >= 64 || current.abroad) && current.tier <= 1;
-        pool = others([...this.homeClubs, ...(abroadOk ? this.abroadClubs : [])]).filter(
+        pool = others([...this.homeClubs, ...(this.abroadOk() ? this.abroadClubs : [])]).filter(
           (c) =>
             c.prestige > current.prestige + 1 &&
             c.prestige <= p.rating + 5 &&
@@ -949,6 +1008,8 @@ export interface CareerSummary {
   titles: string[];
   verdict: ReturnType<typeof verdictFor>;
   score: number;
+  /** Dinero ganado en toda la carrera, en quetzales. No entra en el puntaje (RF-13). */
+  earned: number;
 }
 
 export function summarize(p: Player): CareerSummary {
@@ -983,7 +1044,7 @@ export function summarize(p: Player): CareerSummary {
     (abroadTop ? 15 : 0) + p.fame * 0.15 + (p.peakRating - 60) * 1.2 + firstDivApps * 0.05,
   );
 
-  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score, seleccionDe(p).adj), score };
+  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score, seleccionDe(p).adj), score, earned: earned(p) };
 }
 
 // Cada veredicto trae su carta, de la más rara a la más común.

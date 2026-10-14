@@ -433,3 +433,7 @@ button.season:hover { background: var(--surface-2); }
 .best .pts { font-weight: 700; font-variant-numeric: tabular-nums; }
 .closing { padding-top: 20px; }
 .closing-title { font: 900 34px/0.95 var(--display); text-transform: uppercase; text-align: center; }
+
+/* Dinero y contrato */
+.meta.money b { color: var(--gold); font-weight: 800; }
+.money-total { font: 900 40px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
