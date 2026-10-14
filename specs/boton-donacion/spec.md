@@ -45,7 +45,7 @@ Widgets, overlays y scripts de terceros; anuncios de otro proveedor; registro o 
 
 ## Seguridad (OWASP Top 10 2021)
 - A06 y A08: cero scripts y dependencias de terceros nuevos. El enlace no carga código ajeno (RF-06).
-- A06 y A08: quitar AdSense elimina un script de terceros que se cargaba en la página cuando estaba configurado. Reduce la superficie de A06 y A08 (RF-10).
+- A06 y A08: quitar AdSense elimina el script de terceros que `initAds()` cargaba solo con variables `VITE_ADSENSE_*` definidas. Nunca se cargó en producción (ver Aclaraciones resueltas), así que no cambia lo que ve el jugador (RF-10).
 - A03: la dirección es una constante del código, nunca un dato del jugador, de la API ni de la URL (RF-03).
 - Enlace externo: pestaña nueva, sin acceso a la pestaña del juego y sin enviar la dirección de origen (RF-03).
 - Datos: el clic no recolecta nada del jugador (RF-05). El destino usa sus propias cookies; que la política lo diga es tarea de la feature de términos y condiciones (ver Dependencias).
@@ -57,8 +57,8 @@ Widgets, overlays y scripts de terceros; anuncios de otro proveedor; registro o 
 - Los enlaces del pie pasan a tinta con subrayado. El celeste actual da 3,7:1 en tema claro y no cumple RF-07. El enlace de privacidad cambia igual.
 - El modo `single` de la configuración de build se conserva: es del plugin de archivo único (`build:preview`), no de publicidad.
 
-## Aclaraciones abiertas (no bloquean)
-- [NECESITA ACLARACIÓN: ¿Ko-fi o Buy Me a Coffee, y cuál es la URL de la página?] No bloquea: la dirección es una constante que se fija al implementar.
-- [NECESITA ACLARACIÓN: ¿"todas las pantallas" incluye crear jugador, temporada y decisiones? Hoy no tienen pie. La spec asume que no, por "nada que interrumpa el juego".]
-- [NECESITA ACLARACIÓN: ¿README y `public/ads.txt` entran en el retiro de AdSense, o solo el código? La spec los incluye por la instrucción de eliminar AdSense por completo.]
-- [NECESITA ACLARACIÓN: No se pudo revisar el panel de Vercel: el MCP respondió 403 y el CLI no está instalado. ¿Alguien confirma que no hay variables VITE_ADSENSE_* definidas? Si las hay, hay anuncios activos hoy y quitarlos cambia lo que ve el jugador.]
+## Aclaraciones resueltas
+- **Plataforma: Ko-fi.** El usuario todavía crea la cuenta; la URL llega después. La dirección es la constante `KOFI_URL` en `src/main.ts`, con un comentario de dónde pegarla. Mientras esté vacía no se muestra ningún enlace de donación ni el bloque "¿Te gustó?", así que la rama se puede publicar antes. Verificado con la constante vacía (sin enlaces) y con `https://ko-fi.com/chamusqueros` temporal (enlaces en el pie y en la final).
+- **Pantallas.** El enlace va solo en el pie que ya existe (Portada, Ranking, Debut y Final); no se agregan pies nuevos. Crear jugador, temporada y decisiones no muestran donación (RF-04).
+- **README y `public/ads.txt`.** Se eliminan junto con el código.
+- **Vercel.** El orquestador confirmó que no hay variables `VITE_ADSENSE_*`: AdSense nunca estuvo activo en producción. RF-12 y CA-13 quedan confirmados por esa vía, no por esta rama.

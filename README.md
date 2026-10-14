@@ -26,7 +26,6 @@ npm run simulate -- 2000 GT  # solo un país
 | `src/ui/avatar.ts` | Avatar personalizable (piel, pelo, barba, accesorios) dibujado en SVG |
 | `src/ui/card.ts` | Tarjeta final en imagen (1080x1350) |
 | `src/ui/flags.ts` | Banderas de las selecciones rivales (código de país para flagcdn.com) |
-| `src/ui/ads.ts` | Integración con Google AdSense |
 | `src/main.ts` | Pantallas del juego |
 | `scripts/simulate.ts` | Simulación masiva para balancear |
 
@@ -37,17 +36,6 @@ Para actualizar los equipos cada torneo (ascensos y descensos), editá `src/engi
 ## Escudos
 
 Poné los escudos en `public/escudos/<id>.png` (ver `public/escudos/LEEME.md`; los ids de Primera empiezan con `p-` y los de Segunda con `s-`, por ejemplo `p-coatepeque.png`; los de otros países empiezan con su código, por ejemplo `mx-america.png`). Si falta alguno, el juego dibuja un escudo con iniciales y colores. Revisá también los colores y ciudades de cada club en `clubs.ts`: son una primera versión.
-
-## Google AdSense
-
-1. Publicá el sitio en un dominio propio (AdSense no acepta subdominios gratuitos como `*.vercel.app`).
-2. Creá la cuenta en AdSense, agregá el sitio y esperá la aprobación.
-3. Creá tres bloques de anuncios "Display" y copiá sus IDs.
-4. Copiá `.env.example` a `.env` y llená `VITE_ADSENSE_CLIENT` (ca-pub-...) y los tres `VITE_ADSENSE_SLOT_*`.
-5. Cambiá el número en `public/ads.txt` por tu ID de editor (pub-...).
-6. Poné tu correo en `privacidad.html`.
-
-Los anuncios están en la portada, debajo del historial durante el juego y en la pantalla final, lejos de los botones de decisión para evitar clics accidentales (política de AdSense).
 
 ## Publicar
 
