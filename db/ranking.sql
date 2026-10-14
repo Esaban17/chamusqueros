@@ -11,3 +11,7 @@ CREATE TABLE IF NOT EXISTS ranking (
 );
 
 CREATE INDEX IF NOT EXISTS ranking_order ON ranking (score DESC, titles DESC, caps DESC, achieved_at);
+
+-- Avatar de la carrera: [piel, pelo, color de pelo, barba, extra, dorsal] (índices de src/ui/avatar.ts).
+-- NULL en las filas guardadas antes de que existiera; se completa en la siguiente carrera de ese jugador.
+ALTER TABLE ranking ADD COLUMN IF NOT EXISTS avatar smallint[] CHECK (avatar IS NULL OR cardinality(avatar) = 6);

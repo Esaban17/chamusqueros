@@ -50,7 +50,8 @@ function save(key: string, value: unknown) {
 
 // ---------- Ranking global (api/ranking.ts) ----------
 
-interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; me: boolean }
+/** avatar: [piel, pelo, color de pelo, barba, extra, dorsal], o null en carreras guardadas antes de que existiera. */
+interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; avatar: number[] | null; me: boolean }
 
 let pid = '';
 /** Id anónimo del dispositivo: cada usuario aparece una sola vez en el ranking, con su mejor carrera. */
@@ -59,12 +60,31 @@ function playerId() {
   return pid;
 }
 
-async function rankingApi(career?: { name: string; score: number; titles: number; caps: number }): Promise<RankRow[]> {
+const avatarCode = (a: Avatar, number: number) => [a.skin, a.hair, a.hairColor, a.beard, a.extra, number];
+
+async function rankingApi(career?: Omit<RankRow, 'pos' | 'me'>): Promise<RankRow[]> {
+  // Al solo mirar el ranking se manda el último avatar: completa la fila si se guardó antes de que existiera el avatar.
+  const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
+  const look: Record<string, string> = last.avatar ? { 'x-player-avatar': avatarCode(last.avatar, last.number ?? 10).join(',') } : {};
   const res = await fetch('/api/ranking', career
     ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: playerId(), ...career }) }
-    : { headers: { 'x-player-id': playerId() } });
+    : { headers: { 'x-player-id': playerId(), ...look } });
   if (!res.ok) throw new Error(`ranking ${res.status}`);
   return res.json();
+}
+
+/**
+ * Las carreras guardadas antes de que existiera el avatar no tienen uno: se dibuja uno fijo a partir del nombre
+ * (siempre el mismo para ese nombre) hasta que el jugador vuelva y la API guarde el suyo.
+ */
+function nameAvatar(name: string): number[] {
+  const h = [...name].reduce((acc, c) => (Math.imul(acc, 31) + c.charCodeAt(0)) >>> 0, 7);
+  return [h % 6, (h >>> 3) % 8, (h >>> 6) % 3, (h >>> 8) % 5, (h >>> 11) % 4, 1 + ((h >>> 13) % 99)];
+}
+
+function rankAvatar(r: RankRow) {
+  const [skin, hair, hairColor, beard, extra, number] = r.avatar ?? nameAvatar(r.name);
+  return `<span class="rank-avatar" aria-hidden="true">${avatarSVG({ skin, hair, hairColor, beard, extra }, NT_KIT, number, 36)}</span>`;
 }
 
 function rankingTable(rows: RankRow[]) {
@@ -73,7 +93,7 @@ function rankingTable(rows: RankRow[]) {
     ${rows.map((r, i) => `${i && r.pos > rows[i - 1].pos + 1 ? '<p class="season-empty">…</p>' : ''}
       <div class="season${r.me ? ' me' : ''}">
         <span class="year">${r.pos}</span>
-        <span class="club"><span>${esc(r.name)} <small>${esc(verdictFor(r.score).title)}</small></span></span>
+        <span class="club">${rankAvatar(r)}<span class="rank-name"><span>${esc(r.name)}</span><small>${esc(verdictFor(r.score).title)}</small></span></span>
         <span>${r.score}</span><span>${r.titles}</span><span>${r.caps}</span>
       </div>`).join('')}
   </div>
@@ -547,7 +567,7 @@ function finish() {
   `);
 
   const rankBox = document.getElementById('rankBox')!;
-  rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps })
+  rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number) })
     .then((rows) => {
       const me = rows.find((r) => r.me)!;
       rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>

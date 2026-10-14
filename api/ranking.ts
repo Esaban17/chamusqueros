@@ -5,26 +5,36 @@ import { neon } from '@neondatabase/serverless';
 const sql = neon(process.env.DATABASE_URL!);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOP = 50;
+// Avatar: [piel, pelo, color de pelo, barba, extra, dorsal]; máximos según las listas de src/ui/avatar.ts.
+const AVATAR_MIN = [0, 0, 0, 0, 0, 1];
+const AVATAR_MAX = [5, 7, 5, 4, 3, 99];
 
 const isInt = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
+const isAvatar = (v: unknown): v is number[] =>
+  Array.isArray(v) && v.length === AVATAR_MAX.length && v.every((x, i) => isInt(x, AVATAR_MIN[i], AVATAR_MAX[i]));
 
 /** Los TOP mejores más la fila del jugador si quedó afuera. Nunca devuelve player_id. */
 async function ranking(playerId: string | null) {
   const rows = await sql`
     WITH r AS (
-      SELECT player_id, name, score, titles, caps,
+      SELECT player_id, name, score, titles, caps, avatar,
         row_number() OVER (ORDER BY score DESC, titles DESC, caps DESC, achieved_at) AS pos
       FROM ranking
     )
-    SELECT pos::int, name, score, titles, caps, coalesce(player_id = ${playerId}::uuid, false) AS me
+    SELECT pos::int, name, score, titles, caps, avatar, coalesce(player_id = ${playerId}::uuid, false) AS me
     FROM r WHERE pos <= ${TOP} OR player_id = ${playerId}::uuid
     ORDER BY pos`;
   return Response.json(rows, { headers: { 'cache-control': 'no-store' } });
 }
 
-export function GET(req: Request) {
-  const id = req.headers.get('x-player-id');
-  return ranking(id && UUID.test(id) ? id : null);
+export async function GET(req: Request) {
+  const raw = req.headers.get('x-player-id');
+  const id = raw && UUID.test(raw) ? raw : null;
+  // Las filas guardadas antes de que existiera el avatar lo toman del último jugador creado en ese dispositivo.
+  const avatar = req.headers.get('x-player-avatar')?.split(',').map(Number);
+  // Si falla, se muestra igual el ranking: completar el avatar no debe tumbar la lectura.
+  if (id && isAvatar(avatar)) await sql`UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${id} AND avatar IS NULL`.catch(() => {});
+  return ranking(id);
 }
 
 export async function POST(req: Request) {
@@ -35,12 +45,17 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Datos inválidos' }, { status: 400 });
   }
   const name = [...String(b.name ?? '').replace(/\s+/g, ' ').trim()].slice(0, 40).join('') || 'Anónimo';
+  // Un avatar mal formado (o de una versión vieja del juego, que no lo manda) no tumba la carrera: se guarda sin avatar.
+  const avatar = isAvatar(b.avatar) ? b.avatar : null;
   // Solo reemplaza si la carrera nueva es mejor según el mismo orden del ranking; si empata, conserva la fecha vieja.
+  // Copia en db/ranking.test.sql: si cambia aquí, cambiarlo allá.
   await sql`
-    INSERT INTO ranking (player_id, name, score, titles, caps)
-    VALUES (${b.id}, ${name}, ${b.score}, ${b.titles}, ${b.caps})
+    INSERT INTO ranking (player_id, name, score, titles, caps, avatar)
+    VALUES (${b.id}, ${name}, ${b.score}, ${b.titles}, ${b.caps}, ${avatar}::smallint[])
     ON CONFLICT (player_id) DO UPDATE
-      SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, achieved_at = now()
+      SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, avatar = EXCLUDED.avatar, achieved_at = now()
       WHERE (EXCLUDED.score, EXCLUDED.titles, EXCLUDED.caps) > (ranking.score, ranking.titles, ranking.caps)`;
+  // Las filas guardadas antes de que existiera el avatar lo reciben en la siguiente carrera, aunque no sea mejor.
+  if (avatar) await sql`UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${b.id} AND avatar IS NULL`;
   return ranking(b.id);
 }
