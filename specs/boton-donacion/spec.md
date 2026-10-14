@@ -58,7 +58,7 @@ Widgets, overlays y scripts de terceros; anuncios de otro proveedor; registro o 
 - El modo `single` de la configuración de build se conserva: es del plugin de archivo único (`build:preview`), no de publicidad.
 
 ## Aclaraciones resueltas
-- **Plataforma: Ko-fi.** El usuario todavía crea la cuenta; la URL llega después. La dirección es la constante `KOFI_URL` en `src/main.ts`, con un comentario de dónde pegarla. Mientras esté vacía no se muestra ningún enlace de donación ni el bloque "¿Te gustó?", así que la rama se puede publicar antes. Verificado con la constante vacía (sin enlaces) y con `https://ko-fi.com/chamusqueros` temporal (enlaces en el pie y en la final).
+- **Plataforma: Recurrente** (pasarela guatemalteca, enlace de "Cobro flexible" donde quien dona elige el monto). Ko-fi no está disponible para cuentas en Guatemala (2026-10-14). El enlace es genérico y la URL llega después. La dirección es la constante `DONATE_URL` en `src/main.ts`, con un comentario de dónde pegarla. Mientras esté vacía no se muestra ningún enlace de donación ni el bloque "¿Te gustó?", así que la rama se puede publicar antes. Verificado con la constante vacía (sin enlaces) y con `https://ko-fi.com/chamusqueros` temporal (enlaces en el pie y en la final).
 - **Pantallas.** El enlace va solo en el pie que ya existe (Portada, Ranking, Debut y Final); no se agregan pies nuevos. Crear jugador, temporada y decisiones no muestran donación (RF-04).
 - **README y `public/ads.txt`.** Se eliminan junto con el código.
 - **Vercel.** El orquestador confirmó que no hay variables `VITE_ADSENSE_*`: AdSense nunca estuvo activo en producción. RF-12 y CA-13 quedan confirmados por esa vía, no por esta rama.

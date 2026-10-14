@@ -23,9 +23,9 @@ import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
-// Donación con Ko-fi: poné aquí la URL de la página, por ejemplo 'https://ko-fi.com/usuario'.
+// Donación con Recurrente: poné aquí el enlace de "Cobro flexible" (app de Recurrente → Cobrar → ⋯ → Cobro flexible → copiar enlace).
 // ponytail: vacía no se muestra ningún enlace de donación; así la rama se puede publicar antes de tener la cuenta.
-const KOFI_URL: string = '';
+const DONATE_URL: string = '';
 const BEST_KEY = 'chamusqueros:mejores';
 const LAST_SETUP_KEY = 'chamusqueros:ultimo';
 const PLAYER_KEY = 'chamusqueros:id';
@@ -273,14 +273,15 @@ function home() {
 
 /** Enlace de donación: abre otra pestaña sin acceso a la del juego ni a la dirección de origen. */
 function donateLink(cls = '') {
-  return `<a${cls ? ` class="${cls}"` : ''} href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">Invitame un café ☕<span class="sr"> (se abre en otra pestaña)</span></a>`;
+  return `<a${cls ? ` class="${cls}"` : ''} href="${DONATE_URL}" target="_blank" rel="noopener noreferrer">Invitame un café ☕<span class="sr"> (se abre en otra pestaña)</span></a>`;
 }
 
 function footer() {
   return `<footer>
     <p>Juego de ficción. Los partidos, resultados y situaciones son simulados.</p>
     <p><a href="${import.meta.env.BASE_URL}privacidad.html">Política de privacidad</a></p>
-    ${KOFI_URL ? `<p>${donateLink()}</p>` : ''}
+    <p><a href="${import.meta.env.BASE_URL}terminos.html">Términos y condiciones</a></p>
+    ${DONATE_URL ? `<p>${donateLink()}</p>` : ''}
   </footer>`;
 }
 
@@ -717,7 +718,7 @@ function finish() {
     ${highlights.length ? `<section class="panel"><span class="eyebrow">Momentos</span><ul class="list">${highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></section>` : ''}
     ${seasonLog()}
     <button class="btn big" id="again">Jugar otra carrera</button>
-    ${KOFI_URL ? `<section class="panel donate"><h3>¿Te gustó?</h3>${donateLink('btn secondary')}</section>` : ''}
+    ${DONATE_URL ? `<section class="panel donate"><h3>¿Te gustó?</h3>${donateLink('btn secondary')}</section>` : ''}
     ${footer()}
   `);
 
