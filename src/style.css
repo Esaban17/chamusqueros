@@ -387,28 +387,22 @@ button.season:hover { background: var(--surface-2); }
 .fut-dialog::backdrop { background: rgb(8 19 31 / 0.8); }
 .fut-dialog form { margin-top: 14px; }
 .fut-dialog .btn { width: 100%; }
-.fut {
-  width: min(300px, calc(100vw - 32px));
-  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 0 12px;
-  padding: 18px 22px 40px;
-  color: var(--fut-ink); text-align: center;
-  background: linear-gradient(115deg, transparent 30%, rgb(255 255 255 / 0.2) 38%, transparent 46%), linear-gradient(160deg, var(--fut-a), var(--fut-b), var(--fut-c));
-  border-radius: 24px 24px 50% 50% / 24px 24px 12% 12%;
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.45), inset 0 0 0 4px var(--fut-border);
+.fut { width: clamp(280px, calc(100vw - 32px), 300px); text-align: center; }
+.fut > svg { display: block; width: 100%; height: auto; overflow: visible; filter: drop-shadow(0 20px 18px rgb(0 0 0 / 0.55)) drop-shadow(0 0 26px var(--fut-halo)); }
+.fut-meta { margin-top: 18px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.fut-meta b { color: var(--ink); }
+.fut-dialog .fut-meta { color: #cfe0f0; }
+.fut-dialog .fut-meta b { color: var(--fut-acento); }
+/* Brillo que cruza la carta cada 6 s; sin movimiento reducido no queda ninguna franja visible. */
+.carta-sweep { animation: carta-sweep 6s ease-in-out infinite; transform-box: fill-box; }
+@keyframes carta-sweep {
+  0%, 55% { transform: translateX(-120px) skewX(-18deg); opacity: 0; }
+  65% { opacity: 0.5; }
+  80%, 100% { transform: translateX(520px) skewX(-18deg); opacity: 0; }
 }
-.fut-tier { grid-column: 1 / -1; margin-bottom: 8px; font: 900 18px/1 var(--display); letter-spacing: 0.08em; color: var(--fut-accent); }
-.fut-side { display: flex; flex-direction: column; align-items: center; gap: 6px; font-family: var(--display); }
-.fut-side b { font-size: 54px; font-weight: 900; line-height: 0.85; }
-.fut-side span { font-size: 20px; font-weight: 800; letter-spacing: 0.04em; }
-.fut-flag { width: 30px; height: 20px; border-radius: 3px; background: linear-gradient(90deg, #4997d0 0 33.3%, #fff 33.3% 66.6%, #4997d0 66.6%); box-shadow: 0 0 0 1px rgb(0 0 0 / 0.2); }
-.fut-face svg { display: block; width: 100%; max-width: 160px; height: auto; margin-inline: auto; border-radius: 16px; }
-.fut-name { grid-column: 1 / -1; padding: 10px 0 8px; border-bottom: 2px solid var(--fut-border); font-size: 30px; font-weight: 900; text-transform: uppercase; overflow-wrap: anywhere; }
-.fut-stats { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: repeat(3, auto); grid-auto-flow: column; gap: 2px 16px; margin: 10px 0 0; }
-.fut-stats div { display: flex; justify-content: center; align-items: baseline; gap: 8px; }
-.fut-stats dd { order: -1; margin: 0; min-width: 2.4ch; text-align: right; font: 800 26px/1.1 var(--display); font-variant-numeric: tabular-nums; }
-.fut-stats dt { min-width: 3ch; text-align: left; font-size: 15px; font-weight: 700; }
-.fut-meta { grid-column: 1 / -1; margin-top: 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--fut-muted); }
-.fut-meta b { color: var(--fut-accent); }
+@media (prefers-reduced-motion: reduce) {
+  .carta-sweep { animation: none; opacity: 0; }
+}
 
 /* Landing: secciones bajo la portada */
 .land { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }

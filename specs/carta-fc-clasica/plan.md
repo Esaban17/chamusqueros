@@ -4,13 +4,14 @@ Stack: el del repo (TypeScript vanilla, Vite, DOM por strings, canvas 2D). **Sin
 
 ## Conflictos con el código actual (y cómo se resuelven)
 - **`TIERS` en `card.ts` no sirve para el diseño nuevo** (tiene `bg`, `streaks`, `border`, `shards`, un solo color por capa) y `card.ts` toca el DOM, así que el módulo puro no puede importarlo. Se reemplaza por `ESTILOS` en `carta-svg.ts` (con `label`, el metal y `acento`). `main.ts` deja de importar `TIERS`; `card.ts` también.
-- **La imagen de hoy dibuja palmarés, momento, trayectoria y SEL**; la referencia no. Se quitan de la imagen (A1). `bestMoment`, `momentSVG`, `palmares` y `ICON` siguen exportados por `palmares.ts` (los usa `scripts/simulate.ts` y la pantalla de resultados); solo se borran los imports de `card.ts` y las funciones locales `trophySVG` y `wrap` si quedan sin uso (`noUnusedLocals` rompe el build si sobran).
+- **La imagen de hoy dibuja palmarés, momento, trayectoria y SEL**; la referencia no. Por A1 (resuelta) el **palmarés y el momento destacado se conservan** fuera de la carta, debajo de ella; la trayectoria de clubes y SEL se quitan. `card.ts` sigue importando `bestMoment`, `momentSVG`, `palmares` e `ICON` y conserva `trophySVG` y `wrap`; `TIERS`, `drawBackground`, `cardPath` y `drawCrest` se eliminan.
 - **La referencia está hecha con `div` posicionados y CSS** (`text-shadow`, `mask-image`, `drop-shadow`, `mix-blend-mode`), no con SVG puro. Una carta que sirva para HTML y para imagen necesita SVG puro: el texto pasa a `<text>`, el desvanecimiento del retrato a `<mask>`, el relieve del texto a una copia clara desplazada 1 unidad, y la sombra exterior y el halo a una capa externa (CSS en HTML, `shadowBlur` en canvas).
 - **La referencia comparte un identificador global** (`#sweepg`) y usa `mix-blend-mode: overlay` para el grano. Aquí cada carta lleva sus propios identificadores y el grano se compone con transparencia normal (D-11).
 - **La referencia tiene bandera y escudo fijos** (franjas de Guatemala y un escudo de ejemplo) y atributos fijos. Aquí vienen de los datos.
 - **`avatarSVG` devuelve un `<svg>` con rectángulo de fondo `200 x 200`** y un `<text>` con el dorsal (fuente web). La referencia lo quita con una expresión regular. Se hace igual y una prueba comprueba que la expresión sigue encontrando el rectángulo (si la otra rama cambia `avatarSVG`, la prueba falla en lugar de dibujar un cuadrado de color detrás del retrato).
 - **`document.fonts.ready` no basta en el canvas**: las fuentes web se descargan al usarse y `ready` no espera pesos que ninguna parte de la página ha pedido. Hoy funciona porque la página ya usa 700, 800 y 900. Con el diseño nuevo se piden explícitamente con `document.fonts.load(...)` los pesos que usa el canvas (ver `drawCareerCard`).
 - **Desvío respecto de la decisión 4 del orquestador:** las vallas invictas no entran en `atributos()` (A3, D-04).
+- **`DatosCarta` con campos `unknown`:** el plan los tipaba (`pos: Position | null`...); en el código la posición, la media y las cifras entran como `unknown` y `sanear()` los valida adentro (más fuerte para A08: quien llama no puede olvidar el saneo).
 - **Desvío menor respecto de la decisión 3:** `cartaSVG(datos, estilo, opciones)` lleva un tercer parámetro (`modo`, `efectos`, `escala`, `id`) porque la imagen necesita el modo `arte`.
 
 ## Decisión técnica del canvas
@@ -29,7 +30,7 @@ Stack: el del repo (TypeScript vanilla, Vite, DOM por strings, canvas 2D). **Sin
 - Un solo conmutador `efectos: 'completo' | 'simple'` en `cartaSVG`. **`simple`** quita `feSpecularLighting` y `feTurbulence`: el bisel queda como los dos filetes degradados que ya existen (`ins`, `edge`) más un filete claro adicional; el grano y el cepillado se reemplazan por dos patrones de trama (puntos y líneas diagonales muy finas, constantes en el código, sin azar) del mismo tono.
 - **Imagen:** se genera con `completo`. Si no carga (`onerror`) o no está lista a los **1.500 ms**, se genera `simple` en paralelo y se usa la primera que termine. Es robusto sin detectar dispositivo.
 - **Carta HTML:** `completo` por defecto. T6 mide; si WebKit lo justifica, el conmutador se activa por defecto en WebKit (decisión con datos, A2).
-- El SVG de la imagen lleva `width` y `height` **al tamaño de destino** (780 x 1144), además del `viewBox`: sin ellos Firefox no dibuja el SVG con `drawImage` y WebKit lo rasteriza a 300 x 440 y lo agranda borroso. `devicePixelRatio` no aplica a un PNG de 1080 x 1350 exportado.
+- El SVG de la imagen lleva `width` y `height` **al tamaño de destino** (570 x 836), además del `viewBox`: sin ellos Firefox no dibuja el SVG con `drawImage` y WebKit lo rasteriza a 300 x 440 y lo agranda borroso. `devicePixelRatio` no aplica a un PNG de 1080 x 1350 exportado.
 
 ## `src/ui/carta-svg.ts` (nuevo, puro)
 
@@ -109,13 +110,13 @@ const ESPERADA = { DEL:{ g:.45, a:.15 }, MED:{ g:.12, a:.20 }, DEF:{ g:.04, a:.0
 Ejemplos (400 partidos, 0,2 goles y 0,1 asistencias por partido): DEL 60 → 62, 60, 50, 58, 25, 56; MED 75 → 74, 81, 73, 80, 58, 69; DEF 70 → 69, 46, 73, 58, 76, 74; POR 82 → 86, 85, 78, 89, 56, 85. DEL 99 → 99, 99, 89, 97, 57, 95 (el tope de 99 aplana los valores altos; es esperado).
 
 ## Paletas (`ESTILOS`)
-Paradas del degradado del borde en 0, .16, .34, .48, .64, .82, 1. `face` en 0, .5, 1. Oro, plata, bronce e ícono vienen del generador de la referencia; **los valores en negrita son cambios de contraste** (D-10). Héroe sale del generador (propuesta holográfica, misma familia que el viejo `TIERS.heroe`: violeta, cian). Salón de la fama es nuevo (grafito y plata, de `TIERS.salon`). Son valores iniciales: T2 los verifica con la prueba de contraste y T7 con las capturas.
+Paradas del degradado del borde en 0, .16, .34, .48, .64, .82, 1. `face` en 0, .5, 1. Oro, plata, bronce e ícono vienen del generador de la referencia; **los valores en negrita son cambios de contraste** (D-10). Héroe sale del generador (propuesta holográfica, misma familia que el viejo `TIERS.heroe`: violeta, cian). Salón de la fama es nuevo (grafito y plata, de `TIERS.salon`). Valores finales tras T7: `muted` de oro #2e2104 y de bronce #210e03, sombra del bronce 0 (con los iniciales, el contraste medido en pixeles daba 4,07:1 en las etiquetas del oro y 4,37:1 en la punta del bronce); la plata usa las paradas del borde .18 / .36 / .5 / .66 / .84 de la referencia; héroe con rayos a .6; salón con el espaciado de la punta en .12 em. Los valores vigentes son los de `ESTILOS` en `src/ui/carta-svg.ts`.
 
 | Estilo | `rim` (7 paradas) | `face` (3) | `glow` | `ink` | `muted` (etiquetas) | `plate` / `plateInk` | `halo` | `lat` | `sombra` | `acento` (fondo oscuro) |
 |---|---|---|---|---|---|---|---|---|---|---|
-| oro | #fff6c2 #ecc65f #8f640f #f7dd85 #b4841f #f6df90 #6f490b | #f7dd80 #e1ab33 #bb871f | #fff7d0 | #2a1d02 | **#3a2a05** | rgba(38,26,2,.62) / #fff0bf | rgba(235,185,70,.45) | #ffffff | **.06** | #ecc65f |
+| oro | #fff6c2 #ecc65f #8f640f #f7dd85 #b4841f #f6df90 #6f490b | #f7dd80 #e1ab33 #bb871f (paradas 0 / .45 / 1) | #fff7d0 | #2a1d02 | **#2e2104** | rgba(38,26,2,.62) / #fff0bf | rgba(235,185,70,.45) | #ffffff | **.06** | #ecc65f |
 | plata | #ffffff #d2d8df #737d88 #f1f4f7 #97a1ac #e6eaee #5f6a75 | #f8fafc #cdd4db #aab3bd | #ffffff | #111a24 | **#2c3744** | rgba(12,20,30,.62) / #f1f5f9 | rgba(190,200,212,.4) | #ffffff | **.06** | #d2d8df |
-| bronce | #ffdcba #dc8f58 #74381a #f2ad7c #a55a2c #eaa879 #592a0e | #f4b887 #d57d47 #bf7040 | #ffe6cf | **#1f0d02** | **#2a1204** | rgba(40,16,4,.62) / #ffe9d6 | rgba(214,130,74,.45) | #ffffff | **.06** | #dc8f58 |
+| bronce | #ffdcba #dc8f58 #74381a #f2ad7c #a55a2c #eaa879 #592a0e | #f4b887 #d57d47 #bf7040 | #ffe6cf | **#1f0d02** | **#210e03** | rgba(40,16,4,.62) / #ffe9d6 | rgba(214,130,74,.45) | #ffffff | **0** | #dc8f58 |
 | ícono | #fff6c2 #ecc65f #8f640f #f7dd85 #b4841f #f6df90 #6f490b | #fffdf5 #f1e8d0 #dccfa9 | #ffffff | #2a2214 | **#4a3d22** | rgba(70,50,8,.82) / #fff1c4 | rgba(240,215,140,.5) | #a9801f | **.10** | #f7dd85 |
 | héroe | #dcf7ff #6fd6ff #47339f #e8ccff #7f5bff #bff2ff #2f2278 | #45168f #1f0d63 #0a1244 | #6a3cff | #ffffff | #d2c4f5 | rgba(6,8,36,.66) / #ffffff | rgba(130,90,255,.6) | #8ff0ff | .26 (rayos a .22) | #6fd6ff |
 | salón | #ffffff #c9ccd1 #5d6168 #eceef0 #8b9097 #d9dce0 #42454b | #4a4c52 #26272b #0c0d0f | #cfd4dc | #ffffff | #cfd2d8 | rgba(0,0,0,.6) / #f4f4f6 | rgba(190,196,206,.4) | #e6e8ec | .26 | #d6d6d6 |
@@ -129,17 +130,17 @@ Se porta el bucle de `card.ts` (`TIERS.salon.shards`) a unidades de carta: punto
 Misma firma y mismo resultado para quien la llama (`main.ts` no cambia en esta parte). Pasos:
 1. `await document.fonts.load('900 56px "Big Shoulders Display"')`, `'800 …'`, `'700 17px "Big Shoulders Display"'`, `'700 10px Barlow'`, `'600 24px Barlow'` y `await document.fonts.ready`.
 2. `datos = datosDeCarrera(p, s)` (función local): nombre completo, `p.setup.position`, `p.peakRating`, `s.apps`, `s.goals`, `s.assists`, `s.titles.length`, avatar de `p.setup` con el dorsal y las camisolas del último club (`clubById(p.seasons.at(-1)?.clubId ?? p.clubId)`, el mismo que va al ranking), país `seleccionDe(p)` con `bandera = https://flagcdn.com/w160/<flag>.png` y `kit`, y el club con `escudo = ${import.meta.env.BASE_URL}escudos/<id>.png`.
-3. En paralelo: imagen del arte (`cartaSVG(datos, estilo, { modo: 'arte', escala: 2.6, efectos: 'completo' })`, con el respaldo `simple` a los 1.500 ms o ante error), retrato (`quitarFondoAvatar(avatarSVG(...))` cargado como imagen), bandera (`new Image()` con `crossOrigin = 'anonymous'` antes de asignar `src`; `w160` para que a 68 px de ancho no se vea borrosa) y escudo (`loadCrest` existente, que ya devuelve `null` si falta).
-4. Dibujo, en este orden, con `W = 1080`, `H = 1350`, `ESC = 2.6`, origen de la carta `(150, 40)`:
+3. En paralelo: imagen del arte (`cartaSVG(datos, estilo, { modo: 'arte', escala: 1.9, efectos: 'completo' })`, con el respaldo `simple` a los 1.500 ms o ante error), retrato (`quitarFondoAvatar(avatarSVG(...))` cargado como imagen), bandera (`new Image()` con `crossOrigin = 'anonymous'` antes de asignar `src`; `w160` para que a 68 px de ancho no se vea borrosa) y escudo (`loadCrest` existente, que ya devuelve `null` si falta).
+4. Dibujo, en este orden, con `W = 1080`, `H = 1350`, `K = 1.9` (A1: debajo de la carta caben el veredicto, el palmarés y el momento), origen de la carta `(255, 30)`. El texto no usa `ctx.scale`: cada tamaño, espaciado y posición se multiplica por `K`:
    - Fondo `#0B1420` y dos halos radiales con `halo` del estilo (como `drawBackground` de hoy, sin la silueta).
-   - Arte con sombra: `ctx.shadowColor = 'rgba(0,0,0,.55)'`, `shadowBlur`, `shadowOffsetY` (la sombra exterior de la referencia); un segundo `drawImage` con `shadowColor = halo` para el resplandor.
+   - Arte con sombra (el halo y la sombra salen del canvas, no del SVG): `ctx.shadowColor = 'rgba(0,0,0,.55)'`, `shadowBlur`, `shadowOffsetY` (la sombra exterior de la referencia); un segundo `drawImage` con `shadowColor = halo` para el resplandor.
    - Retrato: se dibuja en un canvas auxiliar de `252 · ESC` de lado, se aplica `globalCompositeOperation = 'destination-in'` con un degradado lineal (opaco hasta el 88 %, transparente al 100 %), y se compone sobre la imagen, **recortado con `new Path2D(SILUETA)`** escalado (así nada sale del marco).
    - Bandera: `drawImage`, o tres franjas con `pais.kit` si no cargó. Escudo: `drawImage` o el escudo genérico con `drawCrest` (la función que ya existe).
    - Textos: `textosCarta(datos, estilo)`; cada ítem se dibuja con `fillText`, su copia clara de relieve y el espaciado entre letras. `ctx.letterSpacing` no existe en todos los navegadores: si `'letterSpacing' in ctx` es falso, se dibuja letra por letra con el avance medido.
-   - Veredicto (display 800, ~52 px, color `acento`) centrado en `y ≈ 1244` y pie `CHAMUSQUEROS · ¿Superás esta carrera?` (Barlow 600, 24 px, gris azulado) en `y ≈ 1300`.
+   - Veredicto (display 800, 56 px, color `acento`) centrado en `y = 936`; palmarés (hasta cinco íconos de 34 px de radio con su conteo, y la etiqueta en una o dos líneas) con centro en `y = 1008`; momento destacado (la escena de `momentSVG` recortada, 880 x 156 desde `y = 1116`, con el kicker y el título encima) y el pie `CHAMUSQUEROS · ¿Superás esta carrera?` (Barlow 600, 24 px, gris azulado) en `y = 1318`.
 5. Un portero cambia GOL por AST en la placa (D-06) dentro de `textosCarta`, no aquí.
 
-`TIERS`, `drawBackground`, `cardPath`, `trophySVG` y `wrap` se eliminan (los dos últimos solo si quedan sin uso). `drawCrest` y `loadCrest` se conservan.
+`TIERS`, `drawBackground`, `cardPath` y `drawCrest` se eliminan (el escudo genérico ahora es el de la referencia, con `ESCUDO_PATH`); `loadCrest`, `trophySVG` y `wrap` se conservan.
 
 ## `src/main.ts` y `src/style.css`
 - **`futCard(r)`** (cambio acotado): arma `DatosCarta` con los campos de la fila (nombre, `c?.pos`, `c?.ovr`, `c?.apps`, `c?.goals`, `c?.assists`, `r.titles`, avatar de la fila con el respaldo `nameAvatar`, bandera `https://flagcdn.com/w80/<flag>.png`, club encontrado con `ALL_CLUBS.find` y su escudo) y devuelve `<div class="fut" style="--fut-halo:…">${cartaSVG(datos, tier, { efectos })}<p class="fut-meta" style="--fut-acento:…"><b>veredicto</b> · dept · Pie …</p></div>`. El veredicto y el departamento pasan por `esc()`.
@@ -153,13 +154,16 @@ Con `npm run dev` y el navegador automatizado, en Chromium y WebKit (si el entor
 2. Carta HTML: tiempo desde `innerHTML` del diálogo hasta el segundo `requestAnimationFrame`, con `completo` y con `simple`.
 3. Diferencia visual entre `completo` y `simple` (captura lado a lado, se anota si el grano se pierde de forma notoria).
 
-Resultado a anotar aquí (queda en blanco hasta T6):
+Resultado (mediana de 5 corridas tras una de calentamiento; entre paréntesis, la primera corrida; Playwright 1.57, Chromium 143 y WebKit 26.0 de escritorio, macOS, DPR 2):
 
 | Medida | Chromium completo | Chromium simple | WebKit completo | WebKit simple |
 |---|---|---|---|---|
-| Arte hasta `onload` (ms) | | | | |
-| `drawCareerCard` total (ms) | | | | |
-| Diálogo hasta pintar (ms) | | | | |
+| Arte (570 x 836) hasta dibujado en canvas (ms) | 70 (95) | 17 (29) | 62 (135) | 16 (17) |
+| `drawCareerCard` total (ms) | 142 (509) | no se mide por separado | 42 (251) | no se mide por separado |
+| Diálogo hasta el segundo `requestAnimationFrame` (ms) | 23 (9) | 17 (14) | 83 (94) | 33 (19) |
+| Diálogo real (ranking simulado, 11 filas, completo) | 8 a 14 | | 92 a 108 | |
+
+Con el criterio de abajo (WebKit: arte completo 62 ms contra 800, diálogo completo 83 ms contra 150) **`completo` queda por defecto en todos los motores** y la imagen conserva el respaldo `simple` a los 1.500 ms o ante error. La diferencia visual de `simple` es solo un grano más fino y un bisel sin brillo especular (captura `simple-vs-completo.png`). iPhone real: pendiente (A2); si el usuario mide más de 150 ms en el diálogo, basta activar `efectos: 'simple'` por `CSS.supports('-webkit-touch-callout', 'none')` en `futCard`.
 
 **Criterio:** si en WebKit el arte `completo` pasa de **800 ms** o el diálogo `completo` de **150 ms**, o hay diferencia visual que cambie la carta, el conmutador se activa por defecto en WebKit (detección con `CSS.supports('-webkit-touch-callout', 'none')`, que identifica a Safari de iOS y no a Chrome de escritorio); si no, `completo` en todos y la imagen mantiene el respaldo de 1.500 ms. Una medición en iPhone real sigue pendiente (A2).
 

@@ -1,142 +1,31 @@
-// Dibuja la carta final de la carrera (1080x1350, formato de post de Instagram) en un canvas,
-// con el estilo de carta de FC que corresponde al veredicto: ícono, héroe, salón de la fama, oro, plata o bronce.
-import { POSITION_NAMES, type Player } from '../engine/types';
-import type { CardTier, CareerSummary } from '../engine/engine';
+// Dibuja la imagen final de la carrera (1080x1350, formato de post de Instagram) en un canvas: arriba la carta FC
+// "clásica realista" (la misma de la carta HTML, ver carta-svg.ts) y debajo el veredicto, el palmarés y el momento destacado.
+// El arte (metal, textura, bisel) sale del mismo SVG de la carta cargado como imagen; el texto, el retrato, la bandera y el
+// escudo se dibujan con el canvas porque un SVG cargado como imagen no ve las fuentes web ni los archivos externos.
+import type { Player } from '../engine/types';
+import type { CareerSummary } from '../engine/engine';
 import { clubById, type Club } from '../engine/clubs';
-import { countryOf } from '../engine/countries';
 import { seleccionDe } from '../engine/nacionalidad';
 import { avatarSVG } from './avatar';
+import {
+  ESCUDO_PATH, ESTILOS, LAYOUT, SILUETA, cartaSVG, quitarFondoAvatar, sanear, textosCarta,
+  type DatosCarta, type Efectos, type ItemTexto, type Limpio, type Parte,
+} from './carta-svg';
 import { ICON, bestMoment, momentSVG, palmares, type TrophyIcon } from './palmares';
 
 const W = 1080;
 const H = 1350;
 const DISPLAY = '"Big Shoulders Display", "Arial Narrow", sans-serif';
 const BODY = 'Barlow, "Segoe UI", sans-serif';
+const FAM = { display: DISPLAY, body: BODY };
 
-interface TierStyle {
-  label: string;
-  bg: string[]; // degradado diagonal de la carta
-  streaks: string[]; // vetas de brillo que la cruzan
-  border: string;
-  ink: string;
-  muted: string;
-  accent: string;
-  glow: string; // halo del fondo, fuera de la carta
-  shards?: boolean; // vidrio quebrado del salón de la fama
-}
-
-export const TIERS: Record<CardTier, TierStyle> = {
-  icono: {
-    label: 'ÍCONO', bg: ['#FFFDF6', '#EFE7D3', '#FBF6EA'], streaks: ['rgba(201,162,74,0.55)', 'rgba(255,255,255,0.9)'],
-    border: '#C9A24A', ink: '#2A2214', muted: '#5E4F31', accent: '#8A6510', glow: '#C9A24A',
-  },
-  heroe: {
-    label: 'HÉROE', bg: ['#1B0B45', '#4A1B8F', '#101A55'], streaks: ['rgba(94,231,255,0.45)', 'rgba(232,90,255,0.4)'],
-    border: '#9B6BFF', ink: '#FFFFFF', muted: '#D2C4F5', accent: '#5EE7FF', glow: '#7B3CFF',
-  },
-  salon: {
-    label: 'SALÓN DE LA FAMA', bg: ['#2E2E2E', '#0E0E0E', '#3A3A3A'], streaks: ['rgba(255,255,255,0.12)'],
-    border: '#D6D6D6', ink: '#FFFFFF', muted: '#BDBDBD', accent: '#F2F2F2', glow: '#8A8A8A', shards: true,
-  },
-  oro: {
-    label: 'ORO', bg: ['#F8E19A', '#D6A93F', '#F2D27A'], streaks: ['rgba(255,255,255,0.45)'],
-    border: '#B0832A', ink: '#2E2004', muted: '#5A430E', accent: '#4A3305', glow: '#E0B54D',
-  },
-  plata: {
-    label: 'PLATA', bg: ['#F4F6F8', '#BAC1C9', '#E4E8EC'], streaks: ['rgba(255,255,255,0.6)'],
-    border: '#8E98A3', ink: '#18212B', muted: '#3F4B58', accent: '#2A3642', glow: '#AEB7C1',
-  },
-  bronce: {
-    label: 'BRONCE', bg: ['#F4B585', '#C46E3A', '#EC9C64'], streaks: ['rgba(255,255,255,0.35)'],
-    border: '#8E4A22', ink: '#2E1404', muted: '#5A2A0E', accent: '#3E1A04', glow: '#D9824A',
-  },
-};
-
-// Silueta de carta de FC: hombros cóncavos arriba y punta suave abajo.
-const L = 48, R = W - 48, T = 48, B = H - 48, C = 80;
-function cardPath(ctx: CanvasRenderingContext2D) {
-  ctx.beginPath();
-  ctx.moveTo(L + C, T);
-  ctx.lineTo(R - C, T);
-  ctx.quadraticCurveTo(R - C, T + C, R, T + C);
-  ctx.lineTo(R, B - C);
-  ctx.quadraticCurveTo(R, B - C * 0.4, R - C, B - 24);
-  ctx.lineTo(W / 2, B);
-  ctx.lineTo(L + C, B - 24);
-  ctx.quadraticCurveTo(L, B - C * 0.4, L, B - C);
-  ctx.lineTo(L, T + C);
-  ctx.quadraticCurveTo(L + C, T + C, L + C, T);
-  ctx.closePath();
-}
-
-function drawBackground(ctx: CanvasRenderingContext2D, t: TierStyle) {
-  ctx.fillStyle = '#0B1420';
-  ctx.fillRect(0, 0, W, H);
-  for (const [x, y] of [[0, H * 0.3], [W, H * 0.75]]) {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, W * 0.8);
-    g.addColorStop(0, `${t.glow}88`);
-    g.addColorStop(1, `${t.glow}00`);
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, W, H);
-  }
-
-  ctx.save();
-  cardPath(ctx);
-  ctx.clip();
-  const bg = ctx.createLinearGradient(L, T, R, B);
-  t.bg.forEach((c, i) => bg.addColorStop(i / (t.bg.length - 1), c));
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, W, H);
-
-  // Vetas diagonales que se desvanecen hacia abajo, como en las cartas de FC.
-  [[380, 70], [500, 22], [640, 130], [820, 36], [930, 80]].forEach(([x, w], i) => {
-    const g = ctx.createLinearGradient(0, T, 0, H * 0.75);
-    g.addColorStop(0, t.streaks[i % t.streaks.length]);
-    g.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.moveTo(x, T);
-    ctx.lineTo(x + w, T);
-    ctx.lineTo(x + w - 760, H);
-    ctx.lineTo(x - 760, H);
-    ctx.fill();
-  });
-
-  if (t.shards) {
-    // Vidrio quebrado: rayos desde un punto de impacto y facetas alternas.
-    const cx = W * 0.7, cy = H * 0.2, n = 16;
-    const pts = Array.from({ length: n }, (_, i) => {
-      const a = (i / n) * Math.PI * 2 + Math.sin(i * 7.3) * 0.18;
-      const len = 520 + Math.sin(i * 3.1) * 260;
-      return [cx + Math.cos(a) * len, cy + Math.sin(a) * len, a] as const;
-    });
-    pts.forEach(([x, y], i) => {
-      const [nx, ny] = pts[(i + 1) % n];
-      ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.11)';
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(x, y);
-      ctx.lineTo(nx, ny);
-      ctx.fill();
-    });
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    pts.forEach(([x, y]) => (ctx.moveTo(cx, cy), ctx.lineTo(x, y)));
-    pts.forEach(([, , a], i) => {
-      const r = 150 + Math.abs(Math.sin(i * 5.7)) * 70;
-      ctx[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-    });
-    ctx.closePath();
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  cardPath(ctx);
-  ctx.lineWidth = 12;
-  ctx.strokeStyle = t.border;
-  ctx.stroke();
-}
+// La carta va arriba, centrada. Debajo quedan 484 px para el veredicto, el palmarés, el momento destacado y el pie.
+const K = 1.9; // escala de la carta (unidades de carta -> píxeles)
+const X0 = (W - 300 * K) / 2;
+const Y0 = 30;
+// ponytail: el arte completo (filtros) tarda más en WebKit; si no está listo a los 1.500 ms se usa la variante simple (plan, T6).
+const LIMITE_ARTE_MS = 1500;
+const LIMITE_BANDERA_MS = 4000;
 
 const crestCache = new Map<string, HTMLImageElement | null>();
 
@@ -159,234 +48,165 @@ function loadSvg(svg: string): Promise<HTMLImageElement | null> {
   });
 }
 
-function drawCrest(ctx: CanvasRenderingContext2D, club: Club, img: HTMLImageElement | null, x: number, y: number, r: number) {
+/** La bandera real de flagcdn.com, con CORS anónimo para no contaminar el canvas. Si falla o tarda, null (y se dibujan las franjas). */
+function loadFlag(url: string | null): Promise<HTMLImageElement | null> {
+  if (!url) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    setTimeout(() => resolve(null), LIMITE_BANDERA_MS);
+    img.src = url;
+  });
+}
+
+/** Arte completo; si falla o no está a tiempo, la variante simple. Gana la primera que termine bien. */
+async function loadArte(d: DatosCarta, estilo: Parameters<typeof cartaSVG>[1]): Promise<HTMLImageElement | null> {
+  const arte = (efectos: Efectos) => loadSvg(cartaSVG(d, estilo, { modo: 'arte', escala: K, efectos }));
+  const completo = arte('completo');
+  const tarde = new Promise<'tarde'>((r) => setTimeout(() => r('tarde'), LIMITE_ARTE_MS));
+  const primero = await Promise.race([completo, tarde]);
+  if (primero && primero !== 'tarde') return primero;
+  const simple = arte('simple');
+  return new Promise((resolve) => {
+    let pendientes = 2;
+    for (const p of [completo, simple]) p.then((img) => (img ? resolve(img) : --pendientes === 0 && resolve(null)));
+  });
+}
+
+// ---------- Texto ----------
+
+const conEspaciado = (ctx: CanvasRenderingContext2D) => 'letterSpacing' in ctx;
+
+function fuente(ctx: CanvasRenderingContext2D, p: Parte) {
+  ctx.font = `${p.peso} ${p.tam * K}px ${FAM[p.fam]}`;
+  if (conEspaciado(ctx)) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = `${p.esp * K}px`;
+}
+
+/** Avance de una parte en píxeles, con el espaciado también tras la última letra (igual que un <text> de SVG). */
+function avance(ctx: CanvasRenderingContext2D, p: Parte): number {
+  fuente(ctx, p);
+  if (conEspaciado(ctx)) return ctx.measureText(p.texto).width;
+  return [...p.texto].reduce((s, c) => s + ctx.measureText(c).width + p.esp * K, 0);
+}
+
+function dibujaParte(ctx: CanvasRenderingContext2D, p: Parte, x: number, y: number) {
+  fuente(ctx, p);
+  if (conEspaciado(ctx)) return ctx.fillText(p.texto, x, y);
+  let cx = x; // respaldo sin letterSpacing: letra por letra
+  for (const c of p.texto) {
+    ctx.fillText(c, cx, y);
+    cx += ctx.measureText(c).width + p.esp * K;
+  }
+}
+
+function dibujaTexto(ctx: CanvasRenderingContext2D, it: ItemTexto) {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const anchos = it.partes.map((p) => avance(ctx, p));
+  const total = it.partes.reduce((s, p, i) => s + anchos[i] + (i ? p.dx * K : 0), 0);
+  const x = X0 + it.x * K - (it.anclaje === 'middle' ? total / 2 : it.anclaje === 'end' ? total : 0);
+  const pasadas = it.relieve ? [{ dy: 1, claro: true }, { dy: 0, claro: false }] : [{ dy: 0, claro: false }];
+  for (const { dy, claro } of pasadas) {
+    let cx = x;
+    it.partes.forEach((p, i) => {
+      if (i) cx += p.dx * K;
+      ctx.fillStyle = claro ? `rgba(255,255,255,${it.relieve})` : p.color;
+      ctx.globalAlpha = claro ? 1 : p.opacidad;
+      dibujaParte(ctx, p, cx, Y0 + (it.y + dy) * K);
+      cx += anchos[i];
+    });
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------- Carta ----------
+
+/** Cubre la caja (x, y, w, h) con la imagen, recortando lo que sobre. */
+function cubre(ctx: CanvasRenderingContext2D, img: HTMLImageElement, x: number, y: number, w: number, h: number) {
+  const r = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+  const sw = w / r, sh = h / r;
+  ctx.drawImage(img, (img.naturalWidth - sw) / 2, (img.naturalHeight - sh) / 2, sw, sh, x, y, w, h);
+}
+
+const caja = (b: { x: number; y: number; w: number; h: number }) => ({ x: X0 + b.x * K, y: Y0 + b.y * K, w: b.w * K, h: b.h * K });
+
+function dibujaBandera(ctx: CanvasRenderingContext2D, d: Limpio, img: HTMLImageElement | null) {
+  const { x, y, w, h } = caja(LAYOUT.bandera);
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 2 * K);
+  ctx.clip();
+  if (img) cubre(ctx, img, x, y, w, h);
+  else {
+    const [a, b] = d.pais.kit;
+    [a, b, a].forEach((c, i) => ((ctx.fillStyle = c), ctx.fillRect(x + (w / 3) * i, y, w / 3 + 0.5, h)));
+  }
+  ctx.restore();
+  ctx.strokeStyle = 'rgba(0,0,0,.35)';
+  ctx.lineWidth = K;
+  ctx.beginPath();
+  ctx.roundRect(x + 0.5 * K, y + 0.5 * K, w - K, h - K, 1.6 * K);
+  ctx.stroke();
+}
+
+function dibujaEscudo(ctx: CanvasRenderingContext2D, club: NonNullable<Limpio['club']>, img: HTMLImageElement | null) {
+  const { x, y, w, h } = caja(LAYOUT.escudo);
   if (img) {
-    ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+    const r = Math.min(w / img.naturalWidth, h / img.naturalHeight);
+    ctx.drawImage(img, x + (w - img.naturalWidth * r) / 2, y + (h - img.naturalHeight * r) / 2, img.naturalWidth * r, img.naturalHeight * r);
     return;
   }
+  // Escudo genérico, el mismo de la carta HTML (viewBox 28 x 32): iniciales y colores del club.
   ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(w / 28, h / 32);
+  const path = new Path2D(ESCUDO_PATH);
+  ctx.fillStyle = club.colores[0];
+  ctx.fill(path);
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = club.colores[1];
+  ctx.stroke(path);
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
-  ctx.fillStyle = club.colors[0];
-  ctx.fill();
-  ctx.lineWidth = r * 0.16;
-  ctx.strokeStyle = club.colors[1];
+  ctx.moveTo(3, 11);
+  ctx.lineTo(25, 11);
   ctx.stroke();
-  ctx.fillStyle = club.colors[1];
-  ctx.font = `800 ${r * 0.8}px ${DISPLAY}`;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = club.colores[1];
+  ctx.font = `800 ${club.short.length > 3 ? 8 : 10}px ${DISPLAY}`;
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(club.short, x, y + r * 0.04);
-  ctx.restore();
-}
-
-export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: CareerSummary) {
-  await document.fonts?.ready;
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext('2d')!;
-  const t = TIERS[s.verdict.tier];
-  const home = seleccionDe(p); // colores y escena: la Selección actual
-  const origin = countryOf(p.setup.country); // la línea de origen sigue con la nacionalidad
-  drawBackground(ctx, t);
   ctx.textBaseline = 'alphabetic';
-  ctx.textAlign = 'center';
-
-  ctx.fillStyle = t.accent;
-  ctx.font = `900 46px ${DISPLAY}`;
-  ctx.fillText(t.label, W / 2, 108);
-
-  // Media (su mejor nivel), posición y bandera, como en la esquina de una carta de FC.
-  const cx = 196;
-  ctx.fillStyle = t.ink;
-  ctx.font = `900 124px ${DISPLAY}`;
-  ctx.fillText(String(p.peakRating), cx, 232);
-  ctx.font = `800 46px ${DISPLAY}`;
-  ctx.fillText(p.setup.position, cx, 284);
-  // Colores de la Selección del jugador (en Guatemala, celeste y blanco).
-  [home.kit[0], home.kit[1], home.kit[0]].forEach((c, i) => {
-    ctx.fillStyle = c;
-    ctx.fillRect(cx - 30 + i * 20, 302, 20, 38);
-  });
-  ctx.strokeStyle = t.muted;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(cx - 30, 302, 60, 38);
-
-  // Avatar con la camisola del último club
-  const lastClub = clubById(p.seasons.at(-1)?.clubId ?? p.clubId);
-  const face = await loadSvg(avatarSVG(p.setup.avatar, lastClub.colors, p.setup.number, 400));
-  const ax = W - 300;
-  const ay = 228;
-  const ar = 112;
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(ax, ay, ar + 8, 0, Math.PI * 2);
-  ctx.fillStyle = t.border;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(ax, ay, ar, 0, Math.PI * 2);
-  ctx.clip();
-  if (face) ctx.drawImage(face, ax - ar, ay - ar, ar * 2, ar * 2);
+  if (conEspaciado(ctx)) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+  ctx.fillText(club.short, 14, 23);
   ctx.restore();
-
-  const name = `${p.setup.firstName} ${p.setup.lastName}`.trim().toUpperCase();
-  ctx.fillStyle = t.ink;
-  let size = 88;
-  ctx.font = `900 ${size}px ${DISPLAY}`;
-  while (ctx.measureText(name).width > W - 240 && size > 48) {
-    size -= 4;
-    ctx.font = `900 ${size}px ${DISPLAY}`;
-  }
-  ctx.fillText(name, W / 2, 420);
-
-  ctx.fillStyle = t.muted;
-  ctx.font = `600 28px ${BODY}`;
-  const first = s.clubs[0]?.from.slice(0, 4) ?? '';
-  const last = s.clubs.at(-1)?.to ?? '';
-  // Guatemala muestra el departamento; el resto, el país (no cabe todo en una línea).
-  const place = origin.code === 'GT' ? p.setup.dept : origin.name;
-  ctx.fillText(`${POSITION_NAMES[p.setup.position]} · ${place} · ${first}–20${last.slice(-2)}`, W / 2, 462);
-
-  // Veredicto
-  ctx.fillStyle = t.accent;
-  ctx.font = `800 48px ${DISPLAY}`;
-  ctx.fillText(s.verdict.title.toUpperCase(), W / 2, 514);
-
-  // Cifras
-  const stats: [string, string][] = [
-    ['Partidos', String(s.apps)],
-    [p.setup.position === 'POR' ? 'Asistencias' : 'Goles', String(p.setup.position === 'POR' ? s.assists : s.goals)],
-    ['Títulos', String(s.titles.length)],
-    ['Selección', `${p.caps}`],
-  ];
-  const colW = (W - 200) / 4;
-  stats.forEach(([label, value], i) => {
-    const x = 100 + colW * (i + 0.5);
-    ctx.fillStyle = t.ink;
-    ctx.font = `800 76px ${DISPLAY}`;
-    ctx.fillText(value, x, 592);
-    ctx.fillStyle = t.muted;
-    ctx.font = `700 22px ${BODY}`;
-    ctx.fillText(label.toUpperCase(), x, 622);
-  });
-
-  const section = (label: string, y: number) => {
-    ctx.fillStyle = t.muted;
-    ctx.font = `700 26px ${BODY}`;
-    ctx.textAlign = 'left';
-    ctx.fillText(label, 100, y);
-  };
-
-  // Palmarés: un trofeo por competición o premio, con cuántas veces se ganó.
-  section('PALMARÉS', 670);
-  const items = palmares(p);
-  const shown = items.length > 5 ? items.slice(0, 4) : items;
-  const icons = await Promise.all(shown.map((it) => loadSvg(trophySVG(it.icon))));
-  const slot = (W - 200) / 5;
-  ctx.textAlign = 'center';
-  shown.forEach((it, i) => {
-    const cx = 100 + slot * i + slot / 2;
-    ctx.beginPath();
-    ctx.arc(cx, 728, 40, 0, Math.PI * 2);
-    ctx.fillStyle = it.icon === 'copa' ? '#F0C14B' : '#6CB4EE';
-    ctx.fill();
-    ctx.lineWidth = 4;
-    ctx.strokeStyle = t.border;
-    ctx.stroke();
-    if (icons[i]) ctx.drawImage(icons[i]!, cx - 24, 704, 48, 48);
-    if (it.count > 1) {
-      ctx.beginPath();
-      ctx.arc(cx + 33, 696, 19, 0, Math.PI * 2);
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fill();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = '#0D1B2A';
-      ctx.stroke();
-      ctx.fillStyle = '#0D1B2A';
-      ctx.font = `800 22px ${DISPLAY}`;
-      ctx.fillText(`×${it.count}`, cx + 33, 704);
-    }
-    ctx.fillStyle = t.ink;
-    ctx.font = `600 21px ${BODY}`;
-    wrap(ctx, it.label, slot - 14, 2).forEach((line, j) => ctx.fillText(line, cx, 798 + j * 24));
-  });
-  if (items.length > shown.length) {
-    const cx = 100 + slot * 4 + slot / 2;
-    ctx.beginPath();
-    ctx.arc(cx, 728, 40, 0, Math.PI * 2);
-    ctx.fillStyle = '#1B3550';
-    ctx.fill();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = `800 38px ${DISPLAY}`;
-    ctx.fillText(`+${items.length - shown.length}`, cx, 741);
-    ctx.fillStyle = t.ink;
-    ctx.font = `600 21px ${BODY}`;
-    ctx.fillText('más', cx, 798);
-  }
-  ctx.textAlign = 'left';
-  if (!items.length) {
-    ctx.fillStyle = t.muted;
-    ctx.font = `500 30px ${BODY}`;
-    ctx.fillText('Sin títulos ni premios individuales.', 100, 738);
-  }
-
-  // Momento más destacado: escena ilustrada con el texto encima.
-  section('MOMENTO DESTACADO', 866);
-  const moment = bestMoment(p, s);
-  const scene = await loadSvg(momentSVG(moment, p.setup.avatar, moment.nt ? home.kit : lastClub.colors, p.setup.number, home.kit));
-  ctx.save();
-  ctx.beginPath();
-  ctx.roundRect(100, 882, W - 200, 240, 20);
-  ctx.clip();
-  if (scene) ctx.drawImage(scene, 100, 882, W - 200, 240);
-  ctx.font = `800 38px ${DISPLAY}`;
-  const titleLines = wrap(ctx, moment.title.toUpperCase(), 380, 2);
-  const boxW = Math.max(...titleLines.map((l) => ctx.measureText(l).width), 200) + 40;
-  ctx.fillStyle = 'rgba(11, 34, 54, 0.88)';
-  ctx.beginPath();
-  ctx.roundRect(116, 898, boxW, 54 + titleLines.length * 38, 14);
-  ctx.fill();
-  ctx.fillStyle = '#7FC0F0';
-  ctx.font = `700 22px ${BODY}`;
-  ctx.fillText(moment.kicker.toUpperCase(), 136, 932);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = `800 38px ${DISPLAY}`;
-  titleLines.forEach((line, j) => ctx.fillText(line, 136, 972 + j * 38));
-  ctx.restore();
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = t.border;
-  ctx.beginPath();
-  ctx.roundRect(100, 882, W - 200, 240, 20);
-  ctx.stroke();
-
-  // Trayectoria: escudos en fila.
-  section('TRAYECTORIA', 1164);
-  const crests = await Promise.all(s.clubs.map((c) => loadCrest(c.club)));
-  let x = 100;
-  for (let i = 0; i < s.clubs.length; i++) {
-    const c = s.clubs[i].club;
-    const clubName = c.name;
-    ctx.font = `600 28px ${BODY}`;
-    const width = 56 + ctx.measureText(clubName).width + 30;
-    if (x + width > W - 100 - (i < s.clubs.length - 1 ? 70 : 0)) {
-      ctx.fillStyle = t.muted;
-      ctx.fillText(`+${s.clubs.length - i}`, x, 1212);
-      break;
-    }
-    drawCrest(ctx, c, crests[i], x + 22, 1202, 22);
-    ctx.fillStyle = t.ink;
-    ctx.fillText(clubName, x + 54, 1212);
-    x += width;
-  }
-
-  ctx.textAlign = 'center';
-  ctx.fillStyle = t.muted;
-  ctx.font = `600 24px ${BODY}`;
-  ctx.fillText('CHAMUSQUEROS · ¿Superás esta carrera?', W / 2, 1264);
 }
 
-const trophySVG = (icon: TrophyIcon) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96" fill="none" stroke="#0D1B2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[icon]}</svg>`;
+/** El retrato se funde con el metal (opaco hasta el 88 % de su alto) y se recorta con la silueta de la carta. */
+function dibujaRetrato(ctx: CanvasRenderingContext2D, face: HTMLImageElement | null) {
+  if (!face) return;
+  const { x, y, t } = LAYOUT.retrato;
+  const lado = Math.round(t * K);
+  const aux = document.createElement('canvas');
+  aux.width = aux.height = lado;
+  const a = aux.getContext('2d')!;
+  a.drawImage(face, 0, 0, lado, lado);
+  a.globalCompositeOperation = 'destination-in';
+  const g = a.createLinearGradient(0, 0, 0, lado);
+  g.addColorStop(0.88, '#000');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  a.fillStyle = g;
+  a.fillRect(0, 0, lado, lado);
+  const recorte = new Path2D();
+  recorte.addPath(new Path2D(SILUETA), new DOMMatrix().translate(X0, Y0).scale(K, K));
+  ctx.save();
+  ctx.clip(recorte);
+  ctx.drawImage(aux, X0 + x * K, Y0 + y * K, lado, lado);
+  ctx.restore();
+}
 
 /** Parte el texto en líneas que caben en maxW; si sobra, la última termina en "…". */
 function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLines: number): string[] {
@@ -407,4 +227,167 @@ function wrap(ctx: CanvasRenderingContext2D, text: string, maxW: number, maxLine
   while (ctx.measureText(`${last}…`).width > maxW && last.length > 1) last = last.slice(0, -1);
   kept[maxLines - 1] = `${last.trimEnd()}…`;
   return kept;
+}
+
+const trophySVG = (icon: TrophyIcon) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96" fill="none" stroke="#0D1B2A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICON[icon]}</svg>`;
+
+/** Lo que la carta guarda de la carrera: los mismos campos que se mandan al ranking (RF-20), para que el mismo jugador muestre lo mismo en las dos. */
+function datosDeCarrera(p: Player, s: CareerSummary, club: Club): DatosCarta {
+  const home = seleccionDe(p);
+  return {
+    nombre: `${p.setup.firstName} ${p.setup.lastName}`.trim(),
+    pos: p.setup.position, media: p.peakRating, apps: s.apps, goles: s.goals, asist: s.assists, titulos: s.titles.length,
+    avatar: { a: p.setup.avatar, dorsal: p.setup.number, kit: club.colors },
+    pais: { bandera: `https://flagcdn.com/w160/${home.flag}.png`, kit: home.kit },
+    club: { short: club.short, colores: club.colors, escudo: `${import.meta.env.BASE_URL}escudos/${club.id}.png` },
+  };
+}
+
+export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: CareerSummary) {
+  // Las fuentes web se bajan al usarse: se piden los pesos que usa el canvas (ready solo espera lo que la página ya pidió).
+  const muestra = 'ABCDEFGHIJKLMNOPQRSTUVWXYZÁÉÍÓÚÑ0123456789—… ·¿?';
+  await Promise.all([
+    ...['900 56px', '800 23px', '700 17px'].map((f) => document.fonts?.load(`${f} "Big Shoulders Display"`, muestra)),
+    ...['700 10px', '600 24px', '500 24px'].map((f) => document.fonts?.load(`${f} Barlow`, muestra)),
+  ].filter(Boolean));
+  await document.fonts?.ready;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d')!;
+  const tier = s.verdict.tier;
+  const E = ESTILOS[tier];
+  const lastClub = clubById(p.seasons.at(-1)?.clubId ?? p.clubId);
+  const home = seleccionDe(p);
+  const datos = datosDeCarrera(p, s, lastClub);
+  const d = sanear(datos);
+
+  const [arte, face, flag, crest] = await Promise.all([
+    loadArte(datos, tier),
+    loadSvg(quitarFondoAvatar(avatarSVG(d.avatar.a, d.avatar.kit, d.avatar.dorsal, Math.round(LAYOUT.retrato.t * K)))),
+    loadFlag(d.pais.bandera),
+    loadCrest(lastClub),
+  ]);
+
+  // Fondo oscuro con un halo del color del estilo
+  ctx.fillStyle = '#0B1420';
+  ctx.fillRect(0, 0, W, H);
+  for (const [x, y] of [[0, H * 0.3], [W, H * 0.75]]) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, W * 0.8);
+    g.addColorStop(0, E.halo.replace(/[\d.]+\)$/, '.5)'));
+    g.addColorStop(1, E.halo.replace(/[\d.]+\)$/, '0)'));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Arte con la sombra y el resplandor de la carta HTML (los pone el canvas, no el SVG)
+  if (arte) {
+    ctx.save();
+    ctx.shadowColor = E.halo;
+    ctx.shadowBlur = 26 * K;
+    ctx.drawImage(arte, X0, Y0, 300 * K, 440 * K);
+    ctx.shadowColor = 'rgba(0,0,0,.55)';
+    ctx.shadowBlur = 18 * K;
+    ctx.shadowOffsetY = 20 * K;
+    ctx.drawImage(arte, X0, Y0, 300 * K, 440 * K);
+    ctx.restore();
+  }
+  dibujaRetrato(ctx, face);
+  dibujaBandera(ctx, d, flag);
+  if (d.club) dibujaEscudo(ctx, d.club, crest);
+  textosCarta(datos, tier).forEach((it) => dibujaTexto(ctx, it));
+
+  // Debajo de la carta: veredicto, palmarés y momento destacado (A1)
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  if (conEspaciado(ctx)) (ctx as CanvasRenderingContext2D & { letterSpacing: string }).letterSpacing = '0px';
+  ctx.fillStyle = E.acento;
+  ctx.font = `800 56px ${DISPLAY}`;
+  ctx.fillText(s.verdict.title.toUpperCase(), W / 2, 936);
+
+  // Palmarés: un trofeo por competición o premio, con cuántas veces se ganó.
+  const items = palmares(p);
+  const shown = items.length > 5 ? items.slice(0, 4) : items;
+  const icons = await Promise.all(shown.map((it) => loadSvg(trophySVG(it.icon))));
+  const slot = (W - 200) / 5;
+  const cy = 1008;
+  shown.forEach((it, i) => {
+    const cx = 100 + slot * i + slot / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+    ctx.fillStyle = it.icon === 'copa' ? '#F0C14B' : '#6CB4EE';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = E.rim[1];
+    ctx.stroke();
+    if (icons[i]) ctx.drawImage(icons[i]!, cx - 21, cy - 21, 42, 42);
+    if (it.count > 1) {
+      ctx.beginPath();
+      ctx.arc(cx + 28, cy - 30, 17, 0, Math.PI * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = '#0D1B2A';
+      ctx.stroke();
+      ctx.fillStyle = '#0D1B2A';
+      ctx.font = `800 20px ${DISPLAY}`;
+      ctx.fillText(`×${it.count}`, cx + 28, cy - 23);
+    }
+    ctx.fillStyle = '#E8F1F8';
+    ctx.font = `600 20px ${BODY}`;
+    wrap(ctx, it.label, slot - 14, 2).forEach((line, j) => ctx.fillText(line, cx, cy + 62 + j * 23));
+  });
+  if (items.length > shown.length) {
+    const cx = 100 + slot * 4 + slot / 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 34, 0, Math.PI * 2);
+    ctx.fillStyle = '#1B3550';
+    ctx.fill();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = `800 34px ${DISPLAY}`;
+    ctx.fillText(`+${items.length - shown.length}`, cx, cy + 12);
+    ctx.fillStyle = '#E8F1F8';
+    ctx.font = `600 20px ${BODY}`;
+    ctx.fillText('más', cx, cy + 62);
+  }
+  if (!items.length) {
+    ctx.fillStyle = '#96AEC4';
+    ctx.font = `500 28px ${BODY}`;
+    ctx.fillText('Sin títulos ni premios individuales.', W / 2, cy + 8);
+  }
+
+  // Momento más destacado: escena ilustrada con el texto encima.
+  const moment = bestMoment(p, s);
+  const scene = await loadSvg(momentSVG(moment, p.setup.avatar, moment.nt ? home.kit : lastClub.colors, p.setup.number, home.kit));
+  const bx = 100, by = 1116, bw = W - 200, bh = 156;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 20);
+  ctx.clip();
+  if (scene) ctx.drawImage(scene, 0, 72, 880, bh, bx, by, bw, bh); // la escena de 880 x 240, recortada arriba y abajo (el círculo del jugador entra entero)
+  ctx.textAlign = 'left';
+  ctx.font = `800 34px ${DISPLAY}`;
+  const titleLines = wrap(ctx, moment.title.toUpperCase(), 380, 2);
+  const boxW = Math.max(...titleLines.map((l) => ctx.measureText(l).width), 200) + 40;
+  ctx.fillStyle = 'rgba(11, 34, 54, 0.88)';
+  ctx.beginPath();
+  ctx.roundRect(bx + 14, by + 12, boxW, 44 + titleLines.length * 34, 14);
+  ctx.fill();
+  ctx.fillStyle = '#7FC0F0';
+  ctx.font = `700 20px ${BODY}`;
+  ctx.fillText(moment.kicker.toUpperCase(), bx + 34, by + 42);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `800 34px ${DISPLAY}`;
+  titleLines.forEach((line, j) => ctx.fillText(line, bx + 34, by + 76 + j * 34));
+  ctx.restore();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = E.rim[1];
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 20);
+  ctx.stroke();
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8FA6BD';
+  ctx.font = `600 24px ${BODY}`;
+  ctx.fillText('CHAMUSQUEROS · ¿Superás esta carrera?', W / 2, 1318);
 }

@@ -17,7 +17,8 @@ import {
   type SeasonRecord,
 } from './engine/types';
 import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
-import { TIERS, drawCareerCard } from './ui/card';
+import { drawCareerCard } from './ui/card';
+import { ESTILOS, cartaSVG, type DatosCarta } from './ui/carta-svg';
 import { celebrate } from './ui/celebrate';
 import { mountMinigame } from './ui/minigames';
 import { esc } from './ui/esc';
@@ -110,7 +111,7 @@ function rankingTable(rows: RankRow[]) {
   <p class="season-empty">Tocá un jugador para ver su carta. Empates: gana quien tenga más títulos, después más partidos con la Selección y, si siguen iguales, quien llegó primero.</p>`;
 }
 
-/** Carta de FC de una fila del ranking, con el estilo de su veredicto (el mismo de la carta final, ui/card.ts).
+/** Carta de FC de una fila del ranking, con el estilo de su veredicto: la misma carta de la imagen final (ui/carta-svg.ts).
  * Lo que la fila no guardó (carreras de antes de la carta) sale como "—". */
 function futCard(r: RankRow) {
   const c = r.card;
@@ -118,16 +119,16 @@ function futCard(r: RankRow) {
   const [skin, hair, hairColor, beard, extra, number] = r.avatar ?? nameAvatar(r.name);
   const home = countryOf(c?.country);
   const v = verdictFor(r.score, home.adj);
-  const t = TIERS[v.tier];
-  const stats: [string, number | string][] = [
-    ['PJ', c?.apps ?? '—'], ['GOL', c?.goals ?? '—'], ['AST', c?.assists ?? '—'], ['TÍT', r.titles], ['SEL', r.caps], ['PTS', r.score],
-  ];
-  return `<div class="fut" style="--fut-a:${t.bg[0]};--fut-b:${t.bg[1]};--fut-c:${t.bg[2]};--fut-ink:${t.ink};--fut-muted:${t.muted};--fut-accent:${t.accent};--fut-border:${t.border}">
-    <span class="fut-tier">${t.label}</span>
-    <div class="fut-side">${c ? `<b>${c.ovr}</b><span>${c.pos}</span>` : ''}<i class="fut-flag" title="${esc(home.name)}" style="background:url(https://flagcdn.com/w40/${home.flag}.png) center/cover"></i>${club ? crest(club, true) : ''}</div>
-    <div class="fut-face">${avatarSVG({ skin, hair, hairColor, beard, extra }, club?.colors ?? NT_KIT, number, 160)}</div>
-    <h3 class="fut-name">${esc(r.name)}</h3>
-    <dl class="fut-stats">${stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+  const E = ESTILOS[v.tier];
+  // Los datos del servidor se validan y acotan dentro de cartaSVG (A08); aquí solo se arman.
+  const datos: DatosCarta = {
+    nombre: r.name, pos: c?.pos, media: c?.ovr, apps: c?.apps, goles: c?.goals, asist: c?.assists, titulos: r.titles,
+    avatar: { a: { skin, hair, hairColor, beard, extra }, dorsal: number, kit: club?.colors ?? NT_KIT },
+    pais: { bandera: `https://flagcdn.com/w80/${home.flag}.png`, kit: home.kit },
+    club: club ? { short: club.short, colores: club.colors, escudo: `${import.meta.env.BASE_URL}escudos/${club.id}.png` } : null,
+  };
+  return `<div class="fut" style="--fut-halo:${E.halo};--fut-acento:${E.acento}">
+    ${cartaSVG(datos, v.tier)}
     <p class="fut-meta"><b>${esc(v.title)}</b>${c ? ` · ${esc(c.dept)} · Pie ${c.foot.toLowerCase()}` : ''}</p>
   </div>`;
 }
@@ -171,6 +172,11 @@ function bindCrests(root: ParentNode) {
     const drop = () => img.remove();
     if (img.complete && img.naturalWidth === 0) drop();
     else img.addEventListener('error', drop, { once: true });
+  });
+  // Escudo de la carta (SVG): al cargar tapa el genérico que tiene debajo; si no existe el archivo, se quita.
+  root.querySelectorAll<SVGImageElement>('image.carta-escudo').forEach((img) => {
+    img.addEventListener('load', () => img.previousElementSibling?.setAttribute('display', 'none'), { once: true });
+    img.addEventListener('error', () => img.remove(), { once: true });
   });
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
