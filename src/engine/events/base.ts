@@ -281,10 +281,18 @@ export const BASE_EVENTS: EventTemplate[] = [
     title: 'Se viene el clásico',
     text: (p, ctx) => `Se viene el clásico contra ${rivalOf(ctx)}. La afición te pide que te comprometás.`,
     when: (_p, ctx) => rivalOf(ctx) !== null && ctx.tier === 1,
-    options: () => [
-      opt('Prometo gol en redes sociales',
-        o(0.4, 'Cumpliste: gol en el clásico y el estadio se vino abajo.', { fame: 14, rating: 1, morale: 12, flag: 'golClasico' }),
-        o(0.6, 'No anotaste y los memes no perdonan.', { fame: -4, morale: -12 })),
+    options: (p) => [
+      p.setup.position === 'POR'
+        ? opt('Prometo arco en cero en redes sociales',
+          o(0.4, 'Cumpliste: arco en cero y una atajada en el 90 que ya es meme.', { fame: 14, rating: 1, morale: 12, flag: 'golClasico' }),
+          o(0.6, 'Te hicieron dos y los memes no perdonan.', { fame: -4, morale: -12 }))
+        : p.setup.position === 'DEF'
+          ? opt('Prometo gol en redes sociales',
+            o(0.25, 'Cumpliste: cabezazo en un tiro de esquina y el estadio se vino abajo.', { fame: 14, rating: 1, morale: 12, flag: 'golClasico' }),
+            o(0.75, 'No anotaste y los memes no perdonan.', { fame: -4, morale: -12 }))
+          : opt('Prometo gol en redes sociales',
+            o(0.4, 'Cumpliste: gol en el clásico y el estadio se vino abajo.', { fame: 14, rating: 1, morale: 12, flag: 'golClasico' }),
+            o(0.6, 'No anotaste y los memes no perdonan.', { fame: -4, morale: -12 })),
       opt('Perfil bajo, hablo en la cancha',
         o(0.6, 'Partido serio. Te ganaste el respeto de la afición.', { morale: 6, fame: 3 }),
         o(0.4, 'Partido gris. Nadie te recuerda.', {})),
@@ -294,7 +302,10 @@ export const BASE_EVENTS: EventTemplate[] = [
     id: 'barra',
     category: 'cancha',
     title: 'Estadio rival lleno',
-    text: () => 'Partido de alto riesgo en estadio rival. Anotás en el minuto 89.',
+    text: (p) =>
+      p.setup.position === 'DEF'
+        ? 'Partido de alto riesgo en estadio rival. En el minuto 89 cabeceás un tiro de esquina y es gol.'
+        : 'Partido de alto riesgo en estadio rival. Anotás en el minuto 89.',
     when: (p, ctx) => p.setup.position !== 'POR',
     options: () => [
       opt('Lo celebro frente a la barra rival',

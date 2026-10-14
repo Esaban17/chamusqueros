@@ -73,13 +73,13 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
       `El visor pide un video con tus mejores jugadas como ${p.setup.position === 'POR' ? 'portero' : 'jugador'}. Un editor cobra Q3,000; tu primo dice que lo hace con el celular.`,
     when: (p, ctx) => !ctx.abroad && has(p, 'ext_visoria') && !has(p, 'ext_video'),
     weight: 3,
-    options: () => [
+    options: (p) => [
       opt('Pago al editor profesional',
         o(0.75, 'Quedó de lujo: cámara lenta, estadísticas y música épica. Ya circula.', { flag: 'ext_video', fame: 4, morale: -3 }),
         o(0.25, 'Pagaste y el editor se tardó dos meses. Llegó tarde, pero llegó.', { flag: 'ext_video', morale: -8 })),
       opt('Que lo haga mi primo',
         o(0.5, 'Salió casero pero honesto. Al visor le bastó.', { flag: 'ext_video', morale: 3 }),
-        o(0.5, 'Le puso un filtro de corazones a tu golazo. Hubo que rehacerlo.', { flag: 'ext_video', morale: -6, fame: -2 })),
+        o(0.5, `Le puso un filtro de corazones a tu ${p.setup.position === 'POR' ? 'mejor atajada' : p.setup.position === 'DEF' ? 'mejor cruce' : 'golazo'}. Hubo que rehacerlo.`, { flag: 'ext_video', morale: -6, fame: -2 })),
     ],
   },
   {

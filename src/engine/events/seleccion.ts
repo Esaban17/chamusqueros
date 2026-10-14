@@ -145,7 +145,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     once: true,
     options: (p) => [
       opt(gol(p) ? 'Me la juego al ataque' : 'Me la juego en cada duelo',
-        o(0.4, 'Golazo o atajada de antología: sos tendencia en todo el país.', { fame: 20, rating: 2, potential: 2, morale: 12, unflag: 'sel_sub20_mundial', milestone: 'Jugó el Mundial Sub-20' }),
+        o(0.4, `${p.setup.position === 'POR' ? 'Atajada' : gol(p) ? 'Golazo' : 'Cierre'} de antología: sos tendencia en todo el país.`, { fame: 20, rating: 2, potential: 2, morale: 12, unflag: 'sel_sub20_mundial', milestone: 'Jugó el Mundial Sub-20' }),
         o(0.6, 'Diste todo, pero te pasaron por encima. Aprendiste a la mala.', { fame: 5, morale: -5, unflag: 'sel_sub20_mundial', milestone: 'Jugó el Mundial Sub-20' })),
       opt('Juego con orden y paciencia',
         o(0.7, 'Pasaron a octavos por primera vez en años. Sos parte de la historia.', { fame: 12, potential: 2, morale: 8, unflag: 'sel_sub20_mundial', milestone: 'Jugó el Mundial Sub-20' }),

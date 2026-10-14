@@ -119,11 +119,11 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
       `Visitan un pueblo donde el árbitro desayunó con la directiva local. Van ganando y ya les anuló dos goles y van ${ctx.tier === 3 ? 'tres' : 'dos'} amarillas.`,
     when: (p, ctx) => isLower(ctx),
     cooldown: 5,
-    options: () => [
+    options: (p) => [
       opt('Le reclamo en su cara',
         o(0.3, 'Se intimidó un poco y pitó parejo el resto. Ganaron.', { morale: 6, fame: 2 }),
         o(0.7, 'Roja directa y una fecha de castigo. El técnico, furioso.', { coach: -10, morale: -6 })),
-      opt('Cabeza fría, a buscar el gol',
+      opt(p.setup.position === 'POR' ? 'Cabeza fría, que el equipo busque el gol' : 'Cabeza fría, a buscar el gol',
         o(0.55, 'Metieron el tercero tan claro que ni él lo pudo anular.', { morale: 8, rating: 1 }),
         o(0.45, 'Les pitaron un penal de la nada en el 94. Empate amargo.', { morale: -5 })),
     ],
@@ -152,9 +152,9 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
       `Es la feria de ${ctx.club.city}: jaripeo, juegos mecánicos y baile el sábado. El partido es el domingo a las 10. Los muchachos ya hicieron planes.`,
     when: (p, ctx) => isLower(ctx),
     cooldown: 7,
-    options: () => [
+    options: (p) => [
       opt('Me voy al baile con el grupo',
-        o(0.4, 'Bailaste hasta la una y aun así metiste gol. Leyenda de feria.', { morale: 10, fame: 3, fitness: -6 }),
+        o(0.4, `Bailaste hasta la una y aun así ${p.setup.position === 'POR' ? 'atajaste un penal' : p.setup.position === 'DEF' ? 'metiste un cabezazo en un tiro de esquina' : 'metiste gol'}. Leyenda de feria.`, { morale: 10, fame: 3, fitness: -6 }),
         o(0.6, 'Llegaste con ojeras y el profe te dejó en la banca.', { coach: -8, fitness: -8, morale: 3 })),
       opt('Algodón, una vuelta y a dormir',
         o(0.8, 'Disfrutaste un rato sin desvelarte. Equilibrio.', { morale: 4 }),
@@ -171,9 +171,13 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
       'Llegaron las lluvias de mayo y la cancha es una piscina. El árbitro quiere suspender, pero el equipo local insiste en jugar.',
     when: (p, ctx) => isLower(ctx),
     cooldown: 6,
-    options: () => [
+    options: (p) => [
       opt('A jugar en el lodo',
-        o(0.55, 'Gol de cabeza con el balón frenado en un charco. Épico.', { morale: 8, fame: 2, fitness: -6 }),
+        o(0.55, p.setup.position === 'POR'
+          ? 'El balón se frenó en un charco y te estiraste para sacarlo de la línea. Atajada épica.'
+          : p.setup.position === 'DEF'
+            ? 'Cabezazo en un tiro de esquina con el balón lleno de lodo. Gol épico.'
+            : 'Gol de cabeza con el balón frenado en un charco. Épico.', { morale: 8, fame: 2, fitness: -6 }),
         o(0.45, 'Te resbalaste mal y te doblaste el tobillo.', { fitness: -16, morale: -4 })),
       opt('Pido que se suspenda',
         o(0.6, 'Se reprogramó. El técnico pensaba igual que vos.', { coach: 3 }),
@@ -207,9 +211,13 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
     when: (p, ctx) => has(p, 'div_liguilla') && isLower(ctx),
     weight: 4,
     options: (p, ctx) => [
-      opt('Pido cobrar el penal decisivo',
-        o(0.5, `¡Gol y ascenso! Te sacaron en hombros. El club de arriba que te vio te fichó.`, { transfer: 'tierUp', fame: 10, morale: 14, unflag: 'div_liguilla', milestone: `Ascenso con ${ctx.club.short}` }),
-        o(0.5, 'Lo atajaron. Perdieron el ascenso y no podés dormir en días.', { morale: -14, fame: 2, unflag: 'div_liguilla' })),
+      p.setup.position === 'POR'
+        ? opt('Si llega a penales, el arco es mío',
+          o(0.5, '¡Atajaste el penal decisivo y ascendieron! Te sacaron en hombros. El club de arriba que te vio te fichó.', { transfer: 'tierUp', fame: 10, morale: 14, unflag: 'div_liguilla', milestone: `Ascenso con ${ctx.club.short}` }),
+          o(0.5, 'Te adivinaron todos los penales. Perdieron el ascenso y no podés dormir en días.', { morale: -14, fame: 2, unflag: 'div_liguilla' }))
+        : opt('Pido cobrar el penal decisivo',
+          o(0.5, `¡Gol y ascenso! Te sacaron en hombros. El club de arriba que te vio te fichó.`, { transfer: 'tierUp', fame: 10, morale: 14, unflag: 'div_liguilla', milestone: `Ascenso con ${ctx.club.short}` }),
+          o(0.5, 'Lo atajaron. Perdieron el ascenso y no podés dormir en días.', { morale: -14, fame: 2, unflag: 'div_liguilla' })),
       opt('Juego mi partido y confío',
         o(0.45, 'Ganaron y subieron. Un club de la división de arriba te llevó.', { transfer: 'tierUp', fame: 6, morale: 10, unflag: 'div_liguilla', milestone: `Ascenso con ${ctx.club.short}` }),
         o(0.55, 'Perdieron por la mínima. Te quedan la experiencia y el dolor.', { morale: -8, rating: 1, unflag: 'div_liguilla' })),
@@ -351,9 +359,13 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
       'Les toca jugar en la Costa Sur a las 3 de la tarde, con 38 grados y sin sombra en la banca. El rival está acostumbrado.',
     when: (p, ctx) => isLower(ctx),
     cooldown: 7,
-    options: () => [
-      opt('Corro todo, a lo bestia',
-        o(0.4, 'Metiste un gol temprano y aguantaron. Terminaste deshidratado.', { morale: 6, fitness: -12 }),
+    options: (p) => [
+      opt(p.setup.position === 'POR' ? 'Salgo a cortar todo, a lo bestia' : 'Corro todo, a lo bestia',
+        o(0.4, p.setup.position === 'POR'
+          ? 'Atajaste todo lo que llegó y aguantaron el 1-0. Terminaste deshidratado.'
+          : p.setup.position === 'DEF'
+            ? 'Metiste de cabeza el 1-0 en un tiro de esquina y aguantaron. Terminaste deshidratado.'
+            : 'Metiste un gol temprano y aguantaron. Terminaste deshidratado.', { morale: 6, fitness: -12 }),
         o(0.6, 'A los 60 minutos no podías ni caminar.', { fitness: -16, coach: -4 })),
       opt('Dosifico y espero mi momento',
         o(0.65, 'Guardaste piernas y apareciste al final. Empate valioso.', { coach: 4, morale: 3 }),

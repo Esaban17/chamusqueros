@@ -37,7 +37,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
     title: 'Micrófono a pie de cancha',
     text: (p, ctx) =>
       `Llevás ${lastSeasonLine(p, ctx)} y hoy volviste a marcar con ${ctx.club.name}. El reportero de cancha te pone el micrófono: "¿A quién le dedicás el gol?"`,
-    when: (p, ctx) => goodSeason(p, ctx) && p.setup.position !== 'POR',
+    when: (p, ctx) => goodSeason(p, ctx) && p.setup.position !== 'POR' && (ctx.last?.goals ?? 0) > 0,
     weight: 2.5,
     cooldown: 5,
     options: (p) => [

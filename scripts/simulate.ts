@@ -14,6 +14,9 @@ const eventCount: Record<string, number> = {};
 const catCount: Record<string, number> = {};
 const decisionsByMode: Record<string, number[]> = {};
 const scores: number[] = [];
+// Un portero no anota goles de jugada: ningún texto que vea puede decir que él marcó.
+const KEEPER_GOAL = /\b(anotás|anotaste|cabezazo|cabeceás|golazo|marcaste|volviste a marcar)\b|metiste (un |el )?(gol|de cabeza)|gol (de cabeza|tuyo|en tu debut|en el clásico|de despedida)|¡gol|prometo gol|a buscar el gol|gol en el mundial/i;
+const keeperGoals = new Set<string>();
 let years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -36,6 +39,11 @@ for (let i = 0; i < N; i++) {
     if (ev) {
       eventCount[ev.id] = (eventCount[ev.id] ?? 0) + 1;
       catCount[ev.category] = (catCount[ev.category] ?? 0) + 1;
+      if (position === 'POR') {
+        for (const t of [ev.text, ...ev.options.flatMap((o) => [o.label, ...o.outcomes.map((x) => x.text)])]) {
+          if (KEEPER_GOAL.test(t)) keeperGoals.add(`${ev.id}: ${t}`);
+        }
+      }
       career.choose(Math.floor(career.rng() * ev.options.length));
       decisions++;
     }
@@ -43,6 +51,7 @@ for (let i = 0; i < N; i++) {
   (decisionsByMode[mode] ??= []).push(decisions);
   const p = career.player;
   const s = summarize(p);
+  if (position === 'POR') for (const m of p.milestones) if (KEEPER_GOAL.test(m)) keeperGoals.add(`hito: ${m}`);
   scores.push(s.score);
   verdicts[s.verdict.title] = (verdicts[s.verdict.title] ?? 0) + 1;
   byPos[position] ??= { goals: 0, apps: 0, n: 0 };
@@ -76,3 +85,7 @@ const sorted = Object.entries(eventCount).sort((a, b) => b[1] - a[1]);
 console.log('Más frecuentes:', sorted.slice(0, 8).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(1)}%`).join(' · '));
 const never = ALL_EVENTS.filter((e) => !eventCount[e.id]).map((e) => e.id);
 console.log(`Eventos distintos vistos: ${sorted.length} de ${ALL_EVENTS.length}. Nunca salieron: ${never.join(', ') || 'ninguno'}`);
+if (keeperGoals.size) {
+  console.error(`Textos donde el portero anota (${keeperGoals.size}):\n  ${[...keeperGoals].join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Porteros: ningún texto los hace anotar de jugada.');

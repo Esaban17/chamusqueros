@@ -220,7 +220,7 @@ export class Career {
           p.flags.mundial = (p.flags.mundial ?? 0) + 1;
           p.milestones.push(`Jugó el Mundial ${summer} con Guatemala`);
           p.fame += 30;
-          if (chance(rng, { POR: 0.02, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position])) {
+          if (chance(rng, { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position])) {
             p.milestones.push(`Gol en el Mundial ${summer}`);
             p.fame += 15;
           }
