@@ -73,6 +73,8 @@ const CAF: Rival[] = [
   ['Guinea', 69], ['Gabón', 68], ['Angola', 66], ['Zambia', 65], ['Benín', 64], ['Uganda', 63], ['Kenia', 60],
 ];
 type Competition = [name: string, weight: number, rivals: Rival[]];
+/** Rondas de la fase final, de la primera a la final; cada torneo empieza en la que le toca. */
+const ROUNDS = ['Dieciseisavos de final', 'Octavos de final', 'Cuartos de final', 'Semifinal', 'Final'];
 /** Suma un partido a la fila de la tabla. */
 function tally(r: NtGroupRow, gf: number, ga: number) {
   r.pj++;
@@ -283,7 +285,8 @@ export class Career {
     if (p.age <= 21 && share >= 0.5 && diff >= -2 && chance(rng, 0.3)) award('joven', 'Jugador joven del año');
     p.awards.push(...awards.map((a) => a.name));
 
-    const nt = this.simulateNationalTeam(goals, apps);
+    const clubTitles = titles.length; // los títulos de selección no cuentan para el ánimo ni la fama de club
+    const nt = this.simulateNationalTeam(goals, apps, titles);
 
     const record: SeasonRecord = {
       label: seasonLabel(p.year),
@@ -301,14 +304,14 @@ export class Career {
       nt,
     };
     p.seasons.push(record);
-    this.progress(apps / MATCHES[tier], titles.length, goals);
+    this.progress(apps / MATCHES[tier], clubTitles, goals);
     this.checkPlayingTime(record);
     p.age++;
     p.year++;
     return record;
   }
 
-  private simulateNationalTeam(clubGoals: number, apps: number): SeasonRecord['nt'] {
+  private simulateNationalTeam(clubGoals: number, apps: number, titles: string[]): SeasonRecord['nt'] {
     const p = this.player;
     const rng = this.rng;
     const club = this.club;
@@ -321,6 +324,33 @@ export class Career {
     const h = this.home;
     const conf = CONFEDS[h.conf];
     const bar = h.callup - 71; // los umbrales de Guatemala, corridos según lo difícil que es entrar a cada Selección
+    // Fase final del grupo g: fama por victoria, hito de semifinal y, si gana, el título (a la temporada y a la carrera).
+    const play = (g: NtGroup, rounds: string[], pool: Rival[], win: number, trophy: number, hard?: number, extra?: number) => {
+      const ms = this.finals(g, rounds, pool, hard, extra);
+      const title = /\d{4}$/.test(g.comp) ? g.comp : `${g.comp} ${summer}`;
+      const de = title.startsWith('Mundial') ? 'del' : 'de la'; // las copas y ligas de selecciones son femeninas
+      p.fame += ms.filter((m) => m.gf > m.ga || (m.pen && m.pen[0] > m.pen[1])).length * win;
+      // La Liga de Naciones arranca en semifinales: ahí llegar no es un hito.
+      if (rounds.length > 2 && ms.some((m) => m.round === 'Semifinal')) {
+        p.milestones.push(`Semifinal ${de} ${title}`);
+        p.fame += 8;
+      }
+      if (g.out === 'Campeón') {
+        titles.push(title);
+        p.titles.push(title);
+        p.milestones.push(`Campeón ${de} ${title} con ${h.name}`);
+        p.fame += trophy;
+      }
+      return ms;
+    };
+    // Goles del jugador en partidos de fase final: cada uno donde su Selección anotó, con la probabilidad de su puesto.
+    const strike = (ms: NtMatch[], prob: number) => {
+      const scored = ms.filter((m) => m.gf > 0 && chance(rng, prob));
+      for (const m of scored) m.goals++;
+      p.natGoals += scored.length;
+      return scored.length;
+    };
+    const ko: NtMatch[] = [];
 
     // Convocatorias y bajas automáticas (los eventos de Selección aceleran este camino).
     if (p.ntLevel > 0 && (p.rating < 60 + bar || p.age >= 36 || p.flags.sel_retirado)) {
@@ -355,7 +385,15 @@ export class Career {
         return g.table.findIndex((r) => r.team === h.name);
       };
 
-      if (conf.nations) group(conf.nations[0], 1.5, this.rivals(conf.nations[1], conf.nations[2]), 4, 2, 'El primero sube de liga.', 1);
+      if (conf.nations) {
+        const pos = group(conf.nations[0], 1.5, this.rivals(conf.nations[1], conf.nations[2]), 4, 2, 'El primero sube de liga y juega la fase final.', 1);
+        // ponytail: sin divisiones A y B; todo el que gana su grupo juega semifinal y final contra rivales de todo el pool.
+        if (pos === 0) {
+          const ms = play(groups.at(-1)!, ROUNDS.slice(3), this.rivals(conf.nations[1]), 1, 8, 1, 4);
+          ko.push(...ms);
+          strike(ms, rate);
+        }
+      }
       if (h.conf === 'CONCACAF') {
         // Eliminatoria: segunda ronda la temporada anterior al Mundial y ronda final la del año del Mundial.
         // Si un evento ya contó cómo les fue en la segunda ronda, la tabla lo respeta.
@@ -377,19 +415,23 @@ export class Career {
       }
       const cup = confedCup(h, summer);
       if (cup.now) {
-        const semis = p.ntLevel >= 2 && chance(rng, 0.12 + Math.max(0, p.rating - 72 - bar) * 0.01);
-        const note = h.conf === 'CONCACAF' || h.conf === 'CONMEBOL' ? 'Los dos primeros pasan a cuartos de final.' : 'Pasan los dos primeros y los mejores terceros.';
-        group(`${cup.name} ${summer}`, 2, this.rivals(conf.cup[2]), 4, 1, note, 2, semis ? [0, 1] : undefined);
-        if (semis) {
-          p.milestones.push(`Semifinal de ${cup.name} ${summer}`);
-          p.fame += 8;
-        }
+        const direct = h.conf === 'CONCACAF' || h.conf === 'CONMEBOL';
+        const note = direct ? 'Los dos primeros pasan a cuartos de final.' : 'Pasan los dos primeros y los mejores terceros.';
+        const pos = group(`${cup.name} ${summer}`, 2, this.rivals(conf.cup[2]), 4, 1, note, 2);
+        const g = groups.at(-1)!;
+        // ponytail: mejor tercero = 3.º con 4 puntos o más; no se comparan los terceros de otros grupos.
+        if (pos < 2 || (!direct && pos === 2 && g.table[2].pts >= 4)) {
+          if (pos === 2) g.advance = 3;
+          const ms = play(g, ROUNDS.slice(direct ? 2 : 1), this.rivals(conf.cup[2]), 2, 20);
+          ko.push(...ms);
+          strike(ms, rate);
+        } else g.out = 'Eliminado en la fase de grupos';
       }
       const played = this.ntMatches(comps, fixtures, caps, goals);
-      matches.push(...played.matches);
-      p.caps += caps;
+      matches.push(...played.matches, ...ko);
+      p.caps += caps + ko.length;
       p.natGoals += played.goals;
-      p.fame += caps * 0.6;
+      p.fame += (caps + ko.length) * 0.6;
     }
 
     // Mundial: se juega al final de la temporada que termina en año mundialista.
@@ -400,16 +442,31 @@ export class Career {
         p.fame += 30;
         // Fase de grupos: tres partidos, todos con el jugador en cancha.
         const g = this.drawGroup(`Mundial ${summer}`, this.rivals(WORLD_CUP), 4, 1);
-        groups.push({ comp: `Mundial ${summer}`, note: 'Pasan los dos primeros y los mejores terceros.', advance: 2, table: g.table });
+        const ng: NtGroup = { comp: `Mundial ${summer}`, note: 'Pasan los dos primeros y los mejores terceros.', advance: 2, table: g.table };
+        groups.push(ng);
         p.caps += 3;
         matches.push(...g.fixtures);
+        const prob = { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position];
+        const goalHit = `Gol en el Mundial ${summer}`;
         const scored = g.fixtures.filter((m) => m.gf > 0);
-        if (scored.length && chance(rng, { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position])) {
+        if (scored.length && chance(rng, prob)) {
           pick(rng, scored).goals++;
-          p.milestones.push(`Gol en el Mundial ${summer}`);
+          p.milestones.push(goalHit);
           p.fame += 15;
           p.natGoals++;
         }
+        // Fase final: 1.º y 2.º pasan; el 3.º, si es de los mejores terceros. ponytail: 3.º con 4 puntos o más, sin comparar otros grupos.
+        const pos = g.table.findIndex((r) => r.team === h.name);
+        if (pos < 2 || (pos === 2 && g.table[2].pts >= 4)) {
+          if (pos === 2) ng.advance = 3;
+          const ms = play(ng, ROUNDS, this.rivals(WORLD_CUP), 5, 50, 0.5);
+          matches.push(...ms);
+          p.caps += ms.length;
+          if (strike(ms, prob) && !p.milestones.includes(goalHit)) {
+            p.milestones.push(goalHit);
+            p.fame += 15;
+          }
+        } else ng.out = 'Eliminado en la fase de grupos';
       } else if (p.ntLevel > 0 && p.wcProgress >= 2) {
         p.milestones.push(`Eliminado en la recta final rumbo al Mundial ${summer}`);
       }
@@ -418,6 +475,42 @@ export class Career {
       for (const f of ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje', 'sel_elim_r2']) delete p.flags[f];
     }
     return matches.length ? { debut, matches, groups } : undefined;
+  }
+
+  /**
+   * Fase final de un grupo de la Selección del jugador: un partido por ronda, penales si empata, y se elimina al perder.
+   * Deja el cierre del torneo en g.out. Los rivales salen de pool, sin repetir a los del grupo.
+   */
+  private finals(g: NtGroup, rounds: string[], pool: Rival[], hard = 1, extra = 0) {
+    const rng = this.rng;
+    const gt = this.gtStrength();
+    const left = pool.filter(([name]) => !g.table.some((r) => r.team === name));
+    const matches: NtMatch[] = [];
+    for (const [i, round] of rounds.entries()) {
+      // ponytail: sin cuadro; el rival es el más fuerte de varios sorteos (más en cada ronda), así quien llega lejos enfrenta a los mejores.
+      let [rival, strength] = pick(rng, left);
+      for (let j = 0; j < extra + Math.floor(i * hard); j++) {
+        const c = pick(rng, left);
+        if (c[1] > strength) [rival, strength] = c;
+      }
+      left.splice(left.findIndex(([name]) => name === rival), 1);
+      const gf = poisson(rng, 1.2 * Math.exp((gt - strength) / 20));
+      const ga = poisson(rng, 1.2 * Math.exp((strength - gt) / 20));
+      const m: NtMatch = { comp: g.comp, rival, gf, ga, goals: 0, round };
+      if (gf === ga) {
+        // ponytail: sin tanda real; gana con ventaja leve por fuerza y el marcador es verosímil (4-2 a 5-4).
+        const w = randInt(rng, 4, 5);
+        const l = randInt(rng, 2, w - 1);
+        m.pen = chance(rng, 0.5 + clamp((gt - strength) / 100, -0.15, 0.15)) ? [w, l] : [l, w];
+      }
+      matches.push(m);
+      if (gf < ga || (m.pen && m.pen[0] < m.pen[1])) {
+        g.out = round === 'Final' ? 'Subcampeón' : round === 'Semifinal' ? 'Eliminado en semifinales' : `Eliminado en ${round.toLowerCase()}`;
+        return matches;
+      }
+    }
+    g.out = 'Campeón';
+    return matches;
   }
 
   /** Fuerza de la Selección del jugador; en Guatemala, 64 + (nivel - 70) / 4 + su peso en el equipo. */
