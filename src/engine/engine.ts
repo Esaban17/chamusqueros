@@ -576,18 +576,25 @@ export function summarize(p: Player): CareerSummary {
   const mundial = p.flags.mundial ?? 0;
   const abroadTop = clubs.some((c) => ['mx', 'esp2', 'eur'].includes(c.club.id));
   const firstDivApps = p.seasons.filter((s) => s.tier <= 1).reduce((s, r) => s + r.apps, 0);
-  const score =
+  // Entero: es lo que se muestra y lo que ordena el ranking.
+  const score = Math.round(
     ln * 8 + lower * 2 + other * 10 + goals * 0.2 + p.caps * 0.5 + p.awards.length * 5 + mundial * 60 +
-    (abroadTop ? 15 : 0) + p.fame * 0.15 + (p.peakRating - 60) * 1.2 + firstDivApps * 0.05;
+    (abroadTop ? 15 : 0) + p.fame * 0.15 + (p.peakRating - 60) * 1.2 + firstDivApps * 0.05,
+  );
 
-  const verdicts: [number, string, string][] = [
-    [230, 'Leyenda chapina', 'Tu nombre se canta en los estadios de todo el país.'],
-    [170, 'Ídolo nacional', 'Los patojos piden tu camisola en el mercado.'],
-    [120, 'Referente de la Liga', 'Una carrera que se recuerda con respeto.'],
-    [70, 'Jugador de culto', 'Tu afición te recuerda con cariño.'],
-    [38, 'Cumplidor', 'Profesional, constante y sin escándalos.'],
-    [-999, 'Promesa que no fue', 'El fútbol a veces no devuelve lo que uno le da.'],
-  ];
-  const [, title, line] = verdicts.find(([min]) => score >= min)!;
-  return { apps, goals, assists, clubs, titles: p.titles, verdict: { title, line }, score };
+  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score), score };
+}
+
+const VERDICTS: [number, string, string][] = [
+  [230, 'Leyenda chapina', 'Tu nombre se canta en los estadios de todo el país.'],
+  [170, 'Ídolo nacional', 'Los patojos piden tu camisola en el mercado.'],
+  [120, 'Referente de la Liga', 'Una carrera que se recuerda con respeto.'],
+  [70, 'Jugador de culto', 'Tu afición te recuerda con cariño.'],
+  [38, 'Cumplidor', 'Profesional, constante y sin escándalos.'],
+  [-999, 'Promesa que no fue', 'El fútbol a veces no devuelve lo que uno le da.'],
+];
+
+export function verdictFor(score: number) {
+  const [, title, line] = VERDICTS.find(([min]) => score >= min)!;
+  return { title, line };
 }

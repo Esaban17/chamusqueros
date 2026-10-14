@@ -1,5 +1,5 @@
 import './style.css';
-import { Career, LEAGUE_NAME, summarize, type CareerSummary } from './engine/engine';
+import { Career, LEAGUE_NAME, summarize, verdictFor, type CareerSummary } from './engine/engine';
 import { DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
 import {
   POSITION_NAMES,
@@ -19,6 +19,7 @@ const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
 const BEST_KEY = 'chamusqueros:mejores';
 const LAST_SETUP_KEY = 'chamusqueros:ultimo';
+const PLAYER_KEY = 'chamusqueros:id';
 const NT_KIT: [string, string] = ['#4997D0', '#FFFFFF'];
 const NT_LABEL = ['', 'Convocado a la Selección', 'Fijo en la Selección', 'Titular en la Selección'];
 
@@ -42,6 +43,55 @@ function save(key: string, value: unknown) {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* sin almacenamiento: no pasa nada */
+  }
+}
+
+// ---------- Ranking global (api/ranking.ts) ----------
+
+interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; me: boolean }
+
+let pid = '';
+/** Id anónimo del dispositivo: cada usuario aparece una sola vez en el ranking, con su mejor carrera. */
+function playerId() {
+  if (!pid) save(PLAYER_KEY, (pid = store<string>(PLAYER_KEY, '') || crypto.randomUUID()));
+  return pid;
+}
+
+async function rankingApi(career?: { name: string; score: number; titles: number; caps: number }): Promise<RankRow[]> {
+  const res = await fetch('/api/ranking', career
+    ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: playerId(), ...career }) }
+    : { headers: { 'x-player-id': playerId() } });
+  if (!res.ok) throw new Error(`ranking ${res.status}`);
+  return res.json();
+}
+
+function rankingTable(rows: RankRow[]) {
+  return `<div class="log ranking">
+    <div class="log-head"><span>#</span><span>JUGADOR</span><span>PTS</span><span>TÍT</span><span>SEL</span></div>
+    ${rows.map((r, i) => `${i && r.pos > rows[i - 1].pos + 1 ? '<p class="season-empty">…</p>' : ''}
+      <div class="season${r.me ? ' me' : ''}">
+        <span class="year">${r.pos}</span>
+        <span class="club"><span>${esc(r.name)} <small>${esc(verdictFor(r.score).title)}</small></span></span>
+        <span>${r.score}</span><span>${r.titles}</span><span>${r.caps}</span>
+      </div>`).join('')}
+  </div>
+  <p class="season-empty">Empates: gana quien tenga más títulos, después más partidos con la Selección y, si siguen iguales, quien llegó primero.</p>`;
+}
+
+async function rankingScreen() {
+  render(`
+    <section class="hero"><span class="eyebrow">Ranking global</span><h1>Los mejores</h1></section>
+    <section class="panel" id="rank"><p class="season-empty">Cargando…</p></section>
+    <button class="btn big" id="back">Volver</button>
+    ${footer()}
+  `);
+  document.getElementById('back')!.onclick = home;
+  const box = document.getElementById('rank')!;
+  try {
+    const rows = await rankingApi();
+    box.innerHTML = rows.length ? rankingTable(rows) : '<p class="season-empty">Todavía no hay carreras en el ranking. ¡Sé el primero!</p>';
+  } catch {
+    box.innerHTML = '<p class="season-empty">No pudimos cargar el ranking. Probá de nuevo en un rato.</p>';
   }
 }
 
@@ -81,6 +131,7 @@ function home() {
     </section>
     <div class="hero-avatar" aria-hidden="true">${avatarSVG(sample, NT_KIT, 10, 132)}</div>
     <button class="btn big" id="start">Crear mi jugador</button>
+    <button class="btn secondary" id="ranking">Ver ranking</button>
     ${best.length ? `<section class="panel"><span class="eyebrow">Tus mejores carreras</span><div class="best">${best
       .map((b) => `<div class="best-row"><b>${esc(b.name)}</b><span>${esc(b.verdict)} · ${b.position === 'POR' ? '' : `${b.goals} G · `}${b.titles} títulos</span></div>`)
       .join('')}</div></section>` : ''}
@@ -88,6 +139,7 @@ function home() {
     ${footer()}
   `);
   document.getElementById('start')!.onclick = createForm;
+  document.getElementById('ranking')!.onclick = rankingScreen;
 }
 
 function footer() {
@@ -393,6 +445,7 @@ function finish() {
       <button class="btn secondary" id="download">Guardar imagen</button>
     </div>
     <p class="toast" id="toast" role="status"></p>
+    <section class="panel" id="rankBox"><span class="eyebrow">Ranking global</span><p class="season-empty">Guardando tu carrera…</p></section>
     ${adSlot('result')}
     <section class="panel">
       <div class="totals">
@@ -408,6 +461,17 @@ function finish() {
     <button class="btn big" id="again">Jugar otra carrera</button>
     ${footer()}
   `);
+
+  const rankBox = document.getElementById('rankBox')!;
+  rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps })
+    .then((rows) => {
+      const me = rows.find((r) => r.me)!;
+      rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>
+        <p>Esta carrera: <b>${s.score} pts</b>. ${me.score > s.score ? 'Tu mejor carrera' : 'Quedaste'} en el puesto <b>#${me.pos}</b>${me.score > s.score ? ` con ${me.score} pts` : ''}.</p>
+        <button class="btn secondary" id="seeRank">Ver ranking</button>`;
+      document.getElementById('seeRank')!.onclick = rankingScreen;
+    })
+    .catch(() => rankBox.remove());
 
   const canvas = document.createElement('canvas');
   const toast = (msg: string) => (document.getElementById('toast')!.textContent = msg);
