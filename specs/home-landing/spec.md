@@ -34,7 +34,7 @@ Ruta o URL propia para la landing, navegación entre secciones, analítica, A/B,
 ## Criterios de aceptación
 - **CA-1** A 360x640, con y sin carreras guardadas, el borde inferior de "Empezar mi carrera" queda a <= 560 px del tope (deja margen para la barra del navegador de WhatsApp). (RF-01, D2)
 - **CA-2** A 360 px de ancho, `scrollWidth` del documento <= 360 en la landing completa. (RF-09)
-- **CA-3** La landing tiene 1 `h1` y 3 `h2` ("Cómo funciona", "Qué incluye", mejores carreras/ranking), 3 pasos, 4 bloques de inclusión y 2 botones "Empezar mi carrera". (RF-01 a RF-05)
+- **CA-3** La landing tiene 1 `h1` y 4 `h2` ("Cómo funciona", "Qué incluye", "Retos Fútbol", mejores carreras/ranking), 3 pasos, 4 bloques de inclusión y 2 botones "Empezar mi carrera" (actualizado por `specs/retos-futbol`: antes 3 `h2`). (RF-01 a RF-05)
 - **CA-4** `dist/index.html` tras `npm run build` contiene `og:title`, `og:description`, `og:image`, `og:url`, `twitter:card` y `<link rel="canonical">`; `dist/og.png` existe, mide 1200x630 y pesa <= 300 KB. (RF-07)
 - **CA-5** `npm run build` termina con código 0 y `package.json` no cambia sus dependencias. (D3)
 - **CA-6** Clic en "Empezar mi carrera" (cualquiera de los 2) abre el formulario; "Ver ranking" abre el ranking y "Volver" regresa a la landing. (RF-08)

@@ -1,0 +1,60 @@
+/* Retos Fútbol (prefijo rt-). Usa las variables de style.css; una columna de 560 px como máximo. */
+.rt { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rt .btn { min-height: 48px; }
+.rt-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; }
+.rt-top .brand { padding: 0; text-align: left; }
+.rt-salir { padding: 0 18px; }
+.rt-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.rt h1 { font-size: clamp(32px, 9vw, 44px); font-weight: 900; text-transform: uppercase; overflow-wrap: anywhere; min-width: 0; }
+.rt h1:focus { outline: none; }
+.rt h1:focus-visible { outline: 3px solid var(--celeste); outline-offset: 4px; border-radius: 4px; }
+.rt-sub { font-size: 26px; font-weight: 900; text-transform: uppercase; }
+.rt-intro, .rt-cat { color: var(--muted); font-size: 17px; }
+.rt-nota { color: var(--muted); font-size: 14px; }
+.rt-aviso { font-size: 14px; padding: 10px 12px; border-left: 4px solid var(--gold); border-radius: 8px; background: var(--gold-soft); color: var(--ink); }
+.rt-motivo { font-size: 20px; font-weight: 700; }
+.rt-cuenta, .rt-marcador { font-weight: 700; font-variant-numeric: tabular-nums; }
+.rt-ctx { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 17px; }
+.rt-ultimo { font-size: 18px; font-weight: 600; }
+
+/* Inicio: opciones de juego */
+.rt-ops { display: flex; flex-direction: column; gap: 10px; }
+.rt-op { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 64px; padding: 12px 16px; text-align: left; }
+.rt-op b { font-size: 19px; }
+.rt-op span { font-size: 14px; font-weight: 500; color: var(--muted); }
+.rt .field input, .rt .field select { min-height: 48px; }
+
+/* Partida: una sola altura mínima para que no salte al cambiar de pantalla */
+.rt-juego { min-width: 0; }
+.rt-pantalla { display: flex; flex-direction: column; gap: 14px; min-height: 380px; }
+.rt-cabecera { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.rt-reloj-caja { display: flex; align-items: baseline; gap: 4px; flex: none; }
+.rt-reloj { font: 900 72px/1 var(--display); font-variant-numeric: tabular-nums; min-width: 1.2ch; text-align: right; }
+.rt-reloj.rt-urge { color: var(--bad); }
+.rt-seg { font-size: 14px; font-weight: 700; color: var(--muted); }
+.rt-form { display: flex; flex-direction: column; gap: 12px; }
+.rt-form input { min-height: 56px; font-size: 20px; }
+.rt-form .btn { min-height: 56px; }
+.rt-error { min-height: 1.4em; }
+.rt-lista { margin: 0; padding-left: 24px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.rt-marca { font-weight: 700; color: var(--muted); }
+.rt-pie { padding-top: 8px; }
+
+/* Teclado en pantalla abierto (360×320 visibles): reloj en línea con el título y menos márgenes */
+@media (max-height: 420px) {
+  .rt, .rt-main { gap: 8px; }
+  .rt { position: relative; }
+  .rt-top .brand { display: none; }
+  /* "Salir" sale del flujo y queda arriba a la derecha; el título y el reloj le dejan su lugar */
+  .rt-top { position: absolute; top: 8px; right: 0; padding: 0; z-index: 1; }
+  .rt-main > h1, .rt-cabecera { padding-right: 88px; }
+  .rt-pantalla { min-height: 0; gap: 8px; }
+  .rt h1 { font-size: 24px; }
+  .rt-reloj { font-size: 72px; }
+  .rt-nota, .rt-pie { display: none; }
+  .rt-ctx { font-size: 15px; }
+  .rt-form { gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rt * { transition: none !important; animation: none !important; }
+}

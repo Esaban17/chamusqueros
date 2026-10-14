@@ -10,7 +10,7 @@ Valor: un duelo de 2 a 5 minutos entre dos personas con un solo celular (la mayo
 - Retos Fútbol es un duelo de **2 jugadores en el mismo dispositivo**, que se pasan el celular. Los nombres son opcionales.
 - Tres categorías: **ping pong de país**, **ping pong de club** y **preguntas generales**. Una partida es una sola categoría o el **Reto completo** (las tres; gana quien se lleve 2 de 3).
 - En el ping pong los jugadores se turnan para escribir un futbolista que cumpla la condición (de un país o de un club). Cada turno tiene reloj. Pierde quien no responde a tiempo, repite o da un nombre que no cumple.
-- Los futbolistas se verifican contra una fuente abierta de datos (Wikidata, licencia CC0), no contra listas escritas a mano. Si la fuente falla o tarda, **lo decide el rival** y la partida deja constancia de que no se verificó.
+- Los futbolistas se verifican contra una fuente abierta de datos (Wikidata, licencia CC0), no contra listas escritas a mano. Si la fuente falla o tarda, **lo decide el rival** y la partida deja constancia de que no se verificó. Si la fuente dice que un futbolista no cumple, quien lo escribió puede **apelar** y decide el rival (RF-34).
 - Un banco de **150 preguntas o más** de opción múltiple, cada una con su fuente y solo con datos estables.
 - Las páginas legales (privacidad y términos) reflejan lo nuevo.
 
@@ -21,7 +21,6 @@ Valor: un duelo de 2 a 5 minutos entre dos personas con un solo celular (la mayo
 - Sonido y vibración.
 - Idiomas distintos del español.
 - Dirección propia por pantalla ni soporte del botón "Atrás" del navegador dentro de Retos (hoy el juego de carrera tampoco lo tiene).
-- Apelar un "no encontrado" de la fuente (ver Aclaraciones).
 - Cambiar el juego de carrera, su ranking, su motor, el palmarés o la tienda (hay ramas en paralelo sobre "premios y trofeos" y "tienda"). Cambiar la vista previa para redes (título, descripción e imagen).
 
 ## Requisitos funcionales
@@ -44,11 +43,11 @@ Valor: un duelo de 2 a 5 minutos entre dos personas con un solo celular (la mayo
 - **RF-11** El jugador escribe un nombre y lo envía con un botón o con Enter. Si está vacío, tiene más de 40 caracteres o trae algo que no sea letras, espacios, apóstrofo, guion o punto, no se envía: se explica el motivo y el reloj sigue corriendo; no cuenta como respuesta.
 - **RF-12** Mientras se verifica, el reloj se detiene y se indica "Verificando". Esa espera dura como máximo **5 segundos**; pasado ese tiempo se aplica RF-17.
 - **RF-13** Es válido un futbolista real que cumpla: para un país, que figure con esa nacionalidad o que haya jugado con la Selección de ese país; para un club, que figure como jugador de ese club. Se muestra el nombre completo reconocido y el turno pasa al rival.
-- **RF-14** Pierde en el acto, y gana el rival, quien: (a) no responde a tiempo, (b) escribe un futbolista que ya se dijo en la partida, o (c) escribe un nombre que no corresponde a ningún futbolista que cumpla. La pantalla dice el motivo en una frase.
+- **RF-14** Pierde en el acto, y gana el rival, quien: (a) no responde a tiempo, (b) escribe un futbolista que ya se dijo en la partida, o (c) escribe un nombre que no corresponde a ningún futbolista que cumpla, salvo que apele y el rival acepte la apelación (RF-34). La pantalla dice el motivo en una frase.
 - **RF-15** Se toleran mayúsculas y minúsculas, tildes, espacios sobrantes, el apellido solo y los apodos que la fuente registra como nombre alternativo completo ("MESSI", "Messi" y "lionel messi" valen lo mismo; "Chicharito" vale). **No** se toleran erratas de letras ("Lionel Mesi" no vale). Un texto vale solo si coincide con una parte seguida del nombre del futbolista o con uno de sus apodos completos; no vale por aparecer dentro del apodo de otra persona ("Messi" en México no vale).
 - **RF-16** Las repeticiones se detectan por la **identidad del futbolista**, no por el texto: "Messi" y "Lionel Messi" son el mismo, y el segundo cuenta como repetido aunque se haya escrito distinto.
 - **RF-17** Si la fuente falla, se demora más de 5 segundos o rechaza por exceso de uso, el juego **no se rompe**: el rival ve lo escrito y decide con "Vale" o "No vale"; el reloj sigue detenido mientras decide. Una pantalla avisa que esa respuesta no se pudo verificar y por qué decide el rival. "No vale" hace perder a quien escribió. Sin verificación, la repetición se detecta por el texto normalizado (sin tildes ni mayúsculas) y si el texto es distinto la decide el rival.
-- **RF-18** Al terminar el ping pong se muestra el ganador, el motivo, cuántos futbolistas aceptó cada jugador y la lista completa en orden. Cada futbolista aceptado por decisión del rival lleva la marca "sin verificar", con texto y no solo con color.
+- **RF-18** Al terminar el ping pong se muestra el ganador, el motivo, cuántos futbolistas aceptó cada jugador y la lista completa en orden. Cada futbolista aceptado por decisión del rival porque la fuente falló lleva la marca "sin verificar", y cada uno aceptado por una apelación lleva la marca "por apelación"; ambas con texto y no solo con color.
 
 ### Preguntas generales
 - **RF-19** Cada jugador responde **5 preguntas** seguidas de opción múltiple (4 opciones, 1 correcta) y luego se pasa el celular. Cada jugador recibe preguntas distintas, pero de la misma dificultad (2 fáciles, 2 medias y 1 difícil). Ninguna pregunta se repite en la partida y el orden de las opciones se baraja en cada partida.
@@ -68,6 +67,7 @@ Valor: un duelo de 2 a 5 minutos entre dos personas con un solo celular (la mayo
 - **RF-31** `privacidad.html` dice que el texto de los futbolistas que se escriben se envía al servidor del juego, que consulta Wikidata; que no se guarda asociado a datos personales; que hay una memoria temporal de resultados; que el navegador no se conecta a Wikidata; y que los nombres de los jugadores no salen del dispositivo. `terminos.html` aclara que Retos Fútbol es un juego de entretenimiento, que sus datos vienen de fuentes abiertas y pueden contener errores u omisiones, y cómo reportar uno.
 - **RF-32** Sin dependencias nuevas. El código de Retos se descarga solo cuando alguien toca "Retos Fútbol": la primera carga del sitio no crece más de 3 KB comprimidos.
 - **RF-33** Las preguntas funcionan sin conexión a internet. El ping pong sin conexión sigue jugable con la decisión del rival (RF-17).
+- **RF-34** (apelación) Cuando la fuente responde que el futbolista no existe o no cumple (RF-14c), la pantalla lo dice y ofrece dos botones a quien lo escribió: "Apelar" y "Aceptar la derrota". "Apelar" lleva a la pantalla de decisión del rival de RF-17, con el aviso de que es una apelación y no una falla de la fuente; el reloj sigue detenido. "Vale" acepta al futbolista y el turno pasa al rival; "No vale" hace perder a quien apeló. El futbolista aceptado queda marcado "por apelación" en la lista final (RF-18). Solo se apela una respuesta que la fuente rechazó: una repetición (RF-14b) no se apela. No hay límite de apelaciones: apelar solo ocurre cuando de otro modo se pierde.
 
 ## Criterios de aceptación
 - **CA-1** (RF-01 a RF-03) A 360×640: el borde inferior de "Empezar mi carrera" está a 560 px o menos; "Retos Fútbol" está completo dentro de los 640 px (borde inferior a 620 px o menos); `scrollWidth` es de 360 o menos; a 1280×800 tampoco hay desplazamiento horizontal. Con "Empezar mi carrera" se llega al formulario y se completa una carrera igual que antes; el ranking y "Volver" funcionan. El `<head>` de `index.html` no cambia. Las cuentas de la landing pasan a 4 `h2` y 5 botones `.btn` con `data-go` (2 de carrera, 2 de Retos y el del ranking); con una carrera guardada hay además el enlace "Ranking ›" (6 elementos con `data-go`).
@@ -90,6 +90,7 @@ Valor: un duelo de 2 a 5 minutos entre dos personas con un solo celular (la mayo
 
 - **CA-3** (RF-10, RF-12, RF-27) Con reloj controlado: un turno sin respuesta pierde a los 15,0 s ± 0,3; el reloj no avanza en el relevo ni durante la verificación; con la fuente demorada 6 s, a los 5,0 s ± 0,5 pasa a decisión del rival; un turno con la pestaña oculta 10 s llega a 5 s restantes al volver.
 - **CA-4** (RF-17, RF-18, RF-33) Con la fuente devolviendo error, tiempo agotado o rechazo por exceso de uso: aparece la decisión del rival con el aviso; "Vale" continúa y deja "sin verificar" en la lista final; "No vale" hace perder a quien escribió; una partida completa se puede terminar sin ninguna respuesta de la fuente. Un texto repetido sin verificación (mismo texto normalizado) pierde sin preguntar al rival.
+- **CA-13** (RF-34) Con la fuente grabada devolviendo "no cumple" para `Zzyxw`: aparecen "Apelar" y "Aceptar la derrota"; "Aceptar la derrota" hace perder a quien escribió; "Apelar" muestra la decisión del rival con el aviso de apelación, "Vale" deja al futbolista "por apelación" en la lista final y pasa el turno, "No vale" hace perder a quien apeló. Un texto repetido no ofrece apelación. Sin ninguna respuesta de la fuente (error), el aviso es el de RF-17 y no el de apelación.
 - **CA-5** (RF-07) Para las secuencias de resultados de categoría (G1 gana jugador 1, G2 jugador 2, E empate) el Reto completo da: G1-G1 gana 1 y no juega la tercera; G1-G2-G1 gana 1; G1-G2-G2 gana 2; G1-G2-E empate; G1-E-E gana 1; E-E-E empate; y quien abre cada categoría es 1, 2, 1.
 - **CA-6** (RF-19 a RF-22) Con 1.000 partidas simuladas: cada jugador recibe 5 preguntas, ninguna repetida en la partida, con las dificultades 1, 1, 2, 2, 3 en ambos; la opción correcta cae en cada posición entre 22 % y 28 %. Casos de puntaje: 5-3 gana el jugador 1; 4-4 pasa a muerte súbita; muerte súbita 1-0 gana el jugador 1; 3 rondas igualadas dan empate. Sin responder, a los 20,0 s ± 0,3 la pregunta cuenta como incorrecta; una segunda respuesta no cambia nada.
 - **CA-7** (RF-23, RF-24) El verificador del banco pasa sin errores: 150 preguntas o más; mínimos por tema y por dificultad; 4 opciones distintas y una sola correcta; fuente https de wikipedia.org o wikidata.org que responde 200; la respuesta correcta figura en la fuente; ninguna pregunta repetida; ninguna con las palabras "actual", "actualmente", "hoy", "vigente", "último" o "más reciente" sin acotar a una edición cerrada. Revisión manual de una persona, de 30 preguntas al azar contra su fuente: 30 de 30 correctas. Con un solo error se revisa el banco entero antes de publicar.
@@ -134,12 +135,27 @@ Los mecanismos están en el plan; aquí, lo que debe cumplirse:
 - **La fuente de cada pregunta no se muestra al jugador** en esta versión; es parte del dato y del verificador.
 - **Sin rutas propias**: se entra y se sale con botones, como el resto del sitio.
 - **Los nombres de los jugadores no se guardan** (ni siquiera los últimos usados): mínimo de datos.
-- **Cuando la fuente dice "no cumple" decide la fuente**, sin apelación (RF-14c). Ver Aclaración 2.
+- **Cuando la fuente dice "no cumple" decide la fuente, pero se puede apelar** (RF-14c, RF-34): cubre los huecos de Wikidata en ligas chicas. Cambio respecto del default original (Aclaración 2).
 
-## Aclaraciones
-Ninguna bloquea el plan: cada una tiene un valor por omisión ya aplicado y se puede cambiar sin rehacer el diseño.
+## Aclaraciones resueltas
+Resueltas por el orquestador antes de implementar el bloque A. Ninguna queda abierta salvo la revisión humana del banco (Aclaración 4), que bloquea publicar y no es del bloque A.
 
-- [NECESITA ACLARACIÓN: ¿5 preguntas por jugador y 20 s por pregunta, con muerte súbita de hasta 3 rondas como desempate, son los valores que querés? (No bloqueante; por omisión: 5, 20 s y muerte súbita.)]
-- [NECESITA ACLARACIÓN: ¿Se permite apelar un "no encontrado" de la fuente, de modo que decida el rival, para cubrir huecos de Wikidata en ligas chicas? Dato: Wikidata tiene unos 380 futbolistas con nacionalidad guatemalteca y menos de 60 jugadores en Xelajú o Antigua, así que un jugador poco conocido de Liga Nacional puede dar "no cumple" siendo real. (No bloqueante; por omisión: no hay apelación, tal como se pidió; costaría un botón y reutiliza la pantalla de RF-17.)]
-- [NECESITA ACLARACIÓN: ¿Es aceptable que "Inglaterra" cuente solo a quienes jugaron con su Selección y que "Países Bajos" incluya el Reino de los Países Bajos (ver Decisiones)? (No bloqueante; por omisión: sí, con aviso en pantalla.)]
-- [NECESITA ACLARACIÓN: ¿Quién revisa a mano las 30 preguntas de muestra de CA-7? Debe ser una persona, no el agente que generó el banco. (No bloqueante para el plan; **sí bloquea publicar** el banco.)]
+**Desvíos aceptados (los 7 del plan)**
+1. La verificación usa `list=search` con `haswbstatement:` en lugar de `wbsearchentities` más las `claims` (plan, "Lo que se midió", punto 2). Sigue siendo la API de Wikidata, datos CC0 y un host fijo.
+2. Coincidencia estricta (RF-15): contigua en el nombre o igual a un apodo completo; las erratas no se toleran.
+3. Mapa de Inglaterra (solo quien jugó con su Selección) y de Países Bajos (el Reino o la Selección), con aviso en pantalla.
+4. El servicio es `GET`, no `POST`, para que la CDN de Vercel guarde las respuestas para todos.
+5. Retos arma el DOM con `h()`/`textContent` y no con `esc()` (RF-29).
+6. Futbolista = ocupación exacta "futbolista de asociación" (Q937857), sin recorrer subclases.
+7. El botón de la carrera conserva "Empezar mi carrera". Por eso `specs/home-landing` CA-3 pasa de 3 a **4 `h2`** (se agrega "Retos Fútbol"); el resto de esa spec no cambia (se actualizó su CA-3).
+
+**Aclaraciones**
+1. **5 preguntas por jugador, 20 s por pregunta y muerte súbita de hasta 3 rondas**: confirmado (RF-19 a RF-22).
+2. **Sí hay apelación** (cambia el default): RF-34 y CA-13; se quitó de "Fuera de alcance".
+3. **Inglaterra y Países Bajos como en la Decisión, con aviso en pantalla**: confirmado. El aviso sale al elegir país y en el primer relevo si el país sorteado es uno de los dos.
+4. **La revisión humana de las 30 preguntas (CA-7) la hará el usuario antes de publicar.** No es del bloque A.
+
+**Notas de implementación del bloque A**
+- Las pantallas del ping pong viven en `src/retos/ui-pingpong.ts` (archivo nuevo dentro del módulo de Retos): `pingpong.ts` queda como lógica pura que se prueba con `tsx`, sin CSS ni DOM.
+- `api/futbolista.ts` importa `./_retos.js` (con extensión): resuelve igual en `tsx`, Vite y `tsc`, y es lo que pide el runtime ESM de Vercel. Se confirma en la primera vista previa (plan, riesgo 1).
+- Con `vite dev` no hay `/api/*`: el ping pong cae solo a la decisión del rival (RF-17), que además sirve de prueba de ese camino. Las pruebas de navegador interceptan la red.

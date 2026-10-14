@@ -25,7 +25,7 @@ Dos agentes en paralelo. Los archivos de uno no se tocan desde el otro; el únic
 | `scripts/retos-qids.ts` | A | Verificador de identificadores contra Wikidata (en vivo) y contra el juego. |
 | `scripts/futbolista.test.ts` | A | Prueba del servicio con `fetch` falso (modelo: `scripts/ranking.test.ts`). |
 | `scripts/retos.test.ts` | A | Prueba de la lógica pura del ping pong y del Reto completo. |
-| `src/retos/index.ts`, `src/retos/pingpong.ts`, `src/retos/retos.css` | A | Pantallas, partida, reloj, marcador, ping pong. Prefijo CSS `rt-`. |
+| `src/retos/index.ts`, `src/retos/pingpong.ts`, `src/retos/ui-pingpong.ts`, `src/retos/retos.css` | A | Pantallas, marcador, lógica pura del ping pong (`pingpong.ts`, sin DOM) y sus pantallas con el reloj (`ui-pingpong.ts`). Prefijo CSS `rt-`. |
 | `src/retos/trivia.ts` | **B** (A deja un stub; gana B) | `jugarTrivia`. |
 | `src/retos/trivia.css` | B | Prefijo CSS `rq-`. |
 | `src/retos/preguntas.json` | B | Banco generado y verificado. |
@@ -206,13 +206,14 @@ Verificados también (no incluidos, por si se amplía): Villarreal `Q12297`, Val
 - `evaluar(estado, jugada)` devuelve `ok`, `repetido` o, según RF-14, la derrota; repetición: mismo QID, o mismo texto normalizado (cubre RF-17 sin verificación).
 - `marcadorCompleto(resultados)` para el Reto completo (RF-07): `{ victorias:[n,n], terminado, ganador }` y `abre(categoria)` = 0,1,0.
 
-**Máquina de la partida (UI)**: `relevo` → `turno` → (`verificando` → `decide-rival`)? → `relevo` | `fin`.
+**Máquina de la partida (UI)**: `relevo` → `turno` → (`verificando` → `decide-rival` | `no-cumple` → `apelar` → `decide-rival`)? → `relevo` | `fin`.
 - **Relevo**: título "Turno de {nombre}", último futbolista aceptado y contador, botón "Listo" (autoenfocado). El reloj no existe todavía.
 - **Turno**: reloj grande, país o club (con bandera o escudo si los hay) y campo con `<label>` visible ("Escribí un futbolista de {país/club}"), `enterkeyhint="send"`, `autocomplete="off"`, `autocapitalize="words"`, `spellcheck="false"`. `Enter` o el botón envían. Validación local con `NOMBRE_RE`; si falla, mensaje en una región `role="alert"` y el reloj sigue. Un texto ya usado (misma clave normalizada) pierde sin consultar.
 - **Reloj**: se calcula con `performance.now()` contra un plazo (no con un contador decreciente), así el segundo plano no regala tiempo (RF-27). Repinta con `setInterval` de 250 ms; el número visible lleva `aria-hidden` y una región `aria-live="polite"` con la clase `.sr` anuncia "15 segundos", "10", "5" y "Se acabó el tiempo". Se detiene al enviar y no se reanuda (cada turno es nuevo).
 - **Verificando**: `fetch('/api/futbolista?…', { signal: AbortSignal.timeout(5000) })`; texto "Verificando…" en `role="status"`. 200 → `valido` decide. Cualquier otra cosa → **decide-rival**.
 - **Decide-rival**: pantalla "No pudimos verificar a «{texto}». Decide {rival}" con aviso del motivo (sin conexión / tardó mucho / límite de uso) y botones "Vale" y "No vale". Pasa por `textContent`. "Vale" → jugada con `sinVerificar: true`; "No vale" → derrota de quien escribió.
-- **Fin**: ganador, motivo, conteo y lista completa con "(sin verificar)" en texto (RF-18). Botones de RF-08.
+- **No cumple y apelación (RF-34)**: si la fuente responde `valido:false`, pantalla "No encontramos a «{texto}»" con "Apelar" y "Aceptar la derrota". "Apelar" reutiliza `decide-rival` con el título "Apelación: decide {rival}"; "Vale" → jugada con `apelacion: true`; "No vale" → derrota de quien apeló.
+- **Fin**: ganador, motivo, conteo y lista completa con "· sin verificar" y "· por apelación" en texto (RF-18). Botones de RF-08.
 - Al cancelar (Salir) se aborta el `fetch` (`AbortController`) y se limpian `setInterval` y escuchas.
 - Un solo `AbortController` por turno; toques repetidos en "Enviar" se ignoran (el estado pasa a `verificando` antes de cualquier `await`).
 
