@@ -189,7 +189,7 @@ interface BestCareer { name: string; verdict: string; score: number; goals: numb
 
 /** Carta de ejemplo de la landing: constante, sin datos del usuario. */
 const DEMO_CARD: RankRow = {
-  pos: 1, name: 'Carlos Ruiz', score: 175, titles: 6, caps: 48, avatar: null, me: false,
+  pos: 1, name: 'Chepe Chamusquero', score: 175, titles: 6, caps: 48, avatar: null, me: false,
   card: { pos: 'DEL', ovr: 88, club: 'municipal', dept: 'Guatemala', foot: 'Derecho', apps: 512, goals: 231, assists: 94, country: 'GT' },
 };
 
@@ -240,11 +240,11 @@ function home() {
       </div>
       <div class="feat">
         <h3>Selección y Mundial</h3>
-        <p>Si rendís, te convocan: eliminatorias mundialistas y el Mundial con tu país.</p>
+        <p>Si rendís, te convocan: eliminatorias, copas continentales y, según tu país, la Liga de Naciones. Llegá a la fase final del Mundial y salí campeón.</p>
       </div>
       <div class="feat">
         <h3>Palmarés</h3>
-        <p>Títulos de liga y copa, y premios individuales: ${AWARD_LABEL.mvp}, ${AWARD_LABEL.goleador}, ${AWARD_LABEL.ideal} y más.</p>
+        <p>Títulos de club y de selección, y premios individuales: ${AWARD_LABEL.mvp}, ${AWARD_LABEL.goleador}, ${AWARD_LABEL.ideal} y más.</p>
       </div>
       <div class="feat">
         <h3>Carta de FC</h3>

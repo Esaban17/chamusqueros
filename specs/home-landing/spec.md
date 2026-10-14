@@ -10,8 +10,9 @@ Valor: que un visitante nuevo entienda el juego en 10 segundos y empiece una car
 - **D3** Sin imágenes pesadas ni dependencias nuevas: se reusan avatar SVG, banderas y carta de FC. Única pieza nueva: una imagen estática para Open Graph.
 - **D4** Sin publicidad: el usuario eliminará AdSense por completo (`src/ui/ads.ts` y `adSlot()`, en la feature de donación, otra rama). La landing no incluye `adSlot('home')` ni reserva espacio para anuncios. Si esta feature se implementa antes, solo se quita la llamada de `home()` y el módulo se deja para la otra rama.
 - **D5** Teaser del ranking = las mejores carreras guardadas en el dispositivo (sin red). Para un visitante nuevo, un texto que explica el ranking y el acceso. El Home no llama a la API del ranking (evita carga en la base y datos ajenos en la portada).
-- **D6** El texto describe solo lo que el juego tiene hoy: 27 países con equipos reales, Selección con eliminatorias mundialistas y Mundial, palmarés con títulos y premios individuales, carta de FC, ranking global. No promete fase final del Mundial (está en otra rama, aún sin integrar).
+- **D6** El texto describe solo lo que el juego tiene hoy: 27 países con equipos reales, Selección con eliminatorias mundialistas, copas continentales, Liga de Naciones (solo Concacaf y UEFA) y Mundial con fase final y título, palmarés con títulos de club y de selección y premios individuales, carta de FC, ranking global. La fase final del Mundial ya está integrada (PR #5).
 - **D7** Los enlaces nuevos del footer (donación, términos) son de otras features; esta no toca `footer()`. Como sus enlaces van apilados en párrafos, hay lugar para más.
+- **D8** El material promocional (carta de ejemplo, `og.png`, textos) solo usa nombres ficticios; nunca el de una persona real, para no sugerir su respaldo ni suplantarla.
 
 ## Alcance
 Hero, "Cómo funciona", "Qué incluye", teaser de ranking/mejores carreras, cierre con segundo llamado y footer; etiquetas de título, descripción, Open Graph y Twitter; imagen OG.
@@ -22,7 +23,7 @@ Ruta o URL propia para la landing, navegación entre secciones, analítica, A/B,
 ## Requisitos funcionales
 - **RF-01** Hero: nombre, frase de valor, el avatar/sticker existente (más pequeño que hoy) y el botón "Empezar mi carrera".
 - **RF-02** "Cómo funciona": 3 pasos numerados (crear jugador, decidir en cada etapa de la carrera, ver su carta y compararla en el ranking).
-- **RF-03** "Qué incluye": 4 bloques: países con equipos reales (el número sale de la lista de países y se muestran 8 banderas), Selección con eliminatorias y Mundial, palmarés con títulos y premios individuales, carta de FC con ejemplo.
+- **RF-03** "Qué incluye": 4 bloques: países con equipos reales (el número sale de la lista de países y se muestran 8 banderas), Selección con eliminatorias, copas continentales, Liga de Naciones y Mundial con fase final, palmarés con títulos de club y de selección y premios individuales, carta de FC con ejemplo.
 - **RF-04** Mejores carreras: con carreras guardadas, muestra hasta 3 (nombre, veredicto, puntos) y el acceso "Ver ranking"; sin ellas, un texto del ranking global (una carrera por jugador, gana quien tenga más puntos) y el mismo acceso.
 - **RF-05** Cierre: segundo botón "Empezar mi carrera" tras las secciones, luego el footer sin cambios.
 - **RF-06** Todo texto de localStorage o de red se muestra escapado (nunca como HTML).
@@ -53,4 +54,4 @@ Ruta o URL propia para la landing, navegación entre secciones, analítica, A/B,
 ## Aclaraciones resueltas
 - **Ranking:** no hay premios por posición. "Qué incluye" habla solo de los premios individuales del palmarés (Mejor jugador, Goleador, etc.) y del ranking global como tabla.
 - **Dominio:** el sitio se queda en `https://chamusqueros.vercel.app`; se usa en `og:*`, `twitter:*` y `canonical`.
-- **Fase final del Mundial:** se mantiene D6. Todavía no se menciona; el bloque "Selección" se actualiza cuando se integre la rama `eliminatorias-selecciones`.
+- **Fase final del Mundial:** el PR #5 ya se integró; D6 se actualizó y el bloque "Selección" la menciona (fase final y título del Mundial, copas continentales y Liga de Naciones).
