@@ -56,9 +56,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const b = await req.json().catch(() => null);
+  // El tope de puntaje deja 25 % sobre el máximo que mide `npm run simulate` (con los premios de specs/trofeos-reales sube a unos 900).
   // ponytail: el puntaje se calcula en el navegador y aquí solo se validan rangos; un POST armado a mano entra.
   // Para blindarlo habría que simular la carrera en el servidor a partir de la semilla y las decisiones.
-  if (!b || typeof b.id !== 'string' || !UUID.test(b.id) || !isInt(b.score, -100, 1000) || !isInt(b.titles, 0, 200) || !isInt(b.caps, 0, 500)) {
+  if (!b || typeof b.id !== 'string' || !UUID.test(b.id) || !isInt(b.score, -100, 1200) || !isInt(b.titles, 0, 200) || !isInt(b.caps, 0, 500)) {
     return Response.json({ error: 'Datos inválidos' }, { status: 400 });
   }
   const name = [...String(b.name ?? '').replace(/\s+/g, ' ').trim()].slice(0, 40).join('') || 'Anónimo';
