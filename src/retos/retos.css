@@ -40,6 +40,53 @@
 .rt-marca { font-weight: 700; color: var(--muted); }
 .rt-pie { padding-top: 8px; }
 
+/* ---------- En línea (salas, lobby, ranking) ---------- */
+.rt-sala, .rt-vista, .rt-vista > *, .rt-lobby { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.rt [hidden] { display: none !important; }
+.rt .field textarea { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface-2); resize: none; font-size: 15px; overflow-wrap: anywhere; }
+.rt-sala > .rt-error { min-height: 0; }
+.rt-sala > .rt-error:empty, .rt-conexion:empty { display: none; }
+.rt-conexion { align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-left: 4px solid var(--gold); border-radius: 8px; background: var(--gold-soft); font-weight: 600; }
+.rt-conexion { display: flex; }
+.rt-conexion p { margin: 0; }
+.rt-conexion .btn { min-height: 48px; padding-block: 8px; }
+.rt-ayuda { color: var(--muted); font-size: 14px; }
+.rt-sub3 { font-size: 18px; font-weight: 800; }
+.rt-lectura { font-weight: 700; overflow-wrap: anywhere; }
+.rt-jugs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.rt-jug { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.rt-avatar { flex: none; display: inline-grid; place-items: center; border-radius: 50%; overflow: hidden; }
+.rt-avatar svg { display: block; width: 100%; height: 100%; }
+.rt-jug-datos { min-width: 0; }
+.rt-jug-nombre { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 19px; overflow-wrap: anywhere; }
+.rt-jug-fav { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.rt-jug-fav .nation-flag { margin-right: 0; }
+.rt-escudo { flex: none; width: 20px; height: 20px; object-fit: contain; }
+.rt-tag { flex: none; font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 6px; border-radius: 6px; background: var(--celeste-soft); color: var(--ink); }
+.rt-espera { color: var(--muted); font-size: 16px; }
+.rt-codigo { font: 900 clamp(40px, 14vw, 64px) / 1 var(--display); letter-spacing: 0.12em; text-align: center; user-select: all; overflow-wrap: anywhere; }
+.rt-vs { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.rt-vs-j { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.rt-vs-j:last-child { flex-direction: row-reverse; text-align: right; }
+.rt-vs-n { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 15px; font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.rt-vs-v { flex: none; font-size: 13px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.rq-op.rq-sel { border-color: var(--celeste); border-width: 2.5px; background: var(--celeste-soft); }
+.rq-rival { display: block; font-size: 13px; font-weight: 600; color: var(--muted); }
+.rq h2:focus-visible { outline: 3px solid var(--celeste); outline-offset: 4px; }
+
+/* Ranking de Retos */
+.rt-rank { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.rt-rank th { text-align: left; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding: 6px 4px; border-bottom: 2px solid var(--line); }
+.rt-rank td { padding: 8px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; font-variant-numeric: tabular-nums; }
+.rt-rank th:nth-child(1), .rt-rank .rt-r-pos { width: 34px; }
+.rt-rank th:nth-child(3), .rt-rank th:nth-child(4), .rt-rank .rt-r-num { width: 60px; text-align: right; font-weight: 700; }
+.rt-rank th:nth-child(4), .rt-rank td:nth-child(4) { width: 44px; }
+.rt-r-jug { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.rt-r-nombre { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.rt-yo td { background: var(--celeste-soft); }
+.rt-r-corte td { text-align: center; color: var(--muted); }
+@media (max-width: 380px) { .rt-rank th:nth-child(3), .rt-rank .rt-r-num { width: 50px; } .rt-rank th:nth-child(4), .rt-rank td:nth-child(4) { width: 36px; } }
+
 /* Teclado en pantalla abierto (360×320 visibles): reloj en línea con el título y menos márgenes */
 @media (max-height: 420px) {
   .rt, .rt-main { gap: 8px; }
@@ -52,6 +99,9 @@
   .rt h1 { font-size: 24px; }
   .rt-reloj { font-size: 72px; }
   .rt-nota, .rt-pie { display: none; }
+  /* En línea: "Salir" flota arriba a la derecha; la franja de jugadores, el aviso de conexión y los títulos le dejan su lugar */
+  .rt-vs, .rt-conexion { margin-right: 88px; }
+  .rt-vista h1 { padding-right: 88px; }
   .rt-ctx { font-size: 15px; }
   .rt-form { gap: 8px; }
 }

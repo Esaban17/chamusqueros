@@ -18,6 +18,7 @@
     "vite-plugin-singlefile": "^2.0.3"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.2.0"
+    "@neondatabase/serverless": "^1.2.0",
+    "ably": "2.29.0"
   }
 }
