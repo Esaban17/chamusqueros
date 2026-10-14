@@ -58,6 +58,7 @@ export interface NtGroup {
   note: string; // quiénes avanzan
   advance: number; // filas de arriba que avanzan
   table: NtGroupRow[];
+  out?: string; // cierre del torneo con fase final: "Eliminado en cuartos de final", "Campeón"...
 }
 
 export interface NtGroupRow {
@@ -84,6 +85,8 @@ export interface NtMatch {
   gf: number; // goles de la Selección del jugador
   ga: number;
   goals: number; // goles del jugador
+  round?: string; // solo fase final: "Octavos de final"
+  pen?: [number, number]; // penales (Selección, rival) si empató en fase final
 }
 
 /** División en el país del jugador (en Guatemala 1 = Liga Nacional, 2 = Primera, 3 = Segunda); 0 = extranjero */

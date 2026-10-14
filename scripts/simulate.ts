@@ -35,10 +35,12 @@ const keeperGoals = new Set<string>();
 // Los partidos con la Selección de cada temporada deben cuadrar con los partidos y goles que suma el jugador.
 const ntErrors = new Set<string>();
 const awardCount: Record<string, number> = {};
+// Fase final de selecciones: torneos jugados y ganados por tipo y grupo de países.
+const koStats: Record<string, { played: number; champ: number; final: number }> = {};
 // El palmarés agrupa sin perder ni inventar trofeos, y siempre hay un momento destacado con texto.
 const summaryErrors = new Set<string>();
 const momentCount: Record<string, number> = {};
-let years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
+let maxTitles = 0, years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
   // Cada país recibe todas las posiciones y ritmos (con 27 países, i % 3 le daría siempre el mismo ritmo a cada uno).
@@ -73,9 +75,27 @@ for (let i = 0; i < N; i++) {
         for (const m of s.nt?.matches ?? []) {
           if (!FLAG_CODE[m.rival]) ntErrors.add(`sin bandera: ${m.rival}`);
           const g = groups.find((x) => x.comp === m.comp);
-          if (g && !g.table.some((r) => r.team === m.rival)) ntErrors.add(`${m.rival} no está en la tabla de ${m.comp}`);
+          if (g && !m.round && !g.table.some((r) => r.team === m.rival)) ntErrors.add(`${m.rival} no está en la tabla de ${m.comp}`);
+          if (g && m.round && g.table.some((r) => r.team === m.rival)) ntErrors.add(`${m.rival} ya estaba en el grupo de ${m.comp}`);
+          if (m.round && m.gf === m.ga !== !!m.pen) ntErrors.add('penales solo en empates de fase final');
+          if (m.round && !FLAG_CODE[m.rival]) ntErrors.add(`sin bandera: ${m.rival}`);
         }
         for (const g of groups) {
+          const ko = (s.nt?.matches ?? []).filter((m) => m.comp === g.comp && m.round);
+          const won = (m: (typeof ko)[number]) => m.gf > m.ga || (m.pen !== undefined && m.pen[0] > m.pen[1]);
+          if (new Set(ko.map((m) => m.rival)).size !== ko.length) ntErrors.add(`rival repetido en la fase final de ${g.comp}`);
+          if (ko.some((m, i) => i > 0 && !won(ko[i - 1]))) ntErrors.add(`siguió jugando después de perder en ${g.comp}`);
+          if (ko.length && g.out === 'Campeón' !== ko.every(won)) ntErrors.add(`el cierre de ${g.comp} no cuadra con sus partidos`);
+          if (g.out === 'Campeón' && s.titles.filter((t) => t.startsWith(g.comp)).length !== 1) ntErrors.add(`campeón de ${g.comp} sin un único título`);
+          if (ko.length && !g.out) ntErrors.add(`fase final sin cierre en ${g.comp}`);
+          if (g.out) {
+            const kind = g.comp.startsWith('Mundial') ? 'Mundial' : /Naciones/.test(g.comp) ? 'Liga de Naciones' : 'Copa';
+            const bucket = ['ES', 'AR', 'BR'].includes(country.code) ? `${kind} (ES/AR/BR)` : country.code === 'GT' ? `${kind} (GT)` : `${kind} (otros)`;
+            const st = (koStats[bucket] ??= { played: 0, champ: 0, final: 0 });
+            st.played++;
+            if (g.out === 'Campeón') st.champ++;
+            if (g.out === 'Campeón' || g.out === 'Subcampeón') st.final++;
+          }
           const gt = g.table.findIndex((r) => r.team === country.name);
           if (gt < 0) ntErrors.add(`${country.name} no está en la tabla de ${g.comp}`);
           if (!FLAG_CODE[country.name]) ntErrors.add(`sin bandera: ${country.name}`);
@@ -138,6 +158,7 @@ for (let i = 0; i < N; i++) {
   byPos[position].n++;
   years += p.seasons.length;
   titles += s.titles.length;
+  maxTitles = Math.max(maxTitles, s.titles.length);
   caps += p.caps;
   if (p.caps > 0) nt++;
   // Si un evento contó la clasificación y el jugador siguió en la Selección esa temporada, tiene que jugar el Mundial.
@@ -163,6 +184,9 @@ console.log('Veredictos:');
 for (const [k, v] of Object.entries(verdicts).sort((a, b) => b[1] - a[1])) console.log(`  ${k}: ${pct(v)}`);
 scores.sort((a, b) => a - b);
 console.log('Puntaje p25/p50/p75/p90/p97:', [0.25, 0.5, 0.75, 0.9, 0.97].map((q) => scores[Math.floor(q * N)].toFixed(0)).join(' / '));
+console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, '(el servidor acepta hasta 1000 y 200)');
+console.log('Fase final (torneos jugados · campeón · finalista):');
+for (const [k, v] of Object.entries(koStats).sort()) console.log(`  ${k}: ${v.played} · ${((100 * v.champ) / v.played).toFixed(1)}% · ${((100 * v.final) / v.played).toFixed(1)}%`);
 const totalEvents = Object.values(eventCount).reduce((a, b) => a + b, 0);
 console.log('Categorías:', Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(0)}%`).join(' · '));
 const sorted = Object.entries(eventCount).sort((a, b) => b[1] - a[1]);

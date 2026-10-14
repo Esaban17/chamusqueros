@@ -65,7 +65,9 @@ export function bestMoment(p: Player, s: CareerSummary): Moment {
   };
   const nt = `Con ${countryOf(p.setup.country).name}`;
   for (const m of p.milestones) {
-    if (/^Gol en el Mundial \d/.test(m)) add(100, 'gol', nt, m, true);
+    if (/^Campeón del Mundial \d/.test(m)) add(120, 'mundial', nt, m.replace(/ con .+$/, ''), true);
+    else if (/^Campeón de /.test(m)) add(88, 'seleccion', nt, m.replace(/ con .+$/, ''), true);
+    else if (/^Gol en el Mundial \d/.test(m)) add(100, 'gol', nt, m, true);
     else if (/^Jugó el Mundial \d/.test(m)) add(90, 'mundial', nt, m.replace(/ con .+$/, ''), true);
     else if (/^Clasificó al Mundial \d/.test(m)) add(85, 'mundial', nt, m, true);
     else if (/^Héroe ante /.test(m)) add(80, 'seleccion', nt, m, true);

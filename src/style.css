@@ -294,6 +294,27 @@ button, input, select { font: inherit; color: inherit; }
 .res.win { background: var(--good); }
 .res.draw { background: var(--muted); }
 .res.loss { background: var(--bad); }
+.round { display: block; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ko-out { font-weight: 800; color: var(--bad); }
+.ko-out.champ { color: var(--gold); font-size: 18px; }
+
+/* Celebración de un trofeo de selección (ver ui/celebrate.ts) */
+.party, .party * { pointer-events: none; }
+.party { position: fixed; inset: 0; z-index: 100; overflow: hidden; }
+.party-bit { position: absolute; top: -4vh; left: var(--x); width: 8px; height: 14px; background: var(--c); opacity: 0; animation: party-fall var(--t) linear var(--d) forwards; }
+.party.big .party-bit { width: 10px; height: 18px; }
+.party-balloon { position: absolute; top: 100vh; left: var(--x); width: 44px; height: 54px; border-radius: 50% 50% 48% 48%; background: var(--c); opacity: 0; animation: party-rise var(--t) ease-in var(--d) forwards; }
+.party-balloon::after { content: ''; position: absolute; top: 100%; left: 50%; width: 1px; height: 36px; background: var(--muted); }
+.party.big .party-balloon { width: 64px; height: 78px; }
+.party-banner { position: absolute; top: 18%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 22px; border-radius: 16px; background: var(--surface); border: 2px solid var(--gold); box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25); text-align: center; animation: party-pop 7s ease-out forwards; }
+.party-banner b { font-size: 22px; color: var(--gold); }
+.party-banner span { font-weight: 700; }
+.party.big .party-banner { padding: 18px 32px; }
+.party.big .party-banner b { font-size: 34px; }
+.party.big .party-banner span { font-size: 20px; }
+@keyframes party-fall { from { opacity: 1; transform: translate3d(0, 0, 0) rotate(0); } to { opacity: 1; transform: translate3d(var(--w), 110vh, 0) rotate(var(--r)); } }
+@keyframes party-rise { from { opacity: 1; transform: translate3d(0, 0, 0); } to { opacity: 1; transform: translate3d(var(--w), -130vh, 0); } }
+@keyframes party-pop { 0% { opacity: 0; transform: translateX(-50%) scale(0.6); } 8% { opacity: 1; transform: translateX(-50%) scale(1.08); } 14% { transform: translateX(-50%) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; } }
 
 /* Publicidad */
 .ad { display: flex; flex-direction: column; gap: 4px; min-height: 60px; }

@@ -18,6 +18,7 @@ import {
 import { adSlot, fillAds, initAds } from './ui/ads';
 import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
 import { TIERS, drawCareerCard } from './ui/card';
+import { celebrate } from './ui/celebrate';
 import { flag } from './ui/flags';
 import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
 
@@ -419,9 +420,12 @@ function trophy(icon: TrophyIcon, label: string, detail: string) {
 }
 
 function matchRow(m: NtMatch) {
-  const [cls, tag, word] = m.gf > m.ga ? ['win', 'G', 'Victoria'] : m.gf < m.ga ? ['loss', 'P', 'Derrota'] : ['draw', 'E', 'Empate'];
+  // Las carreras viejas no traen penales ni ronda; si vienen mal formados se ignoran.
+  const pen = Array.isArray(m.pen) && m.pen.length === 2 && m.pen.every(Number.isFinite) ? m.pen : null;
+  const d = m.gf - m.ga || (pen ? pen[0] - pen[1] : 0);
+  const [cls, tag, word] = d > 0 ? ['win', 'G', 'Victoria'] : d < 0 ? ['loss', 'P', 'Derrota'] : ['draw', 'E', 'Empate'];
   return `<li><span class="res ${cls}"><span aria-hidden="true">${tag}</span><span class="sr">${word}</span></span>
-    <span>${esc(career!.home.name)} ${m.gf}-${m.ga} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
+    <span>${typeof m.round === 'string' ? `<small class="round">${esc(m.round)}</small>` : ''}${esc(career!.home.name)} ${m.gf}-${m.ga}${pen ? ` (${pen[0]}-${pen[1]} pen.)` : ''} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
 }
 
 /** Tabla final del grupo de la Selección del jugador; G, E y P se esconden en pantallas angostas. */
@@ -449,8 +453,12 @@ function ntBlock(nt: NonNullable<SeasonRecord['nt']>) {
     ${nt.debut ? `${ntCall()}<p>${esc(home.name)} te convocó por primera vez. Vas a vestir la ${home.code === 'GT' ? 'azul y blanco' : `camiseta ${esc(de(home.ntName))}`}.</p>` : `<p class="nt-title">${flag(home.name, 'mini-flag')}Convocado a la Selección</p>`}
     ${comps.map((c) => {
       const g = groups.find((x) => x.comp === c);
-      const mine = nt.matches.filter((m) => m.comp === c);
-      return `<p class="nt-comp">${esc(c)}</p>${g ? groupTable(g) : ''}${mine.length ? `${g ? '<p class="group-note">Tus partidos</p>' : ''}<ul class="matches">${mine.map(matchRow).join('')}</ul>` : g ? '<p class="group-note">No jugaste en este grupo.</p>' : ''}`;
+      const mine = nt.matches.filter((m) => m.comp === c && !m.round);
+      const ko = nt.matches.filter((m) => m.comp === c && m.round);
+      const out = typeof g?.out === 'string' ? g.out : '';
+      return `<p class="nt-comp">${esc(c)}</p>${g ? groupTable(g) : ''}${mine.length ? `${g ? '<p class="group-note">Tus partidos</p>' : ''}<ul class="matches">${mine.map(matchRow).join('')}</ul>` : g ? '<p class="group-note">No jugaste en este grupo.</p>' : ''}
+        ${ko.length ? `<p class="group-note">Fase final</p><ul class="matches">${ko.map(matchRow).join('')}</ul>` : ''}
+        ${out ? `<p class="ko-out${out === 'Campeón' ? ' champ' : ''}">${out === 'Campeón' ? '🏆 ' : ''}${esc(out)}</p>` : ''}`;
     }).join('')}
   </div>`;
 }
@@ -481,6 +489,10 @@ function seasonSummary(played: SeasonRecord[]) {
   render(`${playerHead()}${played.map(seasonCard).join('')}
     <button class="btn big" id="next">${over ? 'Ver mi carrera' : 'Seguir'}</button>${adSlot('game')}`);
   document.getElementById('next')!.onclick = () => (over ? finish() : gameScreen());
+  // Solo aquí, al revelar las temporadas nuevas: el historial no la repite. El Mundial, si lo hay, manda.
+  const cups = played.flatMap((r) => (r.nt?.groups ?? []).filter((g) => g.out === 'Campeón').map((g) => g.comp));
+  const top = cups.find((c) => c.startsWith('Mundial')) ?? cups[0];
+  if (top) celebrate(top, top.startsWith('Mundial'));
 }
 
 function playerHead() {
