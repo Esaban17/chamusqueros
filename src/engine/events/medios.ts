@@ -370,7 +370,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
   {
     id: 'med_sele',
     category: 'medios',
-    title: (p, ctx) => (ctx.country.code === 'GT' ? '"¿Qué le falta a la Bicolor?"' : `"¿Qué le falta ${a(ctx.country.ntName)}?"`),
+    title: (p, ctx) => (ctx.nt.code === 'GT' ? '"¿Qué le falta a la Bicolor?"' : `"¿Qué le falta ${a(ctx.nt.ntName)}?"`),
     text: (p, ctx) =>
       ctx.qualifiers
         ? `En plena eliminatoria rumbo al Mundial ${ctx.worldCupYear}, te preguntan: "¿Qué le falta a la Selección para clasificar?"`
@@ -382,7 +382,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
       opt('Unión y trabajar callados',
         o(0.85, 'Respuesta de grupo. El cuerpo técnico de la Selección la valoró.', { fame: 3, morale: 3 }),
         o(0.15, 'Te dijeron que era la misma respuesta de hace 20 años.', { fame: 1 })),
-      opt(`Más apoyo ${de(ctx.country.federation)}`,
+      opt(`Más apoyo ${de(ctx.nt.federation)}`,
         o(0.45, 'Muchos jugadores te respaldaron. Se abrió el debate en todos los medios.', { fame: 10, morale: 4 }),
         o(0.55, 'En la federación no cayó bien. En la siguiente lista no apareciste.', { fame: 7, morale: -8 })),
       opt('"Que me den la diez y ya"',
@@ -393,7 +393,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
   {
     id: 'med_resp_sele',
     category: 'medios',
-    title: (p, ctx) => (ctx.country.code === 'GT' ? 'El técnico de la Bicolor' : `El técnico ${de(ctx.country.ntName)}`),
+    title: (p, ctx) => (ctx.nt.code === 'GT' ? 'El técnico de la Bicolor' : `El técnico ${de(ctx.nt.ntName)}`),
     text: () =>
       'En su conferencia, el técnico de la Selección contesta tu mensaje: "Lo estoy viendo. Pero a la Selección se llega jugando, no hablando."',
     when: (p) => has(p, 'med_msj_sele'),

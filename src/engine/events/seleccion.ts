@@ -14,6 +14,7 @@ import { o, opt, has, cap, de } from '../helpers';
 // sel_elim_decidido    ya se jugó el partido decisivo de la eliminatoria del ciclo
 // sel_repechaje        la Selección se fue al repechaje
 // sel_elim_r2          el motor ya jugó la segunda ronda de la eliminatoria del ciclo (la pone engine.ts)
+// cap_final           jugó un partido en una copa continental con un evento (lo usa nacionalidad.ts para la elegibilidad)
 // Las banderas de eliminatoria se limpian en los eventos que solo salen fuera de eliminatoria.
 
 const mayor = (p: Player) => p.ntLevel >= 1 && !has(p, 'sel_retirado');
@@ -22,9 +23,9 @@ const enEliminatoria = (p: Player, ctx: EventContext) =>
 const limpiaElim = ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje', 'sel_elim_r2'];
 const gol = (p: Player) => p.setup.position === 'DEL' || p.setup.position === 'MED';
 /** Cuánto más alto que en Guatemala está el listón para entrar a la Selección del jugador. */
-const bar = (ctx: EventContext) => ctx.country.callup - 71;
-const fed = (ctx: EventContext) => ctx.country.federation;
-const gt = (ctx: EventContext) => ctx.country.code === 'GT';
+const bar = (ctx: EventContext) => ctx.nt.callup - 71;
+const fed = (ctx: EventContext) => ctx.nt.federation;
+const gt = (ctx: EventContext) => ctx.nt.code === 'GT';
 
 /** Torneos juveniles de cada confederación. */
 const JUVENIL: Record<Confed, (cat: string) => string> = {
@@ -56,9 +57,9 @@ const GIGANTE: Record<Confed, [string, string]> = {
   AFC: ['Japón', 'Corea del Sur'],
   CAF: ['Marruecos', 'Senegal'],
 };
-const gigante = (ctx: EventContext) => GIGANTE[ctx.country.conf].find((n) => n !== ctx.country.name)!;
+const gigante = (ctx: EventContext) => GIGANTE[ctx.nt.conf].find((n) => n !== ctx.nt.name)!;
 /** Selecciones con mucha gente viviendo en Estados Unidos. */
-const migrante = (ctx: EventContext) => (ctx.country.conf === 'CONCACAF' || ctx.country.conf === 'CONMEBOL') && ctx.country.code !== 'US';
+const migrante = (ctx: EventContext) => (ctx.nt.conf === 'CONCACAF' || ctx.nt.conf === 'CONMEBOL') && ctx.nt.code !== 'US';
 
 export const SELECCION_EVENTS: EventTemplate[] = [
   // ---------- Sub-17 ----------
@@ -103,7 +104,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Premundial Sub-17',
     text: (p, ctx) =>
-      `${JUVENIL[ctx.country.conf]('Sub-17')}. Se juega contra selecciones con academias de primer mundo. Un buen torneo te pone en el radar.`,
+      `${JUVENIL[ctx.nt.conf]('Sub-17')}. Se juega contra selecciones con academias de primer mundo. Un buen torneo te pone en el radar.`,
     when: (p) => has(p, 'sel_sub17') && p.age <= 18,
     weight: 3,
     once: true,
@@ -122,7 +123,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Mundial Sub-17',
     text: (p, ctx) =>
-      `${ctx.country.name} en un Mundial Sub-17. Hay visores de Europa en la tribuna y el debut es contra una potencia ${ctx.country.conf === 'CONMEBOL' ? 'europea' : 'sudamericana'}.`,
+      `${ctx.nt.name} en un Mundial Sub-17. Hay visores de Europa en la tribuna y el debut es contra una potencia ${ctx.nt.conf === 'CONMEBOL' ? 'europea' : 'sudamericana'}.`,
     when: (p) => has(p, 'sel_sub17_mundial'),
     weight: 4,
     once: true,
@@ -143,7 +144,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     title: 'Llamado de la Sub-20',
     text: (p, ctx) =>
       `La Sub-20 arma su lista para el Premundial y tu nombre está. Pero ${ctx.club.name} te tiene en el once y la gira choca con el cierre del torneo.`,
-    when: (p) => p.age >= 18 && p.age <= 20 && p.rating >= 52 && !has(p, 'sel_sub20'),
+    when: (p) => p.age >= 18 && p.age <= 20 && p.rating >= 52 && !has(p, 'sel_sub20') && !p.cambioSel,
     once: true,
     weight: 2,
     options: () => [
@@ -160,7 +161,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Premundial Sub-20',
     text: (p, ctx) =>
-      `${JUVENIL[ctx.country.conf]('Sub-20')}. Los mejores van al Mundial. Último partido de grupo: un empate alcanza, una derrota los manda a casa.`,
+      `${JUVENIL[ctx.nt.conf]('Sub-20')}. Los mejores van al Mundial. Último partido de grupo: un empate alcanza, una derrota los manda a casa.`,
     when: (p) => has(p, 'sel_sub20') && p.age <= 21,
     weight: 3,
     once: true,
@@ -179,7 +180,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Mundial Sub-20',
     text: (p, ctx) =>
-      `Mundial Sub-20. Te toca un rival ${ctx.country.conf === 'UEFA' ? 'sudamericano' : 'europeo'} con medio equipo jugando en primera división. En ${ctx.country.name} ponen los partidos de madrugada.`,
+      `Mundial Sub-20. Te toca un rival ${ctx.nt.conf === 'UEFA' ? 'sudamericano' : 'europeo'} con medio equipo jugando en primera división. En ${ctx.nt.name} ponen los partidos de madrugada.`,
     when: (p) => has(p, 'sel_sub20_mundial'),
     weight: 4,
     once: true,
@@ -197,8 +198,8 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Preolímpico Sub-23',
     text: (p, ctx) =>
-      `La Sub-23 juega ${PREOLIMPICO[ctx.country.conf]}. ${gt(ctx) ? 'Hace décadas que Guatemala no va a unos Juegos Olímpicos' : `En ${ctx.country.name} sueñan con una medalla olímpica`} y te quieren de líder del grupo.`,
-    when: (p) => p.age >= 21 && p.age <= 23 && p.rating >= 56 && !has(p, 'sel_sub23'),
+      `La Sub-23 juega ${PREOLIMPICO[ctx.nt.conf]}. ${gt(ctx) ? 'Hace décadas que Guatemala no va a unos Juegos Olímpicos' : `En ${ctx.nt.name} sueñan con una medalla olímpica`} y te quieren de líder del grupo.`,
+    when: (p) => p.age >= 21 && p.age <= 23 && p.rating >= 56 && !has(p, 'sel_sub23') && !p.cambioSel,
     once: true,
     options: () => [
       opt('Acepto ser uno de los líderes',
@@ -250,9 +251,9 @@ export const SELECCION_EVENTS: EventTemplate[] = [
   {
     id: 'sel_debut',
     category: 'seleccion',
-    title: (p, ctx) => `Debut con ${ctx.country.ntName}`,
+    title: (p, ctx) => `Debut con ${ctx.nt.ntName}`,
     text: (p, ctx) =>
-      `Amistoso internacional y el técnico te dice que hoy debutás. Suena el himno, te tiembla la pierna y ves el ${p.setup.number} ${gt(ctx) ? 'azul y blanco' : de(ctx.country.ntName)} en tu espalda.`,
+      `Amistoso internacional y el técnico te dice que hoy debutás. Suena el himno, te tiembla la pierna y ves el ${p.setup.number} ${gt(ctx) ? 'azul y blanco' : de(ctx.nt.ntName)} en tu espalda.`,
     when: (p) => has(p, 'sel_prelista') && p.ntLevel === 0 && !has(p, 'sel_retirado'),
     weight: 4,
     once: true,
@@ -380,10 +381,10 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Liga de Naciones',
     text: (p, ctx) =>
-      ctx.country.conf === 'UEFA'
+      ctx.nt.conf === 'UEFA'
         ? 'Liga de Naciones de la UEFA: si ganan el grupo, suben de liga y aseguran rivales más fuertes. Último partido, de visita en una noche helada.'
         : 'Liga de Naciones de Concacaf: si ganan el grupo, suben de liga y aseguran rivales más fuertes. Último partido, de visita en el Caribe con 35 grados.',
-    when: (p, ctx) => mayor(p) && !ctx.qualifiers && (ctx.country.conf === 'CONCACAF' || ctx.country.conf === 'UEFA'),
+    when: (p, ctx) => mayor(p) && !ctx.qualifiers && (ctx.nt.conf === 'CONCACAF' || ctx.nt.conf === 'UEFA'),
     cooldown: 6,
     options: (p) => [
       opt('Salgo a ganar desde el inicio',
@@ -400,17 +401,17 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     title: (p, ctx) => `Penal contra ${gigante(ctx)}`,
     text: (p, ctx) =>
       p.setup.position === 'POR'
-        ? `${CONFED_CUP[ctx.country.conf]}, cuartos contra ${gigante(ctx)}. Tanda de penales y el último lo patean ellos. Si lo atajás, ${ctx.country.name} hace historia.`
-        : `${CONFED_CUP[ctx.country.conf]}, cuartos contra ${gigante(ctx)}. Tanda de penales y te toca el quinto. Si lo metés, ${ctx.country.name} hace historia.`,
+        ? `${CONFED_CUP[ctx.nt.conf]}, cuartos contra ${gigante(ctx)}. Tanda de penales y el último lo patean ellos. Si lo atajás, ${ctx.nt.name} hace historia.`
+        : `${CONFED_CUP[ctx.nt.conf]}, cuartos contra ${gigante(ctx)}. Tanda de penales y te toca el quinto. Si lo metés, ${ctx.nt.name} hace historia.`,
     when: (p) => mayor(p) && p.caps >= 3,
     once: true,
     options: (p, ctx) => [
       opt(p.setup.position === 'POR' ? 'Me tiro a mi palo fuerte' : 'Lo pateo fuerte, arriba',
-        o(0.4, `¡Histórico! Eliminaron a ${gigante(ctx)} y ${gt(ctx) ? 'el Obelisco se llenó' : 'las calles se llenaron'} de gente.`, { caps: 2, fame: 25, morale: 16, milestone: `Héroe ante ${gigante(ctx)} en ${CONFED_CUP[ctx.country.conf]}` }),
-        o(0.6, 'No pudo ser. Llorás en el césped y el país te abraza igual.', { caps: 2, fame: 4, morale: -12 })),
+        o(0.4, `¡Histórico! Eliminaron a ${gigante(ctx)} y ${gt(ctx) ? 'el Obelisco se llenó' : 'las calles se llenaron'} de gente.`, { caps: 2, flag: 'cap_final', fame: 25, morale: 16, milestone: `Héroe ante ${gigante(ctx)} en ${CONFED_CUP[ctx.nt.conf]}` }),
+        o(0.6, 'No pudo ser. Llorás en el césped y el país te abraza igual.', { caps: 2, flag: 'cap_final', fame: 4, morale: -12 })),
       opt(p.setup.position === 'POR' ? 'Espero hasta el último momento' : 'Lo coloco al palo, seguro',
-        o(0.55, `¡Adentro, al otro lado! ${ctx.country.name} a semifinales. Locura.`, { caps: 2, fame: 22, morale: 14, milestone: `Héroe ante ${gigante(ctx)} en ${CONFED_CUP[ctx.country.conf]}` }),
-        o(0.45, p.setup.position === 'POR' ? 'Te la picaron al centro. Ni modo.' : 'Lo adivinó el portero. Ni modo.', { caps: 2, fame: 2, morale: -12 })),
+        o(0.55, `¡Adentro, al otro lado! ${ctx.nt.name} a semifinales. Locura.`, { caps: 2, flag: 'cap_final', fame: 22, morale: 14, milestone: `Héroe ante ${gigante(ctx)} en ${CONFED_CUP[ctx.nt.conf]}` }),
+        o(0.45, p.setup.position === 'POR' ? 'Te la picaron al centro. Ni modo.' : 'Lo adivinó el portero. Ni modo.', { caps: 2, flag: 'cap_final', fame: 2, morale: -12 })),
     ],
   },
   {
@@ -418,16 +419,16 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Copa Oro ante Estados Unidos',
     text: (p, ctx) =>
-      `Copa Oro, fase de grupos contra Estados Unidos en su casa. Ellos tienen jugadores en las mejores ligas; ustedes, garra y un estadio medio lleno de ${ctx.country.people}.`,
-    when: (p, ctx) => mayor(p) && ctx.country.conf === 'CONCACAF' && ctx.country.code !== 'US',
+      `Copa Oro, fase de grupos contra Estados Unidos en su casa. Ellos tienen jugadores en las mejores ligas; ustedes, garra y un estadio medio lleno de ${ctx.nt.people}.`,
+    when: (p, ctx) => mayor(p) && ctx.nt.conf === 'CONCACAF' && ctx.nt.code !== 'US',
     cooldown: 8,
     options: (p) => [
       opt('Presiono arriba, sin complejos',
-        o(0.3, gol(p) ? '¡Le ganaron a Estados Unidos y el gol fue tuyo!' : '¡Le ganaron a Estados Unidos! Partido de tu vida.', { caps: 2, natGoals: gol(p) ? 1 : 0, fame: 18, morale: 12 }),
-        o(0.7, 'La presión los dejó sin piernas. Goleada en contra.', { caps: 2, fitness: -8, morale: -8 })),
+        o(0.3, gol(p) ? '¡Le ganaron a Estados Unidos y el gol fue tuyo!' : '¡Le ganaron a Estados Unidos! Partido de tu vida.', { caps: 2, flag: 'cap_final', natGoals: gol(p) ? 1 : 0, fame: 18, morale: 12 }),
+        o(0.7, 'La presión los dejó sin piernas. Goleada en contra.', { caps: 2, flag: 'cap_final', fitness: -8, morale: -8 })),
       opt('Nos cerramos y salimos al contragolpe',
-        o(0.5, 'Empate sufrido que sabe a victoria.', { caps: 2, fame: 8, morale: 6 }),
-        o(0.5, 'Aguantaron 80 minutos y en una pelota parada se acabó.', { caps: 2, morale: -6 })),
+        o(0.5, 'Empate sufrido que sabe a victoria.', { caps: 2, flag: 'cap_final', fame: 8, morale: 6 }),
+        o(0.5, 'Aguantaron 80 minutos y en una pelota parada se acabó.', { caps: 2, flag: 'cap_final', morale: -6 })),
     ],
   },
   {
@@ -435,12 +436,12 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Amistoso con la afición migrante',
     text: (p, ctx) =>
-      `Amistoso en un estadio de Los Ángeles lleno de ${ctx.country.people} que no ven a su Selección en persona desde hace años. Después del partido te esperan afuera.`,
+      `Amistoso en un estadio de Los Ángeles lleno de ${ctx.nt.people} que no ven a su Selección en persona desde hace años. Después del partido te esperan afuera.`,
     when: (p, ctx) => mayor(p) && !ctx.qualifiers && migrante(ctx),
     cooldown: 6,
     options: (p, ctx) => [
       opt('Me quedo una hora firmando y platicando',
-        o(0.8, `Fotos, abrazos y una señora que te regaló ${ctx.country.dish}. Eso no tiene precio.`, { caps: 1, fame: 10, morale: 12, fitness: -4, unflag: limpiaElim }),
+        o(0.8, `Fotos, abrazos y una señora que te regaló ${ctx.nt.dish}. Eso no tiene precio.`, { caps: 1, fame: 10, morale: 12, fitness: -4, unflag: limpiaElim }),
         o(0.2, 'Perdiste el bus del equipo y el técnico te puso una multa.', { caps: 1, fame: 8, morale: 4, coach: -5, unflag: limpiaElim })),
       opt('Saludo rápido y me voy a descansar',
         o(0.6, 'Llegaste fresco al siguiente compromiso.', { caps: 1, fame: 3, fitness: 4, unflag: limpiaElim }),
@@ -454,7 +455,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Eliminatoria: fase de grupos',
     text: (p, ctx) =>
-      `Arranca la eliminatoria rumbo al Mundial ${ctx.worldCupYear}. Grupo accesible en el papel, pero ${ELIMINATORIA[ctx.country.conf]}`,
+      `Arranca la eliminatoria rumbo al Mundial ${ctx.worldCupYear}. Grupo accesible en el papel, pero ${ELIMINATORIA[ctx.nt.conf]}`,
     when: (p, ctx) => enEliminatoria(p, ctx) && p.wcProgress === 0 && !has(p, 'sel_elim_r2'),
     weight: 3,
     cooldown: 2,
@@ -470,9 +471,9 @@ export const SELECCION_EVENTS: EventTemplate[] = [
   {
     id: 'sel_elim_mateo_flores',
     category: 'seleccion',
-    title: (p, ctx) => `${cap(ctx.country.stadium)} lleno`,
+    title: (p, ctx) => `${cap(ctx.nt.stadium)} lleno`,
     text: (p, ctx) =>
-      `Fase final rumbo al ${ctx.worldCupYear}. ${gt(ctx) ? 'El Doroteo Guamuch Flores, el Mateo Flores,' : cap(ctx.country.stadium)} está lleno desde el mediodía. La gente canta el himno a todo pulmón.`,
+      `Fase final rumbo al ${ctx.worldCupYear}. ${gt(ctx) ? 'El Doroteo Guamuch Flores, el Mateo Flores,' : cap(ctx.nt.stadium)} está lleno desde el mediodía. La gente canta el himno a todo pulmón.`,
     when: (p, ctx) => enEliminatoria(p, ctx) && p.wcProgress >= 1 && p.wcProgress < 3,
     weight: 3,
     cooldown: 3,
@@ -490,7 +491,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Visita a un estadio hostil',
     text: (p, ctx) =>
-      `${ctx.country.conf === 'CONCACAF' ? 'Visita en Centroamérica' : 'Visita a un estadio hostil'}: petardos en el hotel a medianoche, el bus llega tarde y la cancha está dura. El estadio silba cada vez que tocás la pelota.`,
+      `${ctx.nt.conf === 'CONCACAF' ? 'Visita en Centroamérica' : 'Visita a un estadio hostil'}: petardos en el hotel a medianoche, el bus llega tarde y la cancha está dura. El estadio silba cada vez que tocás la pelota.`,
     when: (p, ctx) => enEliminatoria(p, ctx) && p.wcProgress >= 1 && p.wcProgress < 3,
     weight: 3,
     cooldown: 3,
@@ -508,13 +509,13 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'El partido decisivo',
     text: (p, ctx) =>
-      `Última fecha. Si ganan, ${ctx.country.name} está en el Mundial ${ctx.worldCupYear}${ctx.country.wcDebut ? ' por primera vez' : ''}. Si empatan, repechaje. El país se paraliza para verlos.`,
+      `Última fecha. Si ganan, ${ctx.nt.name} está en el Mundial ${ctx.worldCupYear}${ctx.nt.wcDebut ? ' por primera vez' : ''}. Si empatan, repechaje. El país se paraliza para verlos.`,
     when: (p, ctx) => enEliminatoria(p, ctx) && p.wcProgress >= 1 && !has(p, 'sel_elim_decidido'),
     weight: 4,
     cooldown: 2,
     options: (p, ctx) => [
       opt('Pido la pelota en cada jugada',
-        o(0.35, `¡${ctx.country.name.toUpperCase()} AL MUNDIAL ${ctx.worldCupYear}! Nadie en el país durmió esa noche.`, { caps: 1, natGoals: gol(p) ? 1 : 0, fame: 25, morale: 16, wcProgress: 1, flag: 'sel_elim_decidido', milestone: `Clasificó al Mundial ${ctx.worldCupYear}` }),
+        o(0.35, `¡${ctx.nt.name.toUpperCase()} AL MUNDIAL ${ctx.worldCupYear}! Nadie en el país durmió esa noche.`, { caps: 1, natGoals: gol(p) ? 1 : 0, fame: 25, morale: 16, wcProgress: 1, flag: 'sel_elim_decidido', milestone: `Clasificó al Mundial ${ctx.worldCupYear}` }),
         o(0.35, 'Empate con sabor amargo. Queda el repechaje.', { caps: 1, fame: 6, flag: ['sel_elim_decidido', 'sel_repechaje'] }),
         o(0.3, 'Perdieron. Otra vez el "casi". Duele en el alma.', { caps: 1, morale: -16, flag: ['sel_elim_decidido', 'sel_elim_fuera'] })),
       opt('Hago lo mío, sin cargar el mundo',
@@ -527,12 +528,12 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Repechaje mundialista',
     text: (p, ctx) =>
-      `Repechaje intercontinental en cancha neutral. Un solo partido separa a ${ctx.country.name} del Mundial ${ctx.worldCupYear}. El rival es de otro continente y de otro ritmo.`,
+      `Repechaje intercontinental en cancha neutral. Un solo partido separa a ${ctx.nt.name} del Mundial ${ctx.worldCupYear}. El rival es de otro continente y de otro ritmo.`,
     when: (p, ctx) => ctx.qualifiers && mayor(p) && has(p, 'sel_repechaje'),
     weight: 4,
     options: (p, ctx) => [
       opt('Dejo el alma en la cancha',
-        o(0.35, `¡Clasificados por el repechaje! ${ctx.country.name} va al Mundial ${ctx.worldCupYear}.`, { caps: 1, natGoals: gol(p) ? 1 : 0, fame: 25, morale: 16, wcProgress: 1, unflag: 'sel_repechaje', milestone: `Clasificó al Mundial ${ctx.worldCupYear}` }),
+        o(0.35, `¡Clasificados por el repechaje! ${ctx.nt.name} va al Mundial ${ctx.worldCupYear}.`, { caps: 1, natGoals: gol(p) ? 1 : 0, fame: 25, morale: 16, wcProgress: 1, unflag: 'sel_repechaje', milestone: `Clasificó al Mundial ${ctx.worldCupYear}` }),
         o(0.65, 'Se quedaron a nada. El "casi" más doloroso de tu carrera.', { caps: 1, fitness: -8, morale: -16, unflag: 'sel_repechaje', flag: 'sel_elim_fuera' })),
       opt('Juego con cabeza fría',
         o(0.3, `Ganaron en penales. ¡Al Mundial ${ctx.worldCupYear}!`, { caps: 1, fame: 22, morale: 14, wcProgress: 1, unflag: 'sel_repechaje', milestone: `Clasificó al Mundial ${ctx.worldCupYear}` }),
@@ -546,7 +547,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     category: 'seleccion',
     title: 'Partido de despedida',
     text: (p, ctx) =>
-      `Con ${p.age} años y ${p.caps} partidos con la Selección, ${fed(ctx)} te ofrece un amistoso de despedida en ${ctx.country.stadium}. Tu familia ya compró las entradas.`,
+      `Con ${p.age} años y ${p.caps} partidos con la Selección, ${fed(ctx)} te ofrece un amistoso de despedida en ${ctx.nt.stadium}. Tu familia ya compró las entradas.`,
     when: (p) => p.age >= 32 && p.ntLevel >= 1 && p.caps >= 10 && !has(p, 'sel_retirado'),
     once: true,
     options: (p) => [

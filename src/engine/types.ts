@@ -49,7 +49,7 @@ export interface SeasonRecord {
   injured: boolean;
   note?: string; // por ejemplo, un cambio de club por falta de minutos
   /** Partidos con la Selección mayor en la temporada. debut: los primeros de su carrera. */
-  nt?: { debut: boolean; matches: NtMatch[]; groups?: NtGroup[] };
+  nt?: { debut: boolean; matches: NtMatch[]; groups?: NtGroup[]; team?: string; cambio?: boolean };
   /** Salario de la temporada, en quetzales: el del contrato con el que se jugó. */
   salary: number;
 }
@@ -122,6 +122,10 @@ export interface Player {
   flags: Record<string, number>;
   peakRating: number;
   retired: boolean;
+  /** Cambio de Selección (una vez por carrera): su sola presencia significa "ya cambió". Ver engine/nacionalidad.ts. */
+  cambioSel?: CambioSel;
+  /** Ascendencia oculta de otro país: ninguna pantalla la lee, solo el evento que la revela. */
+  herencia?: { country: string; side: 'madre' | 'padre' };
   /** Contrato vigente con p.clubId. Siempre existe: lo firma el debut y cada cambio de club. */
   contract: Contract;
 }
@@ -130,6 +134,16 @@ export interface Player {
 export interface Contract {
   salary: number;
   until: number;
+}
+
+/** to: código de la nueva Selección; from: la de origen; caps y goals: los de la Selección anterior al cambiar. */
+export interface CambioSel {
+  to: string;
+  from: string;
+  caps: number;
+  goals: number;
+  year: number;
+  via: 'madre' | 'padre' | 'naturalizacion';
 }
 
 /** Contexto que el motor calcula antes de elegir una decisión. */
@@ -145,6 +159,8 @@ export interface EventContext {
   worldCupYear: number;
   /** Mejor club que podría ficharlo ahora (para textos de ofertas). Puede ser null. */
   suitor: Club | null;
+  /** País de la Selección que representa (igual a country salvo que haya cambiado). */
+  nt: Country;
 }
 
 export interface Effects {
@@ -172,6 +188,7 @@ export interface Effects {
   caps?: number; // partidos extra con la Selección
   natGoals?: number;
   wcProgress?: number; // suma al avance de la eliminatoria
+  natTeam?: string; // código del país cuya Selección pasa a representar (solo una vez por carrera)
   /** Contrato que se firma con transferTo: el mismo que mostró la oferta. Sin él, el motor calcula uno al cambiar de club. */
   contract?: Contract;
 }
