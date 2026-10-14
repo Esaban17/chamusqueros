@@ -199,3 +199,18 @@ export function money(c: Country, quetzales: number): string {
   const step = 10 ** Math.max(0, Math.floor(Math.log10(n)) - 1);
   return `${symbol}${(Math.round(n / step) * step).toLocaleString('en-US')}`;
 }
+
+/**
+ * Monto corto en la moneda del país: "Q850", "Q25.5 mil", "Q150 mil", "Q1.2 M", "Q2.9 mil M".
+ * Mismo estilo que money() (punto decimal, símbolo de la tabla sin tocar); un decimal si el número es menor que 100.
+ */
+export function moneyShort(c: Country, quetzales: number): string {
+  const [symbol, rate] = c.money;
+  const n = quetzales * rate;
+  if (n < 1000) return `${symbol}${Math.round(n)}`;
+  const units: [number, string][] = [[1e3, 'mil'], [1e6, 'M'], [1e9, 'mil M']];
+  let i = units.filter(([u]) => n >= u).length - 1;
+  const scaled = (k: number) => (n / units[k][0] < 100 ? Math.round((n / units[k][0]) * 10) / 10 : Math.round(n / units[k][0]));
+  if (scaled(i) >= 1000 && i < units.length - 1) i++; // 999.96 mil -> 1 M
+  return `${symbol}${scaled(i)} ${units[i][1]}`;
+}
