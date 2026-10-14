@@ -47,7 +47,26 @@ export interface SeasonRecord {
   injured: boolean;
   note?: string; // por ejemplo, un cambio de club por falta de minutos
   /** Partidos con la Selección mayor en la temporada. debut: los primeros de su carrera. */
-  nt?: { debut: boolean; matches: NtMatch[] };
+  nt?: { debut: boolean; matches: NtMatch[]; groups?: NtGroup[] };
+}
+
+/** Grupo de Guatemala en un torneo de la temporada, con la tabla final ya ordenada. */
+export interface NtGroup {
+  comp: string; // el mismo texto que NtMatch.comp
+  note: string; // quiénes avanzan
+  advance: number; // filas de arriba que avanzan
+  table: NtGroupRow[];
+}
+
+export interface NtGroupRow {
+  team: string;
+  pj: number;
+  g: number;
+  e: number;
+  p: number;
+  gf: number;
+  ga: number;
+  pts: number;
 }
 
 export type AwardKind = 'goleador' | 'asistidor' | 'portero' | 'joven' | 'mvp' | 'ideal';

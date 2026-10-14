@@ -22,6 +22,7 @@ npm run simulate -- 5000  # simula 5,000 carreras para revisar el balance
 | `src/engine/engine.ts` | Simulación de temporadas, Selección, traspasos, elección de escenarios y veredicto final |
 | `src/ui/avatar.ts` | Avatar personalizable (piel, pelo, barba, accesorios) dibujado en SVG |
 | `src/ui/card.ts` | Tarjeta final en imagen (1080x1350) |
+| `src/ui/flags.ts` | Banderas de las selecciones rivales (código de país para flagcdn.com) |
 | `src/ui/ads.ts` | Integración con Google AdSense |
 | `src/main.ts` | Pantallas del juego |
 | `scripts/simulate.ts` | Simulación masiva para balancear |

@@ -268,10 +268,24 @@ button, input, select { font: inherit; color: inherit; }
 .nt-call.debut { background: var(--celeste-soft); border-color: var(--flag-blue); }
 .nt-title { display: flex; align-items: center; gap: 10px; font: 900 22px/1.05 var(--display); text-transform: uppercase; }
 .nt-call.debut .nt-title { font-size: 28px; }
-.mini-flag {
-  flex: none; width: 27px; height: 18px; border-radius: 3px; box-shadow: inset 0 0 0 1px #cfdce8;
-  background: linear-gradient(90deg, #4997d0 0 33.3%, #fff 33.3% 66.6%, #4997d0 66.6%);
-}
+.mini-flag, .nation-flag { flex: none; object-fit: cover; border-radius: 3px; box-shadow: 0 0 0 1px var(--line); }
+.mini-flag { width: 27px; height: 18px; }
+.nation-flag { display: inline-block; width: 21px; height: 14px; border-radius: 2px; margin-right: 6px; vertical-align: -2px; }
+.group { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; font-variant-numeric: tabular-nums; }
+.group th { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); padding: 0 2px 6px; border-bottom: 1px solid var(--line); }
+.group th:nth-child(1) { width: 22px; }
+.group th:nth-child(n+3) { width: 30px; }
+.group th:nth-child(2) { text-align: left; }
+.group abbr { text-decoration: none; }
+.group td { text-align: center; padding: 7px 2px; border-bottom: 1px solid var(--line); }
+.group td:nth-child(2) { text-align: left; overflow: hidden; }
+.group .team { display: flex; align-items: center; min-width: 0; }
+.group .team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group tr.up td:first-child { color: var(--good); font-weight: 800; }
+.group tr.gt td { background: var(--surface); font-weight: 800; }
+.group tr.gt td:first-child { box-shadow: inset 3px 0 0 var(--celeste); }
+.group-note { font-size: 13px; color: var(--muted); }
+@media (max-width: 479px) { .group .wide { display: none; } }
 .nt-comp { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding-top: 4px; }
 .matches { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .matches li { display: flex; align-items: center; gap: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }

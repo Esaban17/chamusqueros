@@ -4,6 +4,7 @@ import { DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
 import {
   POSITION_NAMES,
   type Avatar,
+  type NtGroup,
   type NtMatch,
   type Foot,
   type Mode,
@@ -15,6 +16,7 @@ import {
 import { adSlot, fillAds, initAds } from './ui/ads';
 import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
 import { drawCareerCard } from './ui/card';
+import { flag } from './ui/flags';
 import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
 
 const app = document.getElementById('app')!;
@@ -348,7 +350,7 @@ function advance() {
 
 // ---------- Resumen de temporada ----------
 
-const NT_CALL = '<p class="nt-title"><i class="mini-flag" aria-hidden="true"></i>¡Te han llamado a la Selección!</p>';
+const NT_CALL = `<p class="nt-title">${flag('Guatemala', 'mini-flag')}¡Te han llamado a la Selección!</p>`;
 
 function trophy(icon: TrophyIcon, label: string, detail: string) {
   return `<li class="trophy${icon === 'copa' ? '' : ' award'}"><svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg><span><b>${label}</b><small>${esc(detail)}</small></span></li>`;
@@ -357,14 +359,36 @@ function trophy(icon: TrophyIcon, label: string, detail: string) {
 function matchRow(m: NtMatch) {
   const [cls, tag, word] = m.gf > m.ga ? ['win', 'G', 'Victoria'] : m.gf < m.ga ? ['loss', 'P', 'Derrota'] : ['draw', 'E', 'Empate'];
   return `<li><span class="res ${cls}"><span aria-hidden="true">${tag}</span><span class="sr">${word}</span></span>
-    <span>Guatemala ${m.gf}-${m.ga} ${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
+    <span>Guatemala ${m.gf}-${m.ga} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
+}
+
+/** Tabla final del grupo de Guatemala; G, E y P se esconden en pantallas angostas. */
+function groupTable(g: NtGroup) {
+  const rows = g.table.map((r, i) => {
+    const dg = r.gf - r.ga;
+    const cls = [r.team === 'Guatemala' ? 'gt' : '', i < g.advance ? 'up' : ''].filter(Boolean).join(' ');
+    return `<tr${cls ? ` class="${cls}"` : ''}><td>${i + 1}</td><td><span class="team">${flag(r.team)}<span>${esc(r.team)}</span></span></td>
+      <td>${r.pj}</td><td class="wide">${r.g}</td><td class="wide">${r.e}</td><td class="wide">${r.p}</td><td>${dg > 0 ? '+' : ''}${dg}</td><td><b>${r.pts}</b></td></tr>`;
+  });
+  return `<table class="group">
+    <thead><tr><th scope="col"><span class="sr">Puesto</span></th><th scope="col">Selección</th><th scope="col"><abbr title="Partidos jugados">PJ</abbr></th>
+      <th scope="col" class="wide"><abbr title="Ganados">G</abbr></th><th scope="col" class="wide"><abbr title="Empatados">E</abbr></th><th scope="col" class="wide"><abbr title="Perdidos">P</abbr></th>
+      <th scope="col"><abbr title="Diferencia de goles">DG</abbr></th><th scope="col"><abbr title="Puntos">Pts</abbr></th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table>
+  <p class="group-note">${esc(g.note)}</p>`;
 }
 
 function ntBlock(nt: NonNullable<SeasonRecord['nt']>) {
-  const comps = [...new Set(nt.matches.map((m) => m.comp))];
+  const groups = nt.groups ?? [];
+  const comps = [...new Set([...groups.map((g) => g.comp), ...nt.matches.map((m) => m.comp)])];
   return `<div class="nt-call${nt.debut ? ' debut' : ''}">
-    ${nt.debut ? `${NT_CALL}<p>Guatemala te convocó por primera vez. Vas a vestir la azul y blanco.</p>` : '<p class="nt-title"><i class="mini-flag" aria-hidden="true"></i>Convocado a la Selección</p>'}
-    ${comps.map((c) => `<p class="nt-comp">${esc(c)}</p><ul class="matches">${nt.matches.filter((m) => m.comp === c).map(matchRow).join('')}</ul>`).join('')}
+    ${nt.debut ? `${NT_CALL}<p>Guatemala te convocó por primera vez. Vas a vestir la azul y blanco.</p>` : `<p class="nt-title">${flag('Guatemala', 'mini-flag')}Convocado a la Selección</p>`}
+    ${comps.map((c) => {
+      const g = groups.find((x) => x.comp === c);
+      const mine = nt.matches.filter((m) => m.comp === c);
+      return `<p class="nt-comp">${esc(c)}</p>${g ? groupTable(g) : ''}${mine.length ? `${g ? '<p class="group-note">Tus partidos</p>' : ''}<ul class="matches">${mine.map(matchRow).join('')}</ul>` : g ? '<p class="group-note">No jugaste en este grupo.</p>' : ''}`;
+    }).join('')}
   </div>`;
 }
 

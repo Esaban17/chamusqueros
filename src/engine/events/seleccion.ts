@@ -12,12 +12,13 @@ import { o, opt, has } from '../helpers';
 // sel_elim_fuera       quedó eliminado en la eliminatoria del ciclo actual
 // sel_elim_decidido    ya se jugó el partido decisivo de la eliminatoria del ciclo
 // sel_repechaje        la Selección se fue al repechaje
+// sel_elim_r2          el motor ya jugó la segunda ronda de la eliminatoria del ciclo (la pone engine.ts)
 // Las banderas de eliminatoria se limpian en los eventos que solo salen fuera de eliminatoria.
 
 const mayor = (p: Player) => p.ntLevel >= 1 && !has(p, 'sel_retirado');
 const enEliminatoria = (p: Player, ctx: EventContext) =>
   ctx.qualifiers && mayor(p) && !has(p, 'sel_elim_fuera');
-const limpiaElim = ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje'];
+const limpiaElim = ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje', 'sel_elim_r2'];
 const gol = (p: Player) => p.setup.position === 'DEL' || p.setup.position === 'MED';
 
 export const SELECCION_EVENTS: EventTemplate[] = [
@@ -413,7 +414,7 @@ export const SELECCION_EVENTS: EventTemplate[] = [
     title: 'Eliminatoria: fase de grupos',
     text: (p, ctx) =>
       `Arranca la eliminatoria rumbo al Mundial ${ctx.worldCupYear}. Grupo accesible en el papel, pero en Concacaf nadie regala nada. Toca de visita en el Caribe.`,
-    when: (p, ctx) => enEliminatoria(p, ctx) && p.wcProgress === 0,
+    when: (p, ctx) => enEliminatoria(p, ctx) && p.wcProgress === 0 && !has(p, 'sel_elim_r2'),
     weight: 3,
     cooldown: 2,
     options: (p, ctx) => [

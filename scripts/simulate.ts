@@ -5,6 +5,7 @@ import { DEPARTAMENTOS } from '../src/engine/clubs';
 import { ALL_EVENTS } from '../src/engine/events';
 import type { Mode, Position } from '../src/engine/types';
 import { bestMoment, palmares } from '../src/ui/palmares';
+import { FLAG_CODE } from '../src/ui/flags';
 
 const N = Number(process.argv[2] ?? 5000);
 const positions: Position[] = ['POR', 'DEF', 'MED', 'DEL'];
@@ -39,12 +40,35 @@ for (let i = 0; i < N; i++) {
   debutTier[career.club.tier]++;
   let guard = 0;
   let decisions = 0;
+  const outEarly = new Set<string>(); // eliminatorias en las que Guatemala quedó fuera en la segunda ronda
   career.start();
   while (!career.isOver && guard++ < 100) {
     if (!career.pendingEvent) {
       const p = career.player;
       const before = [p.caps, p.natGoals];
-      const matches = career.playBlock().flatMap((s) => s.nt?.matches ?? []);
+      const played = career.playBlock();
+      const matches = played.flatMap((s) => s.nt?.matches ?? []);
+      for (const s of played) {
+        const groups = s.nt?.groups ?? [];
+        for (const m of s.nt?.matches ?? []) {
+          if (!FLAG_CODE[m.rival]) ntErrors.add(`sin bandera: ${m.rival}`);
+          const g = groups.find((x) => x.comp === m.comp);
+          if (g && !g.table.some((r) => r.team === m.rival)) ntErrors.add(`${m.rival} no está en la tabla de ${m.comp}`);
+        }
+        for (const g of groups) {
+          const gt = g.table.findIndex((r) => r.team === 'Guatemala');
+          if (gt < 0) ntErrors.add(`Guatemala no está en la tabla de ${g.comp}`);
+          if (g.table.some((r) => !FLAG_CODE[r.team])) ntErrors.add(`sin bandera en ${g.comp}`);
+          if (g.table.some((r) => r.pj !== r.g + r.e + r.p || r.pts !== 3 * r.g + r.e)) ntErrors.add(`tabla mal sumada en ${g.comp}`);
+          if (g.table.reduce((t, r) => t + r.gf - r.ga, 0) !== 0) ntErrors.add(`goles a favor y en contra no cuadran en ${g.comp}`);
+          const wc = g.comp.match(/Eliminatoria Mundial (\d+)/)?.[1];
+          if (wc && g.comp.endsWith('Segunda ronda') && gt >= 2) outEarly.add(wc);
+          if (wc && g.comp.endsWith('Ronda final')) {
+            if (outEarly.has(wc)) ntErrors.add('ronda final después de quedar fuera en la segunda ronda');
+            if ((gt <= 1) !== groups.some((x) => x.comp === `Mundial ${wc}`)) ntErrors.add('la ronda final no cuadra con jugar el Mundial');
+          }
+        }
+      }
       const goals = matches.reduce((t, m) => t + m.goals, 0);
       if (matches.length !== p.caps - before[0]) ntErrors.add(`partidos: ${matches.length} listados, ${p.caps - before[0]} sumados`);
       if (goals !== p.natGoals - before[1]) ntErrors.add(`goles: ${goals} listados, ${p.natGoals - before[1]} sumados`);
@@ -85,6 +109,12 @@ for (let i = 0; i < N; i++) {
   titles += s.titles.length;
   caps += p.caps;
   if (p.caps > 0) nt++;
+  // Si un evento contó la clasificación y el jugador siguió en la Selección esa temporada, tiene que jugar el Mundial.
+  for (const m of p.milestones) {
+    const wc = m.match(/^Clasificó al Mundial (\d+)/)?.[1];
+    const season = wc && p.seasons.find((r) => Number(r.label.slice(0, 4)) + 1 === Number(wc));
+    if (season && season.nt && !p.milestones.includes(`Jugó el Mundial ${wc} con Guatemala`)) ntErrors.add(`contó que clasificó al Mundial ${wc} y no lo jugó`);
+  }
   if (p.flags.mundial) mundial++;
   if (s.clubs.some((c) => c.club.abroad)) abroad++;
   if (p.seasons.some((r) => r.tier === 1)) reachedLN++;

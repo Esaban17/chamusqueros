@@ -10,6 +10,8 @@ import {
   type EventOption,
   type EventTemplate,
   type GameEvent,
+  type NtGroup,
+  type NtGroupRow,
   type NtLevel,
   type NtMatch,
   type Player,
@@ -48,6 +50,17 @@ const WORLD_CUP: Rival[] = [
   ['Egipto', 75], ['Ghana', 74],
 ];
 type Competition = [name: string, weight: number, rivals: Rival[]];
+const GT = 'Guatemala';
+/** Suma un partido a la fila de la tabla. */
+function tally(r: NtGroupRow, gf: number, ga: number) {
+  r.pj++;
+  r.gf += gf;
+  r.ga += ga;
+  if (gf > ga) r.g++;
+  else if (gf === ga) r.e++;
+  else r.p++;
+  r.pts = r.g * 3 + r.e;
+}
 
 /**
  * Puntos de ranking por premio. Solo suman los que existían cuando se abrió el ranking (goleador y mejor jugador),
@@ -229,6 +242,9 @@ export class Career {
     const visible = club.abroad || club.tier === 1;
     const debut = p.caps === 0;
     const matches: NtMatch[] = [];
+    const groups: NtGroup[] = [];
+    const summer = p.year + 1;
+    const wcYear = summer >= FIRST_WORLD_CUP && (summer - FIRST_WORLD_CUP) % 4 === 0;
 
     // Convocatorias y bajas automáticas (los eventos de Selección aceleran este camino).
     if (p.ntLevel > 0 && (p.rating < 60 || p.age >= 36 || p.flags.sel_retirado)) {
@@ -239,62 +255,137 @@ export class Career {
       else if (p.ntLevel === 2 && p.rating >= 77 && chance(rng, 0.2)) this.setNtLevel(3);
     }
 
-    if (p.ntLevel > 0) {
-      const caps = { 1: randInt(rng, 1, 3), 2: randInt(rng, 4, 8), 3: randInt(rng, 7, 11) }[p.ntLevel as 1 | 2 | 3];
-      p.caps += caps;
-      const rate = { POR: 0, DEF: 0.04, MED: 0.1, DEL: 0.3 }[p.setup.position];
-      const goals = Math.round(caps * rate * randRange(rng, 0.5, 1.5) * (clubGoals > 0 ? 1 : 0.6));
-      p.natGoals += goals;
-      p.fame += caps * 0.6;
-      const summer = p.year + 1;
-      const wc = nextWorldCup(summer);
-      const comps: Competition[] = [['Amistoso', 1, FRIENDLIES], ['Liga de Naciones', 1.5, NATIONS_LEAGUE]];
-      if (wc - summer <= 2) comps.push([`Eliminatoria Mundial ${wc}`, 3, CONCACAF]);
-      if (summer % 2 === 1) comps.push([`Copa Oro ${summer}`, 2, CONCACAF]);
-      matches.push(...this.ntMatches(comps, caps, goals));
-      if (summer % 2 === 1 && p.ntLevel >= 2 && chance(rng, 0.12 + Math.max(0, p.rating - 72) * 0.01)) {
-        p.milestones.push(`Semifinal de Copa Oro ${summer}`);
-        p.fame += 8;
-      }
+    // El Mundial se decide antes de armar la ronda final, para que la tabla cuadre con lo que pasó.
+    // Si un evento ya contó la clasificación o la eliminación, manda eso; si no, decide la suerte.
+    let qualified = false;
+    if (wcYear && p.ntLevel > 0) {
+      const told = p.milestones.some((m) => m.startsWith(`Clasificó al Mundial ${summer}`));
+      const q = clamp(0.012 + p.wcProgress * 0.06 + (p.ntLevel - 1) * 0.015 + Math.max(0, p.rating - 74) * 0.004, 0.01, 0.35);
+      qualified = told || (!p.flags.sel_elim_fuera && chance(rng, q));
     }
 
-    // Mundial: se decide al final de la temporada que termina en año mundialista.
-    const summer = p.year + 1;
-    if (summer >= FIRST_WORLD_CUP && (summer - FIRST_WORLD_CUP) % 4 === 0) {
-      if (p.ntLevel > 0) {
-        const q = clamp(0.012 + p.wcProgress * 0.06 + (p.ntLevel - 1) * 0.015 + Math.max(0, p.rating - 74) * 0.004, 0.01, 0.35);
-        if (chance(rng, q)) {
-          p.flags.mundial = (p.flags.mundial ?? 0) + 1;
-          p.milestones.push(`Jugó el Mundial ${summer} con Guatemala`);
-          p.fame += 30;
-          const wcGoal = chance(rng, { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position]);
-          if (wcGoal) {
-            p.milestones.push(`Gol en el Mundial ${summer}`);
-            p.fame += 15;
-            p.natGoals++;
-          }
-          // Fase de grupos: tres partidos.
-          p.caps += 3;
-          matches.push(...this.ntMatches([[`Mundial ${summer}`, 1, WORLD_CUP]], 3, wcGoal ? 1 : 0));
-        } else if (p.wcProgress >= 2) {
-          p.milestones.push(`Eliminado en la recta final rumbo al Mundial ${summer}`);
+    if (p.ntLevel > 0) {
+      const caps = { 1: randInt(rng, 1, 3), 2: randInt(rng, 4, 8), 3: randInt(rng, 7, 11) }[p.ntLevel as 1 | 2 | 3];
+      const rate = { POR: 0, DEF: 0.04, MED: 0.1, DEL: 0.3 }[p.setup.position];
+      const goals = Math.round(caps * rate * randRange(rng, 0.5, 1.5) * (clubGoals > 0 ? 1 : 0.6));
+      const wc = nextWorldCup(summer);
+      const comps: Competition[] = [['Amistoso', 1, FRIENDLIES]];
+      const fixtures = new Map<string, NtMatch[]>();
+      const group = (comp: string, weight: number, pool: Rival[], size: number, legs: number, note: string, advance: number, band?: [number, number]) => {
+        const g = this.drawGroup(comp, pool, size, legs, band);
+        groups.push({ comp, note, advance, table: g.table });
+        fixtures.set(comp, g.fixtures);
+        comps.push([comp, weight, pool]);
+        return g.table.findIndex((r) => r.team === GT);
+      };
+
+      group('Liga de Naciones', 1.5, NATIONS_LEAGUE, 4, 2, 'El primero sube de liga.', 1);
+      // Eliminatoria: segunda ronda la temporada anterior al Mundial y ronda final la del año del Mundial.
+      // Si un evento ya contó cómo les fue en la segunda ronda, la tabla lo respeta.
+      const outEarly = p.flags.sel_elim_fuera && p.wcProgress === 0;
+      if (wc - summer === 1 && !p.flags.sel_elim_r2 && !(p.flags.sel_elim_fuera && p.wcProgress > 0)) {
+        const band: [number, number] | undefined = p.wcProgress > 0 ? [0, 0] : outEarly ? [2, 4] : undefined;
+        const pos = group(`Eliminatoria Mundial ${wc} · Segunda ronda`, 3, NATIONS_LEAGUE, 5, 1, 'Los dos primeros pasan a la ronda final.', 2, band);
+        p.flags.sel_elim_r2 = 1;
+        // Avanzar no suma wcProgress: eso queda para los eventos, así la tasa de Mundiales sigue como antes.
+        if (pos > 1) p.flags.sel_elim_fuera = 1;
+      } else if (wcYear && !outEarly) {
+        // ponytail: clasificado = 1.º o 2.º (repechaje ganado); no distingue si un evento contó el repechaje.
+        group(`Eliminatoria Mundial ${wc} · Ronda final`, 3, CONCACAF, 4, 2, 'El primero va al Mundial; el segundo, al repechaje.', 2, qualified ? [0, 1] : [2, 3]);
+      }
+      if (summer % 2 === 1) {
+        const semis = p.ntLevel >= 2 && chance(rng, 0.12 + Math.max(0, p.rating - 72) * 0.01);
+        group(`Copa Oro ${summer}`, 2, CONCACAF, 4, 1, 'Los dos primeros pasan a cuartos de final.', 2, semis ? [0, 1] : undefined);
+        if (semis) {
+          p.milestones.push(`Semifinal de Copa Oro ${summer}`);
+          p.fame += 8;
         }
+      }
+      const played = this.ntMatches(comps, fixtures, caps, goals);
+      matches.push(...played.matches);
+      p.caps += caps;
+      p.natGoals += played.goals;
+      p.fame += caps * 0.6;
+    }
+
+    // Mundial: se juega al final de la temporada que termina en año mundialista.
+    if (wcYear) {
+      if (qualified) {
+        p.flags.mundial = (p.flags.mundial ?? 0) + 1;
+        p.milestones.push(`Jugó el Mundial ${summer} con Guatemala`);
+        p.fame += 30;
+        // Fase de grupos: tres partidos, todos con el jugador en cancha.
+        const g = this.drawGroup(`Mundial ${summer}`, WORLD_CUP, 4, 1);
+        groups.push({ comp: `Mundial ${summer}`, note: 'Pasan los dos primeros y los mejores terceros.', advance: 2, table: g.table });
+        p.caps += 3;
+        matches.push(...g.fixtures);
+        const scored = g.fixtures.filter((m) => m.gf > 0);
+        if (scored.length && chance(rng, { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position])) {
+          pick(rng, scored).goals++;
+          p.milestones.push(`Gol en el Mundial ${summer}`);
+          p.fame += 15;
+          p.natGoals++;
+        }
+      } else if (p.ntLevel > 0 && p.wcProgress >= 2) {
+        p.milestones.push(`Eliminado en la recta final rumbo al Mundial ${summer}`);
       }
       p.wcProgress = 0;
       // Las banderas de la eliminatoria valen solo para un ciclo mundialista.
-      for (const f of ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje']) delete p.flags[f];
+      for (const f of ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje', 'sel_elim_r2']) delete p.flags[f];
     }
-    void apps;
-    return matches.length ? { debut, matches } : undefined;
+    return matches.length ? { debut, matches, groups } : undefined;
   }
 
-  /** Arma los partidos de la temporada con la Selección y reparte entre ellos los goles del jugador. */
-  private ntMatches(comps: Competition[], n: number, goals: number): NtMatch[] {
+  private gtStrength() {
+    return 64 + (this.player.rating - 70) * 0.25 + this.player.ntLevel;
+  }
+
+  /**
+   * Sortea el grupo de Guatemala y juega todos los partidos (también los de los rivales entre sí).
+   * Con band, repite el grupo empujando a Guatemala hasta que termine entre esos puestos (0 = primero),
+   * para que la tabla cuadre con un resultado ya decidido.
+   */
+  private drawGroup(comp: string, pool: Rival[], size: number, legs: number, band: [number, number] = [0, size - 1]) {
     const rng = this.rng;
-    const gt = 64 + (this.player.rating - 70) * 0.25 + this.player.ntLevel;
+    const left = [...pool];
+    const rivals = Array.from({ length: size - 1 }, () => left.splice(Math.floor(rng() * left.length), 1)[0]);
+    for (let bias = 0; ; bias += band[0] > 0 ? -2 : 2) {
+      const teams: Rival[] = [[GT, this.gtStrength() + bias], ...rivals];
+      const rows = teams.map(([team]): NtGroupRow => ({ team, pj: 0, g: 0, e: 0, p: 0, gf: 0, ga: 0, pts: 0 }));
+      const fixtures: NtMatch[] = [];
+      for (let leg = 0; leg < legs; leg++) {
+        for (let i = 0; i < size; i++) {
+          for (let j = i + 1; j < size; j++) {
+            const a = poisson(rng, 1.2 * Math.exp((teams[i][1] - teams[j][1]) / 20));
+            const b = poisson(rng, 1.2 * Math.exp((teams[j][1] - teams[i][1]) / 20));
+            tally(rows[i], a, b);
+            tally(rows[j], b, a);
+            if (i === 0) fixtures.push({ comp, rival: teams[j][0], gf: a, ga: b, goals: 0 });
+          }
+        }
+      }
+      const table = rows.sort((x, y) => y.pts - x.pts || y.gf - y.ga - (x.gf - x.ga) || y.gf - x.gf);
+      const pos = table.findIndex((r) => r.team === GT);
+      if (pos >= band[0] && pos <= band[1]) return { table, fixtures };
+    }
+  }
+
+  /**
+   * Arma los partidos del jugador en la temporada: salen del calendario de cada grupo (sin inventar partidos que no estén
+   * en la tabla) o son amistosos. Los goles solo caen donde Guatemala anotó, salvo en amistosos.
+   */
+  private ntMatches(comps: Competition[], fixtures: Map<string, NtMatch[]>, n: number, goals: number) {
+    const rng = this.rng;
+    const gt = this.gtStrength();
     const matches: NtMatch[] = [];
     for (let i = 0; i < n; i++) {
-      const [comp, , rivals] = weightedPick(rng, comps, (c) => c[1]);
+      const open = comps.filter(([c]) => !fixtures.has(c) || fixtures.get(c)!.length);
+      const [comp, , rivals] = weightedPick(rng, open, (c) => c[1]);
+      const pending = fixtures.get(comp);
+      if (pending) {
+        matches.push(pending.splice(Math.floor(rng() * pending.length), 1)[0]);
+        continue;
+      }
       const played = matches.filter((m) => m.comp === comp).map((m) => m.rival);
       const fresh = rivals.filter(([name]) => !played.includes(name));
       const [rival, strength] = pick(rng, fresh.length ? fresh : rivals);
@@ -302,12 +393,16 @@ export class Career {
       const ga = poisson(rng, 1.2 * Math.exp((strength - gt) / 20));
       matches.push({ comp, rival, gf, ga, goals: 0 });
     }
+    let scored = 0;
     for (let g = 0; g < goals; g++) {
-      const m = pick(rng, matches);
+      const open = matches.filter((m) => m.goals < m.gf || !fixtures.has(m.comp));
+      if (!open.length) break;
+      const m = pick(rng, open);
       m.goals++;
       m.gf = Math.max(m.gf, m.goals);
+      scored++;
     }
-    return matches;
+    return { matches, goals: scored };
   }
 
   private setNtLevel(level: NtLevel, announced = false) {
