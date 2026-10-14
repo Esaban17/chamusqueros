@@ -15,7 +15,6 @@ import {
   type Resolution,
   type SeasonRecord,
 } from './engine/types';
-import { adSlot, fillAds, initAds } from './ui/ads';
 import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
 import { TIERS, drawCareerCard } from './ui/card';
 import { celebrate } from './ui/celebrate';
@@ -24,6 +23,9 @@ import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
+// Donación con Ko-fi: poné aquí la URL de la página, por ejemplo 'https://ko-fi.com/usuario'.
+// ponytail: vacía no se muestra ningún enlace de donación; así la rama se puede publicar antes de tener la cuenta.
+const KOFI_URL: string = '';
 const BEST_KEY = 'chamusqueros:mejores';
 const LAST_SETUP_KEY = 'chamusqueros:ultimo';
 const PLAYER_KEY = 'chamusqueros:id';
@@ -179,7 +181,6 @@ const seasonClub = (id: string) => viewClub(clubById(id), career!.home);
 function render(html: string) {
   app.innerHTML = `<div class="flag"></div>${html}`;
   bindCrests(app);
-  fillAds(app);
   window.scrollTo({ top: 0 });
 }
 
@@ -270,10 +271,16 @@ function home() {
   app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = b.dataset.go === 'start' ? createForm : rankingScreen));
 }
 
+/** Enlace de donación: abre otra pestaña sin acceso a la del juego ni a la dirección de origen. */
+function donateLink(cls = '') {
+  return `<a${cls ? ` class="${cls}"` : ''} href="${KOFI_URL}" target="_blank" rel="noopener noreferrer">Invitame un café ☕<span class="sr"> (se abre en otra pestaña)</span></a>`;
+}
+
 function footer() {
   return `<footer>
     <p>Juego de ficción. Los partidos, resultados y situaciones son simulados.</p>
     <p><a href="${import.meta.env.BASE_URL}privacidad.html">Política de privacidad</a></p>
+    ${KOFI_URL ? `<p>${donateLink()}</p>` : ''}
   </footer>`;
 }
 
@@ -539,7 +546,7 @@ function seasonCard(r: SeasonRecord) {
 function seasonSummary(played: SeasonRecord[]) {
   const over = career!.isOver;
   render(`${playerHead()}${played.map(seasonCard).join('')}
-    <button class="btn big" id="next">${over ? 'Ver mi carrera' : 'Seguir'}</button>${adSlot('game')}`);
+    <button class="btn big" id="next">${over ? 'Ver mi carrera' : 'Seguir'}</button>`);
   document.getElementById('next')!.onclick = () => (over ? finish() : gameScreen());
   // Solo aquí, al revelar las temporadas nuevas: el historial no la repite. El Mundial, si lo hay, manda.
   const cups = played.flatMap((r) => (r.nt?.groups ?? []).filter((g) => g.out === 'Campeón').map((g) => g.comp));
@@ -642,7 +649,7 @@ function gameScreen() {
           <div class="options">${ev.options.map((o, i) => `<button class="btn secondary" data-opt="${i}">${esc(o.label)}</button>`).join('')}</div>
         </section>`
       : '';
-  render(`${playerHead()}${statsBar()}${eventHtml}${seasonLog()}${adSlot('game')}`);
+  render(`${playerHead()}${statsBar()}${eventHtml}${seasonLog()}`);
   app.querySelectorAll<HTMLButtonElement>('[data-opt]').forEach((b) => {
     b.onclick = () => {
       lastResolution = career!.choose(Number(b.dataset.opt));
@@ -685,7 +692,6 @@ function finish() {
     </div>
     <p class="toast" id="toast" role="status"></p>
     <section class="panel" id="rankBox"><span class="eyebrow">Ranking global</span><p class="season-empty">Guardando tu carrera…</p></section>
-    ${adSlot('result')}
     <section class="panel">
       <div class="totals">
         <div><b>${s.apps}</b><span>Partidos</span></div>
@@ -700,6 +706,7 @@ function finish() {
     ${highlights.length ? `<section class="panel"><span class="eyebrow">Momentos</span><ul class="list">${highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></section>` : ''}
     ${seasonLog()}
     <button class="btn big" id="again">Jugar otra carrera</button>
+    ${KOFI_URL ? `<section class="panel donate"><h3>¿Te gustó?</h3>${donateLink('btn secondary')}</section>` : ''}
     ${footer()}
   `);
 
@@ -758,5 +765,4 @@ function finish() {
   document.getElementById('again')!.onclick = createForm;
 }
 
-initAds();
 home();
