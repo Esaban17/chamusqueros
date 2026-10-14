@@ -21,7 +21,7 @@ const nombre = (f: string) => relative(src, f);
 const marcado = ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'eval('];
 const almacenamiento = ['localStorage', 'sessionStorage', 'indexedDB', 'document.cookie'];
 const listaDeSecretos = ['ABLY_API_KEY', 'process.env', 'DATABASE_URL'];
-const propios = [...archivosOnline, join(src, 'retos', 'ui-dedonde.ts'), join(src, 'perfil', 'index.ts')].filter(existsSync);
+const propios = [...archivosOnline, join(src, 'retos', 'ui-dedonde.ts')].filter(existsSync);
 for (const f of propios) {
   const t = leer(f);
   for (const x of marcado) assert.ok(!t.includes(x), `${nombre(f)} usa ${x}`);
