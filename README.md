@@ -26,7 +26,8 @@ npm run simulate -- 2000 GT  # solo un país
 | `src/engine/engine.ts` | Simulación de temporadas, Selección, traspasos, elección de escenarios y veredicto final |
 | `src/engine/ritmo.ts` | El ritmo de cada temporada: cuántas decisiones trae según el modo (intensa 3, normal 3 y 2, exprés 2), la agenda de historia (pasos, entradas, ofertas) y las perillas de calibración (`AJUSTES`) |
 | `src/ui/avatar.ts` | Avatar personalizable (piel, pelo, barba, accesorios) dibujado en SVG |
-| `src/ui/card.ts` | Tarjeta final en imagen (1080x1350) |
+| `src/ui/card.ts` | Tarjeta final en imagen (1080x1350): la carta FC arriba, y debajo el veredicto, el palmarés y el momento destacado |
+| `src/ui/carta-svg.ts` | Carta FC "clásica realista" (SVG puro, seis estilos, atributos calculados), compartida por la carta HTML y la imagen |
 | `src/ui/flags.ts` | Banderas de las selecciones rivales (código de país para flagcdn.com) |
 | `src/main.ts` | Pantallas del juego |
 | `public/trofeos/` | Imágenes de los trofeos (WebP de Wikimedia Commons y tres ilustraciones propias), recortadas a 200 px |
