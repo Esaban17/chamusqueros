@@ -3,7 +3,8 @@
 import { POSITION_NAMES, type Player } from '../engine/types';
 import type { CardTier, CareerSummary } from '../engine/engine';
 import { clubById, type Club } from '../engine/clubs';
-import { NT_KIT, avatarSVG } from './avatar';
+import { countryOf } from '../engine/countries';
+import { avatarSVG } from './avatar';
 import { ICON, bestMoment, momentSVG, palmares, type TrophyIcon } from './palmares';
 
 const W = 1080;
@@ -184,6 +185,7 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
   const t = TIERS[s.verdict.tier];
+  const home = countryOf(p.setup.country);
   drawBackground(ctx, t);
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
@@ -199,7 +201,8 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   ctx.fillText(String(p.peakRating), cx, 232);
   ctx.font = `800 46px ${DISPLAY}`;
   ctx.fillText(p.setup.position, cx, 284);
-  ['#4997D0', '#FFFFFF', '#4997D0'].forEach((c, i) => {
+  // Colores de la Selección del jugador (en Guatemala, celeste y blanco).
+  [home.kit[0], home.kit[1], home.kit[0]].forEach((c, i) => {
     ctx.fillStyle = c;
     ctx.fillRect(cx - 30 + i * 20, 302, 20, 38);
   });
@@ -238,7 +241,9 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   ctx.font = `600 28px ${BODY}`;
   const first = s.clubs[0]?.from.slice(0, 4) ?? '';
   const last = s.clubs.at(-1)?.to ?? '';
-  ctx.fillText(`${POSITION_NAMES[p.setup.position]} · ${p.setup.dept} · ${first}–20${last.slice(-2)}`, W / 2, 462);
+  // Guatemala muestra el departamento; el resto, el país (no cabe todo en una línea).
+  const origin = home.code === 'GT' ? p.setup.dept : home.name;
+  ctx.fillText(`${POSITION_NAMES[p.setup.position]} · ${origin} · ${first}–20${last.slice(-2)}`, W / 2, 462);
 
   // Veredicto
   ctx.fillStyle = t.accent;
@@ -326,7 +331,7 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   // Momento más destacado: escena ilustrada con el texto encima.
   section('MOMENTO DESTACADO', 866);
   const moment = bestMoment(p, s);
-  const scene = await loadSvg(momentSVG(moment, p.setup.avatar, moment.nt ? NT_KIT : lastClub.colors, p.setup.number));
+  const scene = await loadSvg(momentSVG(moment, p.setup.avatar, moment.nt ? home.kit : lastClub.colors, p.setup.number, home.kit));
   ctx.save();
   ctx.beginPath();
   ctx.roundRect(100, 882, W - 200, 240, 20);
@@ -358,7 +363,7 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   let x = 100;
   for (let i = 0; i < s.clubs.length; i++) {
     const c = s.clubs[i].club;
-    const clubName = c.abroad ? c.city : c.name;
+    const clubName = c.name;
     ctx.font = `600 28px ${BODY}`;
     const width = 56 + ctx.measureText(clubName).width + 30;
     if (x + width > W - 100 - (i < s.clubs.length - 1 ? 70 : 0)) {

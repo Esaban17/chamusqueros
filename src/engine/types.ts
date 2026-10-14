@@ -1,4 +1,5 @@
 import type { Club } from './clubs';
+import type { Country } from './countries';
 
 export type Position = 'POR' | 'DEF' | 'MED' | 'DEL';
 export type Foot = 'Derecho' | 'Zurdo' | 'Ambidiestro';
@@ -24,7 +25,8 @@ export interface Avatar {
 export interface PlayerSetup {
   firstName: string;
   lastName: string;
-  dept: string;
+  country: string; // código del país (nacionalidad); las carreras viejas no lo tienen y son de Guatemala
+  dept: string; // departamento, estado o provincia de origen
   position: Position;
   foot: Foot;
   number: number;
@@ -79,12 +81,12 @@ export interface SeasonAward {
 export interface NtMatch {
   comp: string; // "Eliminatoria Mundial 2030", "Copa Oro 2027", "Amistoso"...
   rival: string;
-  gf: number; // goles de Guatemala
+  gf: number; // goles de la Selección del jugador
   ga: number;
   goals: number; // goles del jugador
 }
 
-/** 1 = Liga Nacional, 2 = Primera División, 3 = Segunda División, 0 = extranjero */
+/** División en el país del jugador (en Guatemala 1 = Liga Nacional, 2 = Primera, 3 = Segunda); 0 = extranjero */
 export type Tier = 0 | 1 | 2 | 3;
 
 /**
@@ -119,6 +121,7 @@ export interface Player {
 
 /** Contexto que el motor calcula antes de elegir una decisión. */
 export interface EventContext {
+  country: Country; // nacionalidad del jugador
   club: Club;
   tier: Tier;
   abroad: boolean;
@@ -191,7 +194,7 @@ export interface GameEvent {
 export interface EventTemplate {
   id: string;
   category: EventCategory;
-  title: string;
+  title: string | ((p: Player, ctx: EventContext) => string);
   text: (p: Player, ctx: EventContext) => string;
   when: (p: Player, ctx: EventContext) => boolean;
   /** Peso base 1. Puede depender del contexto: los eventos de una ruta activa deben pesar más (2-4). */

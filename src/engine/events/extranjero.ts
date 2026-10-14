@@ -1,5 +1,6 @@
 import type { EventContext, EventTemplate, Player } from '../types';
-import { o, opt, has } from '../helpers';
+import { COUNTRIES, countryOf, money } from '../countries';
+import { o, opt, has, cap, de } from '../helpers';
 
 // Banderas que usa este archivo:
 // ext_visoria   un visor te vio jugar; arranca la ruta para salir al extranjero
@@ -26,18 +27,22 @@ function buenaTemporada(p: Player, ctx: EventContext): boolean {
   return l.goals >= 10;
 }
 
-/** Destino de la prueba según la división y el nivel. Segunda División: solo ligas de ascenso de EE.UU. */
+/**
+ * Destino de la prueba: la liga del extranjero donde el jugador sería titular, de preferencia en su confederación.
+ * ponytail: es solo el texto; el club que lo ficha al final sale de findClub('abroad').
+ */
 function destinoPrueba(p: Player, ctx: EventContext): string {
-  if (ctx.tier === 3) return 'un club de la liga de ascenso de Estados Unidos';
-  if (p.rating >= 74) return 'un club de Segunda de España';
-  if (p.rating >= 69) return 'un club de la Liga MX';
-  if (p.rating >= 65) return 'un club de Estados Unidos';
-  return 'un club de Costa Rica';
+  const fit = (c: (typeof COUNTRIES)[number]) =>
+    Math.abs(67 + c.level - ctx.country.level - (p.rating + 2)) + (c.conf === ctx.country.conf ? 0 : 4);
+  const [best] = COUNTRIES.filter((c) => c.code !== ctx.country.code).sort((a, b) => fit(a) - fit(b));
+  return `un club de ${best.name}`;
 }
 
+/** País del club donde juega (afuera). */
+const paisClub = (ctx: EventContext) => countryOf(ctx.club.country);
 /** Países donde se habla otro idioma. */
-const otroIdioma = (ctx: EventContext) => ctx.club.city === 'Estados Unidos' || ctx.club.city === 'Europa';
-const hayFrio = (ctx: EventContext) => ctx.club.city === 'Estados Unidos' || ctx.club.city === 'Europa' || ctx.club.city === 'España';
+const otroIdioma = (ctx: EventContext) => paisClub(ctx).lang !== ctx.country.lang;
+const hayFrio = (ctx: EventContext) => !!paisClub(ctx).cold && !ctx.country.cold;
 
 export const EXTRANJERO_EVENTS: EventTemplate[] = [
   // ---------- A) Ruta para salir al extranjero ----------
@@ -60,7 +65,7 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
         o(0.3, 'Te llamó una vez y desapareció. Quedaste pensando en eso todo el mes.', { flag: 'ext_visoria', morale: -4 })),
       opt('Le digo que hable con el club',
         o(0.6, 'La directiva tomó nota y te ve con otros ojos. El visor quedó pendiente.', { flag: 'ext_visoria', coach: 4 }),
-        o(0.4, 'La directiva cortó el tema de una vez. "Aquí tenés contrato, patojo."', { coach: 3, morale: -5 })),
+        o(0.4, 'La directiva cortó el tema de una vez. "Aquí tenés contrato, muchacho."', { coach: 3, morale: -5 })),
       opt('Ahorita solo pienso en mi club',
         o(1, 'El técnico se enteró y le gustó tu actitud. La oportunidad se fue.', { coach: 5, morale: -3 })),
     ],
@@ -69,8 +74,8 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     id: 'ext_video',
     category: 'extranjero',
     title: 'El video de tus jugadas',
-    text: (p) =>
-      `El visor pide un video con tus mejores jugadas como ${p.setup.position === 'POR' ? 'portero' : 'jugador'}. Un editor cobra Q3,000; tu primo dice que lo hace con el celular.`,
+    text: (p, ctx) =>
+      `El visor pide un video con tus mejores jugadas como ${p.setup.position === 'POR' ? 'portero' : 'jugador'}. Un editor cobra ${money(ctx.country, 3000)}; tu primo dice que lo hace con el celular.`,
     when: (p, ctx) => !ctx.abroad && has(p, 'ext_visoria') && !has(p, 'ext_video'),
     weight: 3,
     options: (p) => [
@@ -103,8 +108,8 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     id: 'ext_gastos_tramite',
     category: 'contrato',
     title: 'Los famosos gastos de trámite',
-    text: () =>
-      'Tu representante informal te pide Q8,000 "para gastos de trámite y para mover tu nombre allá". No te da recibo.',
+    text: (p, ctx) =>
+      `Tu representante informal te pide ${money(ctx.country, 8000)} "para gastos de trámite y para mover tu nombre allá". No te da recibo.`,
     when: (p, ctx) => !ctx.abroad && has(p, 'ext_agente_inf'),
     weight: 4,
     options: () => [
@@ -121,7 +126,7 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     category: 'extranjero',
     title: 'Prueba en el extranjero',
     text: (p, ctx) =>
-      `Tu agente consiguió una prueba de dos semanas con ${destinoPrueba(p, ctx)}. El club en Guatemala te da permiso, pero sin goce de salario.`,
+      `Tu agente consiguió una prueba de dos semanas con ${destinoPrueba(p, ctx)}. Tu club en ${ctx.country.name} te da permiso, pero sin goce de salario.`,
     when: (p, ctx) => !ctx.abroad && edadRuta(p) && has(p, 'ext_agente') && !has(p, 'ext_agente_inf') && !has(p, 'ext_prueba') && p.rating >= 62,
     weight: 4,
     options: (p) => {
@@ -180,7 +185,7 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     category: 'contrato',
     title: 'El club no te quiere vender',
     text: (p, ctx) =>
-      `La directiva de ${ctx.club.name} pide una cifra imposible por vos. "Si quieren al patojo, que paguen." Tu agente dice que así no se cierra nada.`,
+      `La directiva de ${ctx.club.name} pide una cifra imposible por vos. "Si lo quieren, que paguen." Tu agente dice que así no se cierra nada.`,
     when: (p, ctx) => !ctx.abroad && has(p, 'ext_papeles') && !has(p, 'ext_liberado'),
     weight: 4,
     options: () => [
@@ -250,14 +255,14 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
   {
     id: 'ext_comida',
     category: 'extranjero',
-    title: 'Extrañás las tortillas',
-    text: () =>
-      'Tres meses sin frijolitos, sin tortillas recién hechas, sin un pepián como el de tu abuela. Encontraste una tienda latina a una hora de distancia.',
+    title: 'Extrañás la comida de casa',
+    text: (p, ctx) =>
+      `Tres meses sin ${ctx.country.food}. Encontraste una tienda con productos de ${ctx.country.name} a una hora de distancia.`,
     when: (p, ctx) => ctx.abroad,
     cooldown: 8,
     options: () => [
       opt('Voy cada fin de semana',
-        o(0.7, 'Volviste con frijol, chile y tortillas congeladas. El alma regresó al cuerpo.', { morale: 10, fitness: -4 }),
+        o(0.7, 'Volviste con la bolsa llena de sabores de casa. El alma regresó al cuerpo.', { morale: 10, fitness: -4 }),
         o(0.3, 'Te comiste todo en dos días y la báscula del club lo notó.', { morale: 6, fitness: -10, coach: -3 })),
       opt('Me adapto a la comida de aquí',
         o(0.6, 'El nutricionista te armó un plan. Te sentís más liviano.', { fitness: 8, morale: -4 }),
@@ -269,7 +274,7 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     category: 'extranjero',
     title: 'Navidad lejos de casa',
     text: (p, ctx) =>
-      `24 de diciembre en ${ctx.club.city}. En la videollamada tu familia está comiendo tamales y quemando cohetes. Vos estás solo en el apartamento.`,
+      `24 de diciembre en ${ctx.club.city}. En la videollamada tu familia está ${ctx.country.code === 'GT' ? 'comiendo tamales y quemando cohetes' : 'en plena cena de Nochebuena'}. Vos estás solo en el apartamento.`,
     when: (p, ctx) => ctx.abroad,
     cooldown: 10,
     options: () => [
@@ -304,10 +309,10 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
   {
     id: 'ext_comunidad',
     category: 'extranjero',
-    title: 'Chapines en la tribuna',
+    title: (p, ctx) => `${cap(ctx.country.people)} en la tribuna`,
     text: (p, ctx) =>
-      `En ${ctx.club.city} llegaron cien chapines al estadio con la bandera azul y blanco y una manta: "¡${p.setup.lastName}, orgullo de ${p.setup.dept}!".`,
-    when: (p, ctx) => ctx.abroad && (ctx.club.city === 'Estados Unidos' || ctx.club.city === 'México' || ctx.club.city === 'España'),
+      `En ${ctx.club.city} llegaron cien ${ctx.country.people} al estadio con la bandera de ${ctx.country.name} y una manta: "¡${p.setup.lastName}, orgullo de ${p.setup.dept}!".`,
+    when: (p, ctx) => ctx.abroad && ['US', 'MX', 'ES'].includes(ctx.club.country),
     cooldown: 8,
     options: () => [
       opt('Les dedico el partido',
@@ -322,15 +327,15 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     category: 'extranjero',
     title: 'Aquí se juega distinto',
     text: (p, ctx) =>
-      `En ${ctx.club.city} todo es más rápido y táctico. El técnico te pide presionar sin pelota los 90 minutos. En Guatemala te cuidabas más.`,
+      `En ${ctx.club.city} todo es más rápido y táctico. El técnico te pide presionar sin pelota los 90 minutos. En ${ctx.country.name} te cuidabas más.`,
     when: (p, ctx) => ctx.abroad && p.rating < 80,
     cooldown: 8,
-    options: () => [
+    options: (p, ctx) => [
       opt('Hago trabajo físico extra',
         o(0.65, 'En seis semanas ya aguantás el ritmo. El técnico te tiene en cuenta.', { rating: 2, fitness: 6, coach: 6 }),
         o(0.35, 'Te pasaste de carga y se te subió el aductor.', { fitness: -15, morale: -5 })),
       opt('Juego a mi manera',
-        o(0.35, 'Tu toque distinto les sorprendió. A veces el estilo chapín sirve.', { fame: 4, coach: 3 }),
+        o(0.35, `Tu toque distinto les sorprendió. A veces el estilo ${de(ctx.country.name)} sirve.`, { fame: 4, coach: 3 }),
         o(0.65, 'El técnico te dijo claro: "Así no." A la banca.', { coach: -10, morale: -6 })),
     ],
   },
@@ -361,12 +366,12 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
       'Un grupo en la tribuna te grita insultos por tu origen cada vez que tocás la pelota. Varios compañeros lo escucharon. El árbitro sigue el partido.',
     when: (p, ctx) => ctx.abroad,
     once: true,
-    options: () => [
+    options: (p, ctx) => [
       opt('Se lo digo al árbitro y al capitán',
         o(0.65, 'Pararon el partido, se activó el protocolo y sacaron a los responsables. Recibiste mucho apoyo.', { morale: 6, fame: 10, coach: 4 }),
         o(0.35, 'No pararon el juego. Al final el club hizo la denuncia formal contigo.', { morale: -6, fame: 6 })),
       opt('Hago la denuncia pública después',
-        o(0.6, 'Tus palabras recorrieron Guatemala y la liga abrió una investigación.', { fame: 14, morale: 4, milestone: 'Alzó la voz contra la discriminación' }),
+        o(0.6, `Tus palabras recorrieron ${ctx.country.name} y la liga abrió una investigación.`, { fame: 14, morale: 4, milestone: 'Alzó la voz contra la discriminación' }),
         o(0.4, 'Recibiste apoyo, pero también mensajes feos en redes. Pesa.', { fame: 10, morale: -10 })),
       opt('Respondo jugando y me lo guardo',
         o(1, 'Jugaste bien, pero lo cargás por dentro. Hablalo con alguien de confianza.', { morale: -10, rating: 1 })),
@@ -381,9 +386,9 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     when: (p, ctx) => ctx.abroad && p.age <= 31 && p.rating >= 74 && ctx.club.prestige < 89,
     weight: 2,
     cooldown: 6,
-    options: () => [
+    options: (p, ctx) => [
       opt('Doy el salto',
-        o(0.7, 'Nuevo club, nueva liga, más exigencia. Otro escalón para el fútbol chapín.', { transfer: 'abroadUp', fame: 12, morale: 8, milestone: 'Saltó a una liga mejor' }),
+        o(0.7, `Nuevo club, nueva liga, más exigencia. Otro escalón para el fútbol ${de(ctx.country.name)}.`, { transfer: 'abroadUp', fame: 12, morale: 8, milestone: 'Saltó a una liga mejor' }),
         o(0.3, 'Te fuiste, pero arrancás como la cuarta opción del técnico.', { transfer: 'abroadUp', fame: 8, morale: -6, coach: -8 })),
       opt('Me quedo donde soy titular',
         o(1, 'Seguís siendo figura donde estás. La afición te lo reconoce.', { coach: 8, morale: -2, fame: 2 })),
@@ -392,19 +397,19 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
   {
     id: 'ext_volver',
     category: 'extranjero',
-    title: '¿Volver a Guatemala?',
+    title: (p, ctx) => `¿Volver a ${ctx.country.name}?`,
     text: (p, ctx) =>
-      `Te llaman de Guatemala: un club de la Liga Nacional te quiere de figura. ${p.coach < 45 ? 'Aquí casi no jugás.' : 'Aquí jugás, pero extrañás.'} ¿Regresás?`,
+      `Te llaman de ${ctx.country.name}: un club de ${ctx.country.leagues[0]} te quiere de figura. ${p.coach < 45 ? 'Aquí casi no jugás.' : 'Aquí jugás, pero extrañás.'} ¿Regresás?`,
     when: (p, ctx) => ctx.abroad && (p.coach < 45 || p.morale < 40 || p.age >= 30),
     weight: (p) => (p.coach < 35 || p.morale < 30 ? 2.5 : 1),
     cooldown: 6,
-    options: () => [
+    options: (p, ctx) => [
       opt('Regreso a casa',
-        o(0.75, 'Te recibieron en el aeropuerto con mariachis. Volvés como figura.', { transfer: 'home', morale: 12, fame: 6, milestone: 'Regresó a Guatemala' }),
+        o(0.75, 'Te recibieron en el aeropuerto con pancartas y música. Volvés como figura.', { transfer: 'home', morale: 12, fame: 6, milestone: `Regresó a ${ctx.country.name}` }),
         o(0.25, 'Volviste, pero algunos dicen que "fracasaste afuera". Toca demostrar.', { transfer: 'home', morale: -4, fame: 2 })),
       opt('Aguanto un año más afuera',
         o(0.5, 'Te pusiste las pilas y te ganaste minutos. Valió la pena.', { coach: 10, rating: 1 }),
-        o(0.5, 'Otro año a medias. El cuerpo está aquí, la cabeza en Guate.', { morale: -10, coach: -4 })),
+        o(0.5, `Otro año a medias. El cuerpo está aquí, la cabeza en ${ctx.country.code === 'GT' ? 'Guate' : ctx.country.name}.`, { morale: -10, coach: -4 })),
     ],
   },
   {
@@ -412,15 +417,15 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     category: 'extranjero',
     title: 'Te ofrecen otra selección',
     text: (p, ctx) =>
-      `Tras años en ${ctx.club.city}, un dirigente te sugiere naturalizarte y jugar por otro país. Con Guatemala llevás ${p.caps} partidos.`,
+      `Tras años en ${ctx.club.city}, un dirigente te sugiere naturalizarte y jugar por otro país. Con ${ctx.country.name} llevás ${p.caps} partidos.`,
     when: (p, ctx) => ctx.abroad && p.ntLevel <= 1 && p.caps <= 2 && p.age <= 27 && p.rating >= 72,
     once: true,
-    options: () => [
-      opt('Mi selección es Guatemala',
-        o(0.6, 'Lo dijiste en una entrevista y en Guatemala te aplaudieron. FEDEFUT tomó nota.', { fame: 10, morale: 6 }),
-        o(0.4, 'Guatemala no te llama igual. Pero dormís tranquilo.', { morale: 2, fame: 4 })),
+    options: (p, ctx) => [
+      opt(`Mi selección es ${ctx.country.name}`,
+        o(0.6, `Lo dijiste en una entrevista y en ${ctx.country.name} te aplaudieron. ${cap(ctx.country.federation)} tomó nota.`, { fame: 10, morale: 6 }),
+        o(0.4, `${ctx.country.name} no te llama igual. Pero dormís tranquilo.`, { morale: 2, fame: 4 })),
       opt('Lo pienso con calma',
-        o(1, 'Se filtró que lo estás pensando. En Guatemala hay críticas.', { fame: -6, morale: -4 })),
+        o(1, `Se filtró que lo estás pensando. En ${ctx.country.name} hay críticas.`, { fame: -6, morale: -4 })),
     ],
   },
 
@@ -542,9 +547,9 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
     category: 'contrato',
     title: 'Suplente o figura',
     text: (p, ctx) =>
-      `Un grande de la capital te ofrece contrato, pero para ser suplente. En ${ctx.club.name} sos figura y te prometen la capitanía.`,
-    when: (p, ctx) =>
-      !ctx.abroad && ctx.tier <= 2 && ctx.club.id !== 'municipal' && ctx.club.id !== 'comunicaciones' && p.rating >= 60 && p.age <= 30,
+      `Un grande ${ctx.country.code === 'GT' ? 'de la capital' : 'del país'} te ofrece contrato, pero para ser suplente. En ${ctx.club.name} sos figura y te prometen la capitanía.`,
+    // Los dos o tres más grandes del país (nivel 74 o más) no reciben esta oferta.
+    when: (p, ctx) => !ctx.abroad && ctx.tier <= 2 && ctx.club.prestige < 74 && p.rating >= 60 && p.age <= 30,
     cooldown: 10,
     options: () => [
       opt('Me voy al grande',

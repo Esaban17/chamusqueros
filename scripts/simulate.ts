@@ -1,13 +1,26 @@
 // Simula miles de carreras con decisiones al azar para revisar el balance del juego.
-// Uso: npm run simulate -- 5000
+// Uso: npm run simulate -- 5000       (todas las nacionalidades, por turnos)
+//      npm run simulate -- 2000 GT    (solo un país)
 import { Career, summarize } from '../src/engine/engine';
-import { DEPARTAMENTOS } from '../src/engine/clubs';
+import { COUNTRIES, countryOf } from '../src/engine/countries';
+import { clubById, clubsOf } from '../src/engine/clubs';
 import { ALL_EVENTS } from '../src/engine/events';
 import type { Mode, Position } from '../src/engine/types';
 import { bestMoment, palmares } from '../src/ui/palmares';
 import { FLAG_CODE } from '../src/ui/flags';
 
 const N = Number(process.argv[2] ?? 5000);
+const only = process.argv[3]?.toUpperCase();
+const countries = only ? [countryOf(only)] : COUNTRIES;
+// Un jugador de otro país no puede ver textos de Guatemala (ni "de el" / "a el" sin contraer). Sí puede ver clubes
+// guatemaltecos reales: se ignoran las temporadas en un club de Guatemala, las ofertas "Club (ciudad)" y las pruebas allá.
+const GT_LEAK =
+  /Guatemala|chap[ií]n|FEDEFUT|Bicolor|Liga Nacional(?! de Honduras)|Mateo Flores|Obelisco|\bQ\d|\bGuate\b|la Antigua|a Cobán(?! Imperial)|Trébol|Río Dulce|Costa Sur|\bSAT\b|Proyecto Goal|shuco|(?:^|\s)(de|a) el\s/;
+const GT_CLUBS = clubsOf('GT');
+const legit = (t: string) =>
+  GT_CLUBS.reduce((s, c) => s.replaceAll(`${c.name} (${c.city})`, '').replaceAll(c.name.includes('Guatemala') ? c.name : '\0', ''), t).replaceAll('un club de Guatemala', '');
+const leaks = new Set<string>();
+const byCountry: Record<string, { n: number; top: number; nt: number; wc: number; abroad: number; score: number }> = {};
 const positions: Position[] = ['POR', 'DEF', 'MED', 'DEL'];
 const modes: Mode[] = ['intensa', 'normal', 'expres'];
 const verdicts: Record<string, number> = {};
@@ -28,19 +41,26 @@ const momentCount: Record<string, number> = {};
 let years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
-  const position = positions[i % 4];
-  const mode = modes[i % 3];
+  // Cada país recibe todas las posiciones y ritmos (con 27 países, i % 3 le daría siempre el mismo ritmo a cada uno).
+  const country = countries[i % countries.length];
+  const k = Math.floor(i / countries.length);
+  const position = positions[k % 4];
+  const mode = modes[k % 3];
   const career = new Career(
     {
-      firstName: 'Sim', lastName: `#${i}`, dept: DEPARTAMENTOS[i % DEPARTAMENTOS.length], position, foot: 'Derecho', number: 10, mode,
+      firstName: 'Sim', lastName: `#${i}`, country: country.code, dept: country.regions[k % country.regions.length], position, foot: 'Derecho', number: 10, mode,
       avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 },
     },
     i + 1,
   );
+  const leak = (where: string, t: string) => {
+    if (country.code === 'GT' || clubById(career.player.clubId).country === 'GT') return;
+    if (GT_LEAK.test(legit(t))) leaks.add(`${country.code} ${where}: ${t}`);
+  };
   debutTier[career.club.tier]++;
   let guard = 0;
   let decisions = 0;
-  const outEarly = new Set<string>(); // eliminatorias en las que Guatemala quedó fuera en la segunda ronda
+  const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
   career.start();
   while (!career.isOver && guard++ < 100) {
     if (!career.pendingEvent) {
@@ -56,8 +76,9 @@ for (let i = 0; i < N; i++) {
           if (g && !g.table.some((r) => r.team === m.rival)) ntErrors.add(`${m.rival} no está en la tabla de ${m.comp}`);
         }
         for (const g of groups) {
-          const gt = g.table.findIndex((r) => r.team === 'Guatemala');
-          if (gt < 0) ntErrors.add(`Guatemala no está en la tabla de ${g.comp}`);
+          const gt = g.table.findIndex((r) => r.team === country.name);
+          if (gt < 0) ntErrors.add(`${country.name} no está en la tabla de ${g.comp}`);
+          if (!FLAG_CODE[country.name]) ntErrors.add(`sin bandera: ${country.name}`);
           if (g.table.some((r) => !FLAG_CODE[r.team])) ntErrors.add(`sin bandera en ${g.comp}`);
           if (g.table.some((r) => r.pj !== r.g + r.e + r.p || r.pts !== 3 * r.g + r.e)) ntErrors.add(`tabla mal sumada en ${g.comp}`);
           if (g.table.reduce((t, r) => t + r.gf - r.ga, 0) !== 0) ntErrors.add(`goles a favor y en contra no cuadran en ${g.comp}`);
@@ -65,18 +86,19 @@ for (let i = 0; i < N; i++) {
           if (wc && g.comp.endsWith('Segunda ronda') && gt >= 2) outEarly.add(wc);
           if (wc && g.comp.endsWith('Ronda final')) {
             if (outEarly.has(wc)) ntErrors.add('ronda final después de quedar fuera en la segunda ronda');
-            if ((gt <= 1) !== groups.some((x) => x.comp === `Mundial ${wc}`)) ntErrors.add('la ronda final no cuadra con jugar el Mundial');
+            if ((gt < g.advance) !== groups.some((x) => x.comp === `Mundial ${wc}`)) ntErrors.add(`${country.code}: la ronda final no cuadra con jugar el Mundial`);
           }
         }
       }
       const goals = matches.reduce((t, m) => t + m.goals, 0);
       if (matches.length !== p.caps - before[0]) ntErrors.add(`partidos: ${matches.length} listados, ${p.caps - before[0]} sumados`);
       if (goals !== p.natGoals - before[1]) ntErrors.add(`goles: ${goals} listados, ${p.natGoals - before[1]} sumados`);
-      if (matches.some((m) => m.gf < m.goals)) ntErrors.add('el jugador anotó más goles que Guatemala');
+      if (matches.some((m) => m.gf < m.goals)) ntErrors.add('el jugador anotó más goles que su Selección');
       if (position === 'POR' && goals > 0) ntErrors.add('un portero anotó con la Selección');
     }
     const ev = career.pendingEvent;
     if (ev) {
+      for (const t of [ev.title, ev.text, ...ev.options.flatMap((o) => [o.label, ...o.outcomes.map((x) => x.text)])]) leak(ev.id, t);
       eventCount[ev.id] = (eventCount[ev.id] ?? 0) + 1;
       catCount[ev.category] = (catCount[ev.category] ?? 0) + 1;
       if (position === 'POR') {
@@ -91,6 +113,15 @@ for (let i = 0; i < N; i++) {
   (decisionsByMode[mode] ??= []).push(decisions);
   const p = career.player;
   const s = summarize(p);
+  // Los títulos llevan el nombre de la liga donde se ganaron (puede ser la de Guatemala): no se revisan.
+  for (const t of [...p.milestones, ...p.seasons.flatMap((r) => (r.nt?.matches ?? []).map((m) => m.comp)), s.verdict.title]) leak('carrera', t);
+  const c = (byCountry[country.code] ??= { n: 0, top: 0, nt: 0, wc: 0, abroad: 0, score: 0 });
+  c.n++;
+  c.top += p.seasons.some((r) => r.tier === 1) ? 1 : 0;
+  c.nt += p.caps > 0 ? 1 : 0;
+  c.wc += p.flags.mundial ? 1 : 0;
+  c.abroad += s.clubs.some((x) => x.club.abroad) ? 1 : 0;
+  c.score += s.score;
   if (position === 'POR') for (const m of p.milestones) if (KEEPER_GOAL.test(m)) keeperGoals.add(`hito: ${m}`);
   const trophies = palmares(p).reduce((t, it) => t + it.count, 0);
   const won = p.titles.length + p.seasons.flatMap((r) => r.awards).length;
@@ -113,7 +144,7 @@ for (let i = 0; i < N; i++) {
   for (const m of p.milestones) {
     const wc = m.match(/^Clasificó al Mundial (\d+)/)?.[1];
     const season = wc && p.seasons.find((r) => Number(r.label.slice(0, 4)) + 1 === Number(wc));
-    if (season && season.nt && !p.milestones.includes(`Jugó el Mundial ${wc} con Guatemala`)) ntErrors.add(`contó que clasificó al Mundial ${wc} y no lo jugó`);
+    if (season && season.nt && !p.milestones.includes(`Jugó el Mundial ${wc} con ${country.name}`)) ntErrors.add(`contó que clasificó al Mundial ${wc} y no lo jugó`);
   }
   if (p.flags.mundial) mundial++;
   if (s.clubs.some((c) => c.club.abroad)) abroad++;
@@ -123,9 +154,9 @@ for (let i = 0; i < N; i++) {
 const pct = (x: number) => `${((100 * x) / N).toFixed(1)}%`;
 const avg = (a: number[]) => (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1);
 console.log(`Carreras: ${N}`);
-console.log(`Debut: Liga Nacional ${pct(debutTier[1])} · Primera ${pct(debutTier[2])} · Segunda ${pct(debutTier[3])}`);
+console.log(`Debut: primera división ${pct(debutTier[1])} · segunda ${pct(debutTier[2])} · tercera ${pct(debutTier[3])}`);
 console.log(`Temporadas promedio: ${(years / N).toFixed(1)} · decisiones: intensa ${avg(decisionsByMode.intensa)}, normal ${avg(decisionsByMode.normal)}, exprés ${avg(decisionsByMode.expres)}`);
-console.log(`Llegaron a Liga Nacional: ${pct(reachedLN)} · jugaron en el extranjero: ${pct(abroad)} · Selección mayor: ${pct(nt)} · Mundial: ${pct(mundial)}`);
+console.log(`Llegaron a primera: ${pct(reachedLN)} · jugaron en el extranjero: ${pct(abroad)} · Selección mayor: ${pct(nt)} · Mundial: ${pct(mundial)}`);
 console.log(`Títulos promedio: ${(titles / N).toFixed(2)} · partidos con Selección: ${(caps / N).toFixed(1)} · máximo de goles: ${maxGoals}`);
 for (const [pos, v] of Object.entries(byPos)) console.log(`  ${pos}: ${(v.apps / v.n).toFixed(0)} PJ, ${(v.goals / v.n).toFixed(0)} goles`);
 console.log('Veredictos:');
@@ -140,6 +171,17 @@ const never = ALL_EVENTS.filter((e) => !eventCount[e.id]).map((e) => e.id);
 console.log(`Eventos distintos vistos: ${sorted.length} de ${ALL_EVENTS.length}. Nunca salieron: ${never.join(', ') || 'ninguno'}`);
 console.log('Premios por carrera:', Object.entries(awardCount).sort().map(([k, v]) => `${k} ${(v / (N / 4)).toFixed(2)}`).join(' · '));
 console.log('Momento destacado:', Object.entries(momentCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${pct(v)}`).join(' · '));
+if (countries.length > 1) {
+  console.log('Por país (primera / extranjero / Selección / Mundial / puntaje medio):');
+  const share = (x: number, n: number) => `${((100 * x) / n).toFixed(0)}%`.padStart(4);
+  for (const [code, v] of Object.entries(byCountry).sort((a, b) => b[1].wc / b[1].n - a[1].wc / a[1].n)) {
+    console.log(`  ${code}: ${share(v.top, v.n)} ${share(v.abroad, v.n)} ${share(v.nt, v.n)} ${share(v.wc, v.n)}  ${(v.score / v.n).toFixed(0)}`);
+  }
+}
+if (leaks.size) {
+  console.error(`Textos de Guatemala en carreras de otros países (${leaks.size}):\n  ${[...leaks].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else if (countries.some((x) => x.code !== 'GT')) console.log('Países: ningún texto de Guatemala se cuela en otras nacionalidades.');
 if (summaryErrors.size) {
   console.error(`Resumen de carrera con errores:\n  ${[...summaryErrors].join('\n  ')}`);
   process.exitCode = 1;

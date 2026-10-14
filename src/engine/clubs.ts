@@ -1,29 +1,26 @@
-// Clubes de Guatemala por división y destinos en el extranjero.
-// Los datos de cada equipo (nombre, ciudad, departamento, colores) están en ./data/teams.ts.
-// prestige: nivel del club (35-95). Un titular necesita una valoración cercana a este número.
+// Clubes de todos los países por división.
+// Los datos de cada equipo (nombre, ciudad, departamento, colores) están en ./data; los países, en ./countries.ts.
+// prestige: nivel del club (35-95) visto desde su propio país. Un titular necesita una valoración cercana a este número.
 // Los escudos se cargan desde /escudos/<id>.png si el archivo existe; si no, se dibuja un escudo con iniciales.
-import { LIGA_NACIONAL, PRIMERA_DIVISION, SEGUNDA_DIVISION, type TeamData } from './data/teams';
+import { COUNTRIES, countryOf, type Country } from './countries';
+import type { TeamData } from './data/teams';
 import type { Tier } from './types';
 
 export interface Club {
   id: string;
-  tier: Tier; // 1 Liga Nacional, 2 Primera División, 3 Segunda División, 0 extranjero
+  country: string; // código del país
+  tier: Tier; // división en su país (1 primera); 0 en la vista de un jugador extranjero (ver viewClub)
   name: string;
   short: string; // 3 letras para escudos genéricos
   city: string;
   dept?: string;
   stadium?: string; // estadio de local; vacío si no se confirmó
+  rival?: string; // rival de clásico
   colors: [string, string];
   prestige: number;
-  abroad: boolean;
+  abroad: boolean; // true solo en la vista de un jugador de otra nacionalidad
   league: string; // nombre del torneo para los títulos
 }
-
-export const DEPARTAMENTOS = [
-  'Alta Verapaz', 'Baja Verapaz', 'Chimaltenango', 'Chiquimula', 'El Progreso', 'Escuintla', 'Guatemala',
-  'Huehuetenango', 'Izabal', 'Jalapa', 'Jutiapa', 'Petén', 'Quetzaltenango', 'Quiché', 'Retalhuleu',
-  'Sacatepéquez', 'San Marcos', 'Santa Rosa', 'Sololá', 'Suchitepéquez', 'Totonicapán', 'Zacapa',
-] as const;
 
 // Nivel de los clubes de Liga Nacional (por historia y presupuesto). Los que no aparecen toman 60.
 const LIGA_PRESTIGE: Record<string, number> = {
@@ -54,45 +51,43 @@ const PALETTE: [string, string][] = [
   ['#5B2C83', '#FFFFFF'], ['#1A1A1A', '#F2C230'], ['#D35400', '#FFFFFF'], ['#00838F', '#FFFFFF'],
 ];
 
-function build(list: TeamData[], tier: 1 | 2 | 3): Club[] {
-  const used = new Set<string>();
-  return list.map((t) => {
-    let id = tier === 1 ? ligaId(t.name) : `${tier === 2 ? 'p' : 's'}-${slug(t.name)}`;
+/** Mismo rango de nivel para cada división en todos los países; el orden de la lista va del más fuerte al más débil. */
+const RANGE: Record<1 | 2 | 3, [number, number]> = { 1: [58, 76], 2: [46, 54], 3: [36, 43] };
+
+function build(country: Country, list: TeamData[], tier: 1 | 2 | 3, league: string, used: Set<string>): Club[] {
+  const gt = country.code === 'GT';
+  return list.map((t, i) => {
+    // Guatemala conserva sus ids (escudos y carreras guardadas); el resto lleva el código del país para no chocar.
+    let id = !gt ? `${country.code.toLowerCase()}-${slug(t.name)}` : tier === 1 ? ligaId(t.name) : `${tier === 2 ? 'p' : 's'}-${slug(t.name)}`;
     while (used.has(id)) id += '-2';
     used.add(id);
     const h = hash(t.name);
-    const prestige = tier === 1 ? (LIGA_PRESTIGE[id] ?? 60) : tier === 2 ? 46 + (h % 9) : 36 + (h % 8); // 46-54 y 36-43
+    const [lo, hi] = RANGE[tier];
+    const prestige = gt
+      ? tier === 1 ? (LIGA_PRESTIGE[id] ?? 60) : tier === 2 ? 46 + (h % 9) : 36 + (h % 8) // 46-54 y 36-43
+      : Math.round(hi - ((hi - lo) * i) / Math.max(1, list.length - 1));
     return {
       id,
+      country: country.code,
       tier,
       name: t.name,
       short: shortName(t.name),
       city: t.city,
       dept: t.dept,
       stadium: t.stadium,
+      rival: t.rival,
       colors: t.colors ?? PALETTE[h % PALETTE.length],
       prestige,
       abroad: false,
-      league: tier === 1 ? 'Liga Nacional' : tier === 2 ? 'Primera División' : 'Segunda División',
+      league,
     };
   });
 }
 
-export const GT_CLUBS: Club[] = [...build(LIGA_NACIONAL, 1), ...build(PRIMERA_DIVISION, 2), ...build(SEGUNDA_DIVISION, 3)];
-
-// Destinos en el extranjero sin nombres de clubes reales, ordenados por nivel.
-export const ABROAD_CLUBS: Club[] = [
-  { id: 'sv', tier: 0, name: 'un club de El Salvador', short: 'SLV', city: 'El Salvador', colors: ['#0F47AF', '#FFFFFF'], prestige: 62, abroad: true, league: 'Liga de El Salvador' },
-  { id: 'hn', tier: 0, name: 'un club de Honduras', short: 'HON', city: 'Honduras', colors: ['#00BCE4', '#FFFFFF'], prestige: 67, abroad: true, league: 'Liga de Honduras' },
-  { id: 'usl', tier: 0, name: 'un club de la USL', short: 'USL', city: 'Estados Unidos', colors: ['#2B2D42', '#EF233C'], prestige: 70, abroad: true, league: 'USL Championship' },
-  { id: 'cr', tier: 0, name: 'un club de Costa Rica', short: 'CRC', city: 'Costa Rica', colors: ['#002B7F', '#CE1126'], prestige: 72, abroad: true, league: 'Liga de Costa Rica' },
-  { id: 'mls', tier: 0, name: 'un club de la MLS', short: 'MLS', city: 'Estados Unidos', colors: ['#0B1F3A', '#D7263D'], prestige: 79, abroad: true, league: 'MLS' },
-  { id: 'mx', tier: 0, name: 'un club de la Liga MX', short: 'LMX', city: 'México', colors: ['#006341', '#C8102E'], prestige: 82, abroad: true, league: 'Liga MX' },
-  { id: 'esp2', tier: 0, name: 'un club de Segunda de España', short: 'ESP', city: 'España', colors: ['#AA151B', '#F1BF00'], prestige: 84, abroad: true, league: 'Segunda de España' },
-  { id: 'eur', tier: 0, name: 'un club de primera en Europa', short: 'EUR', city: 'Europa', colors: ['#003399', '#FFCC00'], prestige: 89, abroad: true, league: 'una liga de primera en Europa' },
-];
-
-export const ALL_CLUBS = [...GT_CLUBS, ...ABROAD_CLUBS];
+const used = new Set<string>();
+export const ALL_CLUBS: Club[] = COUNTRIES.flatMap((c) =>
+  c.teams.leagues.slice(0, 3).flatMap((l, i) => build(c, l.teams, (i + 1) as 1 | 2 | 3, l.name, used)),
+);
 const BY_ID = new Map(ALL_CLUBS.map((c) => [c.id, c]));
 
 export const clubById = (id: string): Club => {
@@ -101,9 +96,21 @@ export const clubById = (id: string): Club => {
   return club;
 };
 
-/** Ids de clubes por departamento, para el debut y para volver a casa. */
-export const HOME_CLUBS_BY_DEPT: Partial<Record<string, string[]>> = {};
-for (const c of GT_CLUBS) {
+/** Clubes de un país, de primera hacia abajo. */
+export const clubsOf = (code: string) => ALL_CLUBS.filter((c) => c.country === code);
+
+/**
+ * El club visto por un jugador de esa nacionalidad: en su país, tal cual; afuera es "extranjero" (tier 0) y su nivel
+ * se corre por la diferencia entre ligas. ponytail: un solo número por país; los clubes de afuera conservan su orden.
+ */
+export function viewClub(c: Club, home: Country): Club {
+  if (c.country === home.code) return c;
+  return { ...c, abroad: true, tier: 0, prestige: c.prestige + countryOf(c.country).level - home.level };
+}
+
+/** Ids de clubes por país y departamento (o región), para el debut y para volver a casa. */
+export const HOME_CLUBS_BY_DEPT: Record<string, Partial<Record<string, string[]>>> = {};
+for (const c of ALL_CLUBS) {
   if (!c.dept) continue;
-  (HOME_CLUBS_BY_DEPT[c.dept] ??= []).push(c.id);
+  ((HOME_CLUBS_BY_DEPT[c.country] ??= {})[c.dept] ??= []).push(c.id);
 }

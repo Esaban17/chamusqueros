@@ -16,6 +16,6 @@ CREATE INDEX IF NOT EXISTS ranking_order ON ranking (score DESC, titles DESC, ca
 -- NULL en las filas guardadas antes de que existiera; se completa en la siguiente carrera de ese jugador.
 ALTER TABLE ranking ADD COLUMN IF NOT EXISTS avatar smallint[] CHECK (avatar IS NULL OR cardinality(avatar) = 6);
 
--- Carta estilo FIFA de esa misma carrera: {pos, ovr, club, dept, foot, apps, goals, assists}. La arma api/ranking.ts.
+-- Carta estilo FIFA de esa misma carrera: {pos, ovr, club, dept, foot, apps, goals, assists, country}. La arma api/ranking.ts.
 -- NULL en las filas guardadas antes de que existiera; solo se llena cuando el jugador mejora su carrera.
 ALTER TABLE ranking ADD COLUMN IF NOT EXISTS card jsonb;
