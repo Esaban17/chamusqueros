@@ -1,5 +1,5 @@
 // Lógica pura del ping pong de futbolistas y del Reto completo. Sin DOM: se prueba con tsx (scripts/retos.test.ts).
-import { NOMBRE_RE, normalizar } from '../../api/_retos';
+import { NOMBRE_RE, normalizar } from '../../api/_retos.js';
 import type { Indice, Pareja } from './comun';
 
 export type Categoria = 'pais' | 'club' | 'preguntas';

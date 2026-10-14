@@ -174,3 +174,15 @@ No bloqueantes (cada una con su default, que es lo que se implementa):
 7. **¿Aplicar el filtro de apodos también a `api/ranking.ts` (carrera)?** Default: no tocar ese endpoint (`specs/retos-futbol`, CA-12, lo declaró fuera de alcance). Es una línea si se decide sí.
 8. **Dominio canónico del link.** La spec usa `chamusqueros.vercel.app` como pidió el orquestador; `.env.example` trae `VITE_SITE_URL=https://chamusqueros.com`. Default: `SITE_URL` del servidor, con el primero por defecto.
 9. **Revisión humana de 30 futbolistas** (CA-9): la hace el usuario antes de publicar.
+
+### Aclaraciones resueltas
+Las resolvió el orquestador el 14/10/2026. Donde difieren del default de arriba, mandan estas.
+1. **"¿De dónde es?" no entra al Reto completo.** Sigue de 3 categorías (país, club, preguntas); "¿De dónde es?" se juega suelta.
+2. **Reloj en línea de "¿De dónde es?": 12 s** (la constante `PLAZO_MS` de `src/retos/dedonde.ts`).
+3. **La selección favorita no precarga la nacionalidad** de la carrera. La carrera solo precarga avatar y nombre (RF-30).
+4. **El código de recuperación queda fuera** (llevar el perfil a otro dispositivo, Aclaración 4 original).
+5. **Lista de ofensivos:** unas 35 raíces de insultos comunes en español (con expresiones de Guatemala y Centroamérica) y en inglés, más la regla de caracteres y largo, en `api/_nombres.ts` (`PREFIJOS` y `EXACTAS`, marcadas `ponytail: lista mínima, la revisa el usuario`). La revisión del usuario es la compuerta Z4.
+6. **Pesos de la fórmula (RF-24): los de la spec**, como constantes de `src/retos/online/puntos.ts`.
+7. **Sí:** el filtro de ofensivos también se aplica a `api/ranking.ts`, para el nombre de la carrera. Un nombre ofensivo se rechaza con `400 { "error": "Nombre no permitido" }` y no se escribe nada. Cierra el pendiente de seguridad de `terminos.html` ("Nombres en el ranking"). Cambia el default de la Aclaración 7 original y el cliente de la carrera debe mostrar ese rechazo (hoy `src/main.ts` lanza `ranking 400` y muestra su error genérico).
+8. **Dominio del link: `https://chamusqueros.vercel.app`**, configurable con `SITE_URL` en el servidor. `.env.example` se corrigió: `VITE_SITE_URL` decía `.com`.
+9. **La revisión humana de 30 futbolistas (CA-9) la hace el usuario** antes de publicar (compuerta Z4).

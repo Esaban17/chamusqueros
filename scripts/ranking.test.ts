@@ -44,4 +44,20 @@ for (const [extra, ok] of [[{ score: 1200, titles: 200, caps: 500 }, true], [{ s
   const r = await guardar('IT', extra);
   assert.equal(r.status === 200, ok, `límites ${JSON.stringify(extra)}`);
 }
-console.log('ranking: 27 códigos válidos se conservan; ZZ, minúsculas, 3 letras, vacío, HTML, SQL y tipos raros se descartan sin perder la carrera; límites intactos.');
+// Aclaración 7: el nombre de la carrera pasa por el filtro de ofensivos; si no pasa, 400 claro y no se escribe nada (A03).
+for (const nombre of ['Pendejo', 'PENDEJO', 'p3nd3j0', 'Juan Hijueputa', 'Cabrón', 'xX_puto_Xx', 'p.u.t.a', 'Eres un idiota']) {
+  const r = await guardar('GT', { name: nombre });
+  assert.equal(r.status, 400, `${nombre} debía rechazarse`);
+  assert.equal(r.insertado, false, `${nombre}: no debe haber INSERT`);
+}
+{
+  const res = await POST(new Request('http://x/api/ranking', { method: 'POST', body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111', name: 'Pendejo', score: 10, titles: 0, caps: 0 }) }));
+  assert.deepEqual(await res.json(), { error: 'Nombre no permitido' });
+}
+// Los nombres de siempre siguen entrando: vacío ("Anónimo"), con tildes, largos, raros, y palabras que contienen una raíz sin serlo.
+for (const nombre of ['', 'Estuardo', 'Sofía Ñoño', 'Computadora', 'Vergara', 'Maricarmen', '日本語の名前', 'x'.repeat(60), "O'Brien-Pérez Jr."]) {
+  const r = await guardar('GT', { name: nombre });
+  assert.equal(r.status, 200, `${nombre} debía aceptarse`);
+  assert.ok(r.insertado, nombre);
+}
+console.log('ranking: 27 códigos válidos se conservan; ZZ, minúsculas, 3 letras, vacío, HTML, SQL y tipos raros se descartan sin perder la carrera; límites intactos; nombres ofensivos → 400 sin escribir.');

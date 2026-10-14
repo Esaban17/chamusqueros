@@ -1,0 +1,15 @@
+// "¿De dónde es?": lógica pura compartida por la pantalla local, el motor de salas y el servidor. Sin DOM al importar.
+// STUB de T0 (specs/retos-en-linea/tasks.md): solo las firmas y las constantes del contrato; el bloque C lo reemplaza y en el merge gana el de C.
+import type { Indice } from './online/protocolo';
+
+export const META = 500, PLAZO_MS = 12_000, BASE = 100, BONUS_MAX = 50, MAX_RONDAS = 25, EXTRAS_MAX = 3;
+export interface Futbolista { q: string; nombre: string; sel: string }     // sel: clave de FLAG_CODE (nombre del país en español)
+export interface Marcador { puntos: [number, number]; rondas: number; extras: number }
+/** 0 si falló o no respondió (tardoMs null) o tardó más de PLAZO_MS; si no, BASE + floor(BONUS_MAX × (PLAZO_MS − tardoMs) / PLAZO_MS). */
+export function puntosRonda(_acerto: boolean, _tardoMs: number | null): number { throw new Error('pendiente: bloque C'); }
+/** 4 opciones barajadas: la selección correcta y 3 de su confederación (de las marcadas `plausible`), sin repetir. */
+export function opcionesRonda(_f: Futbolista, _azar: () => number): { opciones: string[]; correcta: number } { throw new Error('pendiente: bloque C'); }
+/** Un futbolista del banco que no esté en `usados` (por `q`). */
+export function elegirFutbolista(_banco: readonly Futbolista[], _usados: ReadonlySet<string>, _azar: () => number): Futbolista { throw new Error('pendiente: bloque C'); }
+/** Suma los puntos de la ronda y decide: seguir, o fin con ganador/empate (regla de RF-19). */
+export function cerrarRonda(_m: Marcador, _ganado: readonly [number, number]): { marcador: Marcador; fin: null | { ganador: Indice | null; motivo: 'meta' | 'tope_rondas' | 'empate_extras' } } { throw new Error('pendiente: bloque C'); }
