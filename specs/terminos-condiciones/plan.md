@@ -58,9 +58,10 @@ Opcional: gq:e2e con el MCP de Playwright para los anchos y la red.
 ## Riesgos y trade-offs
 
 - Es texto plantilla, no asesoría legal. Una persona debe revisarlo antes de publicar.
-- Fusionar a main despliega a producción. Por eso la publicación espera a cerrar las aclaraciones que bloquean publicar.
+- Fusionar a main despliega a producción. Por eso la publicación espera a la compuerta de abajo.
 - La regla de nombres no se hace cumplir en el servidor (ver spec, Conflictos). Los términos la declaran como política.
 - El borrado por nombre permite que alguien pida borrar una fila ajena. Se acepta mientras no haya un identificador que el jugador pueda ver.
+- Puntos para la revisión humana, sin bloquear: si se nombra al responsable del sitio, el plazo de respuesta a un borrado, el plazo de conservación de las filas y los registros que guardan el alojamiento y la base de datos (por ejemplo, direcciones IP).
 - Si cambia la plataforma de donación, hay que actualizar RF-19.
 - Ganancia: cero dependencias y cero cambios de backend. Costo: estilos repetidos, y sin analítica no se sabrá cuánta gente abre las páginas.
 
@@ -86,4 +87,4 @@ No existe `.gq/constitution.md`. Se verifica contra el estándar base de gq:prac
 
 ## Compuerta de publicación
 
-Antes de fusionar a main deben estar resueltos: correo y responsable (RF-11); cómo se identifica el jugador para borrar, plazo de respuesta y plazo de conservación (RF-14, RF-16); qué registros guardan el alojamiento y la base de datos (RF-14); plataforma de donación (RF-19); variable de anuncios vacía en producción (RF-17); y revisión humana del texto.
+Antes de fusionar a main deben estar resueltos: el correo de contacto (RF-11), el nombre de la plataforma de donación (RF-19), que la variable de anuncios esté vacía en producción (RF-17) y la revisión humana del texto.

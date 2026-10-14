@@ -7,7 +7,7 @@ Cada tarea es un commit. "Cubre" lista RF, RNF y CA del spec. Antes de fusionar 
 - T1 y T5 van en paralelo: archivos distintos.
 - T2 y T3 van en paralelo, después de T1.
 - T4 va después de T3.
-- T6 espera aclaraciones externas.
+- T6 espera el correo de contacto y el nombre de la plataforma de donación.
 - T7 y T8 van al final.
 
 ## Tareas
@@ -32,14 +32,14 @@ Cada tarea es un commit. "Cubre" lista RF, RNF y CA del spec. Antes de fusionar 
 - Cubre: RF-01.
 - Prueba: CA-02 en las cuatro pantallas.
 
-**T5. Corregir la política de privacidad.** Reescribir `privacidad.html`: lista de datos (RF-12), para qué y quién lo ve (RF-13, RF-14), datos locales y borrado en el navegador (RF-15), cómo pedir el borrado sin los datos pendientes (RF-16, parcial), sin anuncios (RF-17), servicios externos (RF-18), donación en plataforma externa con nombre genérico (RF-19, parcial) y fecha de última actualización (RF-09).
+**T5. Corregir la política de privacidad.** Reescribir `privacidad.html`: lista de datos (RF-12), para qué y quién lo ve (RF-13, RF-14), datos locales y borrado en el navegador (RF-15), cómo pedir el borrado por correo con el nombre publicado (RF-16), sin anuncios (RF-17), servicios externos (RF-18), donación en plataforma externa con nombre genérico (RF-19, parcial) y fecha de última actualización (RF-09).
 - Depende de: ninguna. En paralelo con T1.
-- Cubre: RF-09, RF-12, RF-13, RF-14, RF-15, RF-16 (parcial), RF-17, RF-18 y RF-19 (parcial).
+- Cubre: RF-09, RF-12, RF-13, RF-14, RF-15, RF-16, RF-17, RF-18 y RF-19 (parcial).
 - Prueba: CA-07 (sin AdSense), CA-08, CA-09, CA-10 y CA-12.
 
-**T6. Datos pendientes en ambas páginas.** Agregar el correo de contacto y el responsable (RF-11), el método y plazo de borrado (RF-16) y el nombre de la plataforma de donación (RF-19). Cada dato se agrega solo cuando su aclaración está resuelta.
+**T6. Datos pendientes en ambas páginas.** Agregar el correo de contacto (RF-11) y el nombre de la plataforma de donación (RF-19). Cada dato se agrega solo cuando su aclaración está resuelta.
 - Depende de: aclaraciones externas; T2 y T5.
-- Cubre: RF-11, RF-16, RF-19.
+- Cubre: RF-11 y el nombre de la plataforma de RF-19.
 - Prueba: CA-07 completo: `grep -i "adsense\|CORREO_DE_CONTACTO" privacidad.html terminos.html` sin resultados, y el mismo correo en ambas páginas.
 
 **T7. Verificación de presentación.** Revisar 360 px, 1280 px, contraste en claro y en oscuro, y la red al abrir cada página y al abrir el juego.
@@ -58,11 +58,11 @@ Cada tarea es un commit. "Cubre" lista RF, RNF y CA del spec. Antes de fusionar 
 
 ## Compuertas que no son tareas de código
 
-- Revisión humana del texto de términos y privacidad antes de publicar.
+- Revisión humana del texto de términos y privacidad antes de publicar, incluidos los puntos de `plan.md` (Riesgos).
 - Comprobar en producción que `VITE_ADSENSE_CLIENT` está vacía.
 
 ## Cobertura
 
-- RF-01 → T4. RF-02 → T1 y T3. RF-03, RF-04, RF-05, RF-06, RF-07, RF-08 y RF-10 → T2. RF-09 → T2 y T5. RF-11, RF-16 y RF-19 → T6 (con su parte en T5). RF-12, RF-13, RF-14, RF-15, RF-17 y RF-18 → T5.
+- RF-01 → T4. RF-02 → T1 y T3. RF-03, RF-04, RF-05, RF-06, RF-07, RF-08 y RF-10 → T2. RF-09 → T2 y T5. RF-11 → T6. RF-12 a RF-18 → T5. RF-19 → T5 (texto) y T6 (nombre).
 - RNF-01, RNF-02 y RNF-03 → T7. RNF-04 y RNF-05 → T1 y T7. RNF-06 → T7.
 - Ninguna tarea queda sin requisito.
