@@ -156,8 +156,10 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   // Hito principal
   const highlight =
     p.milestones.find((m) => m.includes('Mundial')) ??
-    p.awards[0] ??
+    // Un premio mayor (goleador, mejor jugador...) antes que uno de lista como el once ideal.
+    p.seasons.flatMap((r) => r.awards).find((a) => a.kind !== 'ideal' && a.kind !== 'joven')?.name ??
     p.milestones.find((m) => m.includes('Copa Oro')) ??
+    p.awards[0] ??
     s.verdict.line;
   ctx.fillStyle = '#F0C14B';
   ctx.font = `600 32px ${BODY}`;

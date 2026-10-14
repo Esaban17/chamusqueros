@@ -17,6 +17,9 @@ const scores: number[] = [];
 // Un portero no anota goles de jugada: ningún texto que vea puede decir que él marcó.
 const KEEPER_GOAL = /\b(anotás|anotaste|cabezazo|cabeceás|golazo|marcaste|volviste a marcar)\b|metiste (un |el )?(gol|de cabeza)|gol (de cabeza|tuyo|en tu debut|en el clásico|de despedida)|¡gol|prometo gol|a buscar el gol|gol en el mundial/i;
 const keeperGoals = new Set<string>();
+// Los partidos con la Selección de cada temporada deben cuadrar con los partidos y goles que suma el jugador.
+const ntErrors = new Set<string>();
+const awardCount: Record<string, number> = {};
 let years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -34,7 +37,16 @@ for (let i = 0; i < N; i++) {
   let decisions = 0;
   career.start();
   while (!career.isOver && guard++ < 100) {
-    if (!career.pendingEvent) career.playBlock();
+    if (!career.pendingEvent) {
+      const p = career.player;
+      const before = [p.caps, p.natGoals];
+      const matches = career.playBlock().flatMap((s) => s.nt?.matches ?? []);
+      const goals = matches.reduce((t, m) => t + m.goals, 0);
+      if (matches.length !== p.caps - before[0]) ntErrors.add(`partidos: ${matches.length} listados, ${p.caps - before[0]} sumados`);
+      if (goals !== p.natGoals - before[1]) ntErrors.add(`goles: ${goals} listados, ${p.natGoals - before[1]} sumados`);
+      if (matches.some((m) => m.gf < m.goals)) ntErrors.add('el jugador anotó más goles que Guatemala');
+      if (position === 'POR' && goals > 0) ntErrors.add('un portero anotó con la Selección');
+    }
     const ev = career.pendingEvent;
     if (ev) {
       eventCount[ev.id] = (eventCount[ev.id] ?? 0) + 1;
@@ -52,6 +64,7 @@ for (let i = 0; i < N; i++) {
   const p = career.player;
   const s = summarize(p);
   if (position === 'POR') for (const m of p.milestones) if (KEEPER_GOAL.test(m)) keeperGoals.add(`hito: ${m}`);
+  for (const a of p.seasons.flatMap((r) => r.awards)) awardCount[`${a.kind} ${position}`] = (awardCount[`${a.kind} ${position}`] ?? 0) + 1;
   scores.push(s.score);
   verdicts[s.verdict.title] = (verdicts[s.verdict.title] ?? 0) + 1;
   byPos[position] ??= { goals: 0, apps: 0, n: 0 };
@@ -85,6 +98,11 @@ const sorted = Object.entries(eventCount).sort((a, b) => b[1] - a[1]);
 console.log('Más frecuentes:', sorted.slice(0, 8).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(1)}%`).join(' · '));
 const never = ALL_EVENTS.filter((e) => !eventCount[e.id]).map((e) => e.id);
 console.log(`Eventos distintos vistos: ${sorted.length} de ${ALL_EVENTS.length}. Nunca salieron: ${never.join(', ') || 'ninguno'}`);
+console.log('Premios por carrera:', Object.entries(awardCount).sort().map(([k, v]) => `${k} ${(v / (N / 4)).toFixed(2)}`).join(' · '));
+if (ntErrors.size) {
+  console.error(`Partidos con la Selección que no cuadran:\n  ${[...ntErrors].join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Selección: los partidos listados cuadran con partidos y goles sumados.');
 if (keeperGoals.size) {
   console.error(`Textos donde el portero anota (${keeperGoals.size}):\n  ${[...keeperGoals].join('\n  ')}`);
   process.exitCode = 1;

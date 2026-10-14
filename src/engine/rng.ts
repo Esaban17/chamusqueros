@@ -17,6 +17,20 @@ export const randRange = (rng: Rng, min: number, max: number) => min + rng() * (
 export const chance = (rng: Rng, p: number) => rng() < p;
 export const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
+/** Goles de un equipo en un partido (distribución de Poisson), con tope de 9. */
+export function poisson(rng: Rng, mean: number): number {
+  let k = 0;
+  let term = Math.exp(-mean);
+  let sum = term;
+  const u = rng();
+  while (u > sum && k < 9) {
+    k++;
+    term *= mean / k;
+    sum += term;
+  }
+  return k;
+}
+
 export function pick<T>(rng: Rng, items: readonly T[]): T {
   return items[Math.floor(rng() * items.length)];
 }

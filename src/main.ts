@@ -4,6 +4,8 @@ import { DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
 import {
   POSITION_NAMES,
   type Avatar,
+  type AwardKind,
+  type NtMatch,
   type Foot,
   type Mode,
   type PlayerSetup,
@@ -322,8 +324,74 @@ function advance() {
   const played = career!.playBlock();
   freshSeasons = played.length;
   lastResolution = null;
-  if (career!.isOver) return finish();
-  gameScreen();
+  seasonSummary(played);
+}
+
+// ---------- Resumen de temporada ----------
+
+const ICON: Record<AwardKind | 'copa', string> = {
+  copa: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>',
+  goleador: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5l4 2.9-1.5 4.6h-5L8 10.4z"/>',
+  asistidor: '<path d="M4 19c3-7 8-10 15-10"/><path d="M15 5l4 4-4 4"/>',
+  portero: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4m0-5.5a1.5 1.5 0 0 1 3 0V10m0-4a1.5 1.5 0 0 1 3 0v5m0-2a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1.5A6.5 6.5 0 0 1 4 15.5V13a1.5 1.5 0 0 1 3-.5"/>',
+  joven: '<path d="M12 21v-9M12 12c0-4-3-7-8-7 0 4 3 7 8 7zM12 14c0-3 2.5-6 7-6 0 3.5-2.5 6-7 6z"/>',
+  mvp: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>',
+  ideal: '<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M10 9.5l1.5-1V15M14 8.5V15"/>',
+};
+const AWARD_LABEL: Record<AwardKind, string> = {
+  goleador: 'Goleador',
+  asistidor: 'Máximo asistidor',
+  portero: 'Guardameta menos vencido',
+  joven: 'Jugador joven del año',
+  mvp: 'Mejor jugador',
+  ideal: 'Once ideal',
+};
+const NT_CALL = '<p class="nt-title"><i class="mini-flag" aria-hidden="true"></i>¡Te han llamado a la Selección!</p>';
+
+function trophy(icon: AwardKind | 'copa', label: string, detail: string) {
+  return `<li class="trophy${icon === 'copa' ? '' : ' award'}"><svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg><span><b>${label}</b><small>${esc(detail)}</small></span></li>`;
+}
+
+function matchRow(m: NtMatch) {
+  const [cls, tag, word] = m.gf > m.ga ? ['win', 'G', 'Victoria'] : m.gf < m.ga ? ['loss', 'P', 'Derrota'] : ['draw', 'E', 'Empate'];
+  return `<li><span class="res ${cls}"><span aria-hidden="true">${tag}</span><span class="sr">${word}</span></span>
+    <span>Guatemala ${m.gf}-${m.ga} ${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
+}
+
+function ntBlock(nt: NonNullable<SeasonRecord['nt']>) {
+  const comps = [...new Set(nt.matches.map((m) => m.comp))];
+  return `<div class="nt-call${nt.debut ? ' debut' : ''}">
+    ${nt.debut ? `${NT_CALL}<p>Guatemala te convocó por primera vez. Vas a vestir la azul y blanco.</p>` : '<p class="nt-title"><i class="mini-flag" aria-hidden="true"></i>Convocado a la Selección</p>'}
+    ${comps.map((c) => `<p class="nt-comp">${esc(c)}</p><ul class="matches">${nt.matches.filter((m) => m.comp === c).map(matchRow).join('')}</ul>`).join('')}
+  </div>`;
+}
+
+function seasonCard(r: SeasonRecord) {
+  const club = clubById(r.clubId);
+  const league = club.abroad ? club.league : LEAGUE_NAME[r.tier];
+  const stats: [string, number][] = [
+    ['Partidos', r.apps],
+    r.cleanSheets === undefined ? ['Goles', r.goals] : ['Vallas invictas', r.cleanSheets],
+    ['Asistencias', r.assists],
+  ];
+  const trophies = [...r.titles.map((t) => trophy('copa', 'Campeón', t)), ...r.awards.map((a) => trophy(a.kind, AWARD_LABEL[a.kind], league))];
+  return `<section class="panel season-card">
+    <span class="eyebrow">Temporada ${r.label} · ${r.age} años</span>
+    <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
+    <div class="totals">${stats.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('')}</div>
+    ${r.injured ? '<p class="chip down">Temporada marcada por una lesión</p>' : ''}
+    ${trophies.length ? `<ul class="trophies">${trophies.join('')}</ul>` : ''}
+    ${r.nt ? ntBlock(r.nt) : ''}
+    ${r.note ? `<p class="season-empty">${esc(r.note)}</p>` : ''}
+  </section>`;
+}
+
+/** Lo que pasó en las temporadas recién jugadas (1 a 3 según el modo), antes de la siguiente decisión. */
+function seasonSummary(played: SeasonRecord[]) {
+  const over = career!.isOver;
+  render(`${playerHead()}${played.map(seasonCard).join('')}
+    <button class="btn big" id="next">${over ? 'Ver mi carrera' : 'Seguir'}</button>${adSlot('game')}`);
+  document.getElementById('next')!.onclick = () => (over ? finish() : gameScreen());
 }
 
 function playerHead() {
@@ -358,11 +426,17 @@ function statsBar() {
 function seasonRow(r: SeasonRecord, fresh: boolean) {
   const club = clubById(r.clubId);
   const tier = club.abroad ? '' : r.tier === 1 ? '' : r.tier === 2 ? '1ra Div.' : '2da Div.';
+  const chips = [
+    ...r.titles.map((t) => `<span class="chip gold">${esc(t)}</span>`),
+    ...r.awards.map((a) => `<span class="chip gold">${AWARD_LABEL[a.kind]}</span>`),
+    r.nt ? `<span class="chip">Selección · ${r.nt.matches.length} PJ</span>` : '',
+    r.note ? `<span class="chip">${esc(r.note)}</span>` : '',
+  ].filter(Boolean);
   return `<div class="season${r.injured ? ' injured' : ''}${fresh ? ' fresh' : ''}">
     <span class="year">${r.label}</span>
     <span class="club">${crest(club, true)}<span>${esc(club.abroad ? club.city : club.name)}${tier ? ` <small>${esc(tier)}</small>` : ''}</span></span>
     <span>${r.apps}</span><span>${r.goals}</span><span>${r.assists}</span>
-    ${r.titles.length || r.note ? `<div class="season-titles">${r.titles.map((t) => `<span class="chip gold">${esc(t)}</span>`).join('')}${r.note ? `<span class="chip">${esc(r.note)}</span>` : ''}</div>` : ''}
+    ${chips.length ? `<div class="season-titles">${chips.join('')}</div>` : ''}
   </div>`;
 }
 
@@ -401,6 +475,7 @@ function gameScreen() {
   const p = career!.player;
   const eventHtml = res
     ? `<section class="panel event">
+        ${res.changes.includes('Convocado a la Selección') ? `<div class="nt-call debut">${NT_CALL}</div>` : ''}
         <p class="outcome">${esc(res.text)}</p>
         ${res.changes.length ? `<div class="chips">${res.changes.map((c) => `<span class="chip ${chipClass(c)}">${esc(c)}</span>`).join('')}</div>` : ''}
         <button class="btn big" id="next">${career!.isOver ? 'Ver mi carrera' : 'Seguir'}</button>

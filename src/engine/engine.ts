@@ -1,8 +1,9 @@
 import { ABROAD_CLUBS, GT_CLUBS, HOME_CLUBS_BY_DEPT, clubById, type Club } from './clubs';
 import { ALL_EVENTS } from './events';
-import { chance, clamp, createRng, pick, randInt, randRange, weightedPick, type Rng } from './rng';
+import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
 import {
   MODE_SEASONS,
+  type AwardKind,
   type Effects,
   type EventCategory,
   type EventContext,
@@ -10,9 +11,11 @@ import {
   type EventTemplate,
   type GameEvent,
   type NtLevel,
+  type NtMatch,
   type Player,
   type PlayerSetup,
   type Resolution,
+  type SeasonAward,
   type SeasonRecord,
   type Tier,
 } from './types';
@@ -24,6 +27,33 @@ const MATCHES: Record<Tier, number> = { 0: 36, 1: 44, 2: 40, 3: 32 };
 const GOALS_PER_APP = { POR: 0, DEF: 0.045, MED: 0.14, DEL: 0.37 };
 const ASSISTS_PER_APP = { POR: 0.005, DEF: 0.06, MED: 0.19, DEL: 0.13 };
 export const LEAGUE_NAME: Record<Tier, string> = { 0: '', 1: 'Liga Nacional', 2: 'Primera División', 3: 'Segunda División' };
+
+// Rivales de la Selección con una fuerza aproximada (Guatemala ronda 64-70). Ficción: solo sirve para simular marcadores.
+type Rival = [name: string, strength: number];
+const CONCACAF: Rival[] = [
+  ['México', 84], ['Estados Unidos', 83], ['Canadá', 80], ['Panamá', 74], ['Costa Rica', 73], ['Jamaica', 71], ['Honduras', 70],
+  ['Curazao', 65], ['El Salvador', 64], ['Haití', 64], ['Trinidad y Tobago', 62], ['Surinam', 61], ['Nicaragua', 58],
+];
+const NATIONS_LEAGUE: Rival[] = [
+  ['Panamá', 74], ['Costa Rica', 73], ['Jamaica', 71], ['Honduras', 70], ['El Salvador', 64], ['Haití', 64], ['Trinidad y Tobago', 62],
+  ['Surinam', 61], ['Nicaragua', 58], ['República Dominicana', 57], ['Cuba', 55], ['Guyana', 54], ['Belice', 50], ['Bermudas', 49], ['Granada', 48],
+];
+const FRIENDLIES: Rival[] = [
+  ['Colombia', 83], ['Japón', 82], ['Ecuador', 80], ['Corea del Sur', 79], ['Paraguay', 76], ['Perú', 75], ['Chile', 75], ['Venezuela', 74],
+  ['Arabia Saudita', 72], ['Islandia', 70], ['Bolivia', 66], ['El Salvador', 64], ['Nicaragua', 58],
+];
+const WORLD_CUP: Rival[] = [
+  ['Argentina', 93], ['Francia', 92], ['España', 92], ['Brasil', 90], ['Inglaterra', 90], ['Portugal', 89], ['Países Bajos', 88], ['Alemania', 88],
+  ['Croacia', 84], ['Uruguay', 84], ['Marruecos', 83], ['Japón', 82], ['Senegal', 79], ['Corea del Sur', 79], ['Australia', 76], ['Nigeria', 76],
+  ['Egipto', 75], ['Ghana', 74],
+];
+type Competition = [name: string, weight: number, rivals: Rival[]];
+
+/**
+ * Puntos de ranking por premio. Solo suman los que existían cuando se abrió el ranking (goleador y mejor jugador),
+ * para que las carreras ya guardadas sigan siendo comparables; los demás se muestran pero no puntúan.
+ */
+const AWARD_POINTS: Record<AwardKind, number> = { goleador: 5, mvp: 5, portero: 0, asistidor: 0, joven: 0, ideal: 0 };
 
 const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 export const seasonLabel = (year: number) => `${year}-${String((year + 1) % 100).padStart(2, '0')}`;
@@ -155,13 +185,19 @@ export class Career {
 
     // Premios individuales
     const leagueName = club.abroad ? club.league : LEAGUE_NAME[tier];
-    const scorerBar = tier === 3 ? 16 : 20;
-    if (pos === 'DEL' && goals >= scorerBar) p.awards.push(`Goleador de ${leagueName} ${seasonLabel(p.year)}`);
-    if (apps >= MATCHES[tier] * 0.7 && p.rating >= club.prestige + 8 && chance(rng, 0.3)) {
-      p.awards.push(`Mejor jugador de ${leagueName} ${seasonLabel(p.year)}`);
-    }
+    const share = apps / MATCHES[tier];
+    const cleanSheets = pos === 'POR' ? Math.round(apps * clamp(0.3 + diff / 40, 0.12, 0.5) * randRange(rng, 0.8, 1.2)) : undefined;
+    const awards: SeasonAward[] = [];
+    const award = (kind: AwardKind, name: string) => awards.push({ kind, name: `${name} de ${leagueName} ${seasonLabel(p.year)}` });
+    if (goals >= (tier === 3 ? 16 : 20)) award('goleador', 'Goleador');
+    if (assists >= (tier === 3 ? 9 : 11)) award('asistidor', 'Máximo asistidor');
+    if (cleanSheets !== undefined && share >= 0.7 && cleanSheets >= apps * 0.45 && chance(rng, 0.35)) award('portero', 'Guardameta menos vencido');
+    if (share >= 0.7 && diff >= 8 && chance(rng, 0.3)) award('mvp', 'Mejor jugador');
+    else if (share >= 0.6 && diff >= 4 && chance(rng, 0.35)) award('ideal', 'Once ideal');
+    if (p.age <= 21 && share >= 0.5 && diff >= -2 && chance(rng, 0.3)) award('joven', 'Jugador joven del año');
+    p.awards.push(...awards.map((a) => a.name));
 
-    this.simulateNationalTeam(goals, apps);
+    const nt = this.simulateNationalTeam(goals, apps);
 
     const record: SeasonRecord = {
       label: seasonLabel(p.year),
@@ -173,7 +209,10 @@ export class Career {
       assists,
       rating: Math.round(p.rating),
       titles,
+      awards,
+      cleanSheets,
       injured,
+      nt,
     };
     p.seasons.push(record);
     this.progress(apps / MATCHES[tier], titles.length, goals);
@@ -183,11 +222,13 @@ export class Career {
     return record;
   }
 
-  private simulateNationalTeam(clubGoals: number, apps: number) {
+  private simulateNationalTeam(clubGoals: number, apps: number): SeasonRecord['nt'] {
     const p = this.player;
     const rng = this.rng;
     const club = this.club;
     const visible = club.abroad || club.tier === 1;
+    const debut = p.caps === 0;
+    const matches: NtMatch[] = [];
 
     // Convocatorias y bajas automáticas (los eventos de Selección aceleran este camino).
     if (p.ntLevel > 0 && (p.rating < 60 || p.age >= 36 || p.flags.sel_retirado)) {
@@ -202,9 +243,15 @@ export class Career {
       const caps = { 1: randInt(rng, 1, 3), 2: randInt(rng, 4, 8), 3: randInt(rng, 7, 11) }[p.ntLevel as 1 | 2 | 3];
       p.caps += caps;
       const rate = { POR: 0, DEF: 0.04, MED: 0.1, DEL: 0.3 }[p.setup.position];
-      p.natGoals += Math.round(caps * rate * randRange(rng, 0.5, 1.5) * (clubGoals > 0 ? 1 : 0.6));
+      const goals = Math.round(caps * rate * randRange(rng, 0.5, 1.5) * (clubGoals > 0 ? 1 : 0.6));
+      p.natGoals += goals;
       p.fame += caps * 0.6;
       const summer = p.year + 1;
+      const wc = nextWorldCup(summer);
+      const comps: Competition[] = [['Amistoso', 1, FRIENDLIES], ['Liga de Naciones', 1.5, NATIONS_LEAGUE]];
+      if (wc - summer <= 2) comps.push([`Eliminatoria Mundial ${wc}`, 3, CONCACAF]);
+      if (summer % 2 === 1) comps.push([`Copa Oro ${summer}`, 2, CONCACAF]);
+      matches.push(...this.ntMatches(comps, caps, goals));
       if (summer % 2 === 1 && p.ntLevel >= 2 && chance(rng, 0.12 + Math.max(0, p.rating - 72) * 0.01)) {
         p.milestones.push(`Semifinal de Copa Oro ${summer}`);
         p.fame += 8;
@@ -220,10 +267,15 @@ export class Career {
           p.flags.mundial = (p.flags.mundial ?? 0) + 1;
           p.milestones.push(`Jugó el Mundial ${summer} con Guatemala`);
           p.fame += 30;
-          if (chance(rng, { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position])) {
+          const wcGoal = chance(rng, { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position]);
+          if (wcGoal) {
             p.milestones.push(`Gol en el Mundial ${summer}`);
             p.fame += 15;
+            p.natGoals++;
           }
+          // Fase de grupos: tres partidos.
+          p.caps += 3;
+          matches.push(...this.ntMatches([[`Mundial ${summer}`, 1, WORLD_CUP]], 3, wcGoal ? 1 : 0));
         } else if (p.wcProgress >= 2) {
           p.milestones.push(`Eliminado en la recta final rumbo al Mundial ${summer}`);
         }
@@ -233,6 +285,29 @@ export class Career {
       for (const f of ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje']) delete p.flags[f];
     }
     void apps;
+    return matches.length ? { debut, matches } : undefined;
+  }
+
+  /** Arma los partidos de la temporada con la Selección y reparte entre ellos los goles del jugador. */
+  private ntMatches(comps: Competition[], n: number, goals: number): NtMatch[] {
+    const rng = this.rng;
+    const gt = 64 + (this.player.rating - 70) * 0.25 + this.player.ntLevel;
+    const matches: NtMatch[] = [];
+    for (let i = 0; i < n; i++) {
+      const [comp, , rivals] = weightedPick(rng, comps, (c) => c[1]);
+      const played = matches.filter((m) => m.comp === comp).map((m) => m.rival);
+      const fresh = rivals.filter(([name]) => !played.includes(name));
+      const [rival, strength] = pick(rng, fresh.length ? fresh : rivals);
+      const gf = poisson(rng, 1.2 * Math.exp((gt - strength) / 20));
+      const ga = poisson(rng, 1.2 * Math.exp((strength - gt) / 20));
+      matches.push({ comp, rival, gf, ga, goals: 0 });
+    }
+    for (let g = 0; g < goals; g++) {
+      const m = pick(rng, matches);
+      m.goals++;
+      m.gf = Math.max(m.gf, m.goals);
+    }
+    return matches;
   }
 
   private setNtLevel(level: NtLevel, announced = false) {
@@ -576,9 +651,10 @@ export function summarize(p: Player): CareerSummary {
   const mundial = p.flags.mundial ?? 0;
   const abroadTop = clubs.some((c) => ['mx', 'esp2', 'eur'].includes(c.club.id));
   const firstDivApps = p.seasons.filter((s) => s.tier <= 1).reduce((s, r) => s + r.apps, 0);
+  const awardPoints = p.seasons.flatMap((s) => s.awards).reduce((t, a) => t + AWARD_POINTS[a.kind], 0);
   // Entero: es lo que se muestra y lo que ordena el ranking.
   const score = Math.round(
-    ln * 8 + lower * 2 + other * 10 + goals * 0.2 + p.caps * 0.5 + p.awards.length * 5 + mundial * 60 +
+    ln * 8 + lower * 2 + other * 10 + goals * 0.2 + p.caps * 0.5 + awardPoints + mundial * 60 +
     (abroadTop ? 15 : 0) + p.fame * 0.15 + (p.peakRating - 60) * 1.2 + firstDivApps * 0.05,
   );
 

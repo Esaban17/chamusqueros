@@ -42,8 +42,27 @@ export interface SeasonRecord {
   assists: number;
   rating: number;
   titles: string[];
+  awards: SeasonAward[];
+  cleanSheets?: number; // solo porteros: partidos sin recibir gol
   injured: boolean;
   note?: string; // por ejemplo, un cambio de club por falta de minutos
+  /** Partidos con la Selección mayor en la temporada. debut: los primeros de su carrera. */
+  nt?: { debut: boolean; matches: NtMatch[] };
+}
+
+export type AwardKind = 'goleador' | 'asistidor' | 'portero' | 'joven' | 'mvp' | 'ideal';
+
+export interface SeasonAward {
+  kind: AwardKind;
+  name: string; // "Goleador de Liga Nacional 2026-27", el mismo texto que va a Player.awards
+}
+
+export interface NtMatch {
+  comp: string; // "Eliminatoria Mundial 2030", "Copa Oro 2027", "Amistoso"...
+  rival: string;
+  gf: number; // goles de Guatemala
+  ga: number;
+  goals: number; // goles del jugador
 }
 
 /** 1 = Liga Nacional, 2 = Primera División, 3 = Segunda División, 0 = extranjero */

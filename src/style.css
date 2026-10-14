@@ -251,6 +251,36 @@ button, input, select { font: inherit; color: inherit; }
 .record b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .link { flex: none; min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--celeste); font-weight: 700; font-size: 15px; cursor: pointer; }
 
+/* Resumen de temporada */
+.season-card .totals { grid-template-columns: repeat(3, 1fr); }
+.trophies { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.trophy { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 14px; background: var(--gold-soft); }
+.trophy.award { background: var(--celeste-soft); }
+.trophy svg {
+  flex: none; width: 48px; height: 48px; padding: 11px; box-sizing: border-box; border-radius: 50%;
+  background: #f0c14b; fill: none; stroke: #0d1b2a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+.trophy.award svg { background: var(--celeste); }
+.trophy span { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.trophy b { font: 800 20px/1.05 var(--display); letter-spacing: 0.02em; text-transform: uppercase; }
+.trophy small { font-size: 13px; color: var(--muted); }
+.nt-call { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--surface-2); border: 1.5px solid var(--line); }
+.nt-call.debut { background: var(--celeste-soft); border-color: var(--flag-blue); }
+.nt-title { display: flex; align-items: center; gap: 10px; font: 900 22px/1.05 var(--display); text-transform: uppercase; }
+.nt-call.debut .nt-title { font-size: 28px; }
+.mini-flag {
+  flex: none; width: 27px; height: 18px; border-radius: 3px; box-shadow: inset 0 0 0 1px #cfdce8;
+  background: linear-gradient(90deg, #4997d0 0 33.3%, #fff 33.3% 66.6%, #4997d0 66.6%);
+}
+.nt-comp { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding-top: 4px; }
+.matches { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.matches li { display: flex; align-items: center; gap: 10px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.matches .chip { white-space: nowrap; }
+.res { flex: none; width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; font-weight: 800; color: var(--surface); }
+.res.win { background: var(--good); }
+.res.draw { background: var(--muted); }
+.res.loss { background: var(--bad); }
+
 /* Publicidad */
 .ad { display: flex; flex-direction: column; gap: 4px; min-height: 60px; }
 .ad-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
