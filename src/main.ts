@@ -83,7 +83,11 @@ async function rankingApi(career?: Omit<RankRow, 'pos' | 'me'>): Promise<RankRow
   const res = await fetch('/api/ranking', career
     ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: playerId(), ...career }) }
     : { headers: { 'x-player-id': playerId(), ...look } });
-  if (!res.ok) throw new Error(`ranking ${res.status}`);
+  if (!res.ok) {
+    // El servidor rechaza nombres ofensivos con 400 "Nombre no permitido": se le cuenta al jugador en vez de callarlo.
+    const motivo = res.status === 400 ? ((await res.json().catch(() => null)) as { error?: string } | null)?.error : undefined;
+    throw new Error(motivo === 'Nombre no permitido' ? motivo : `ranking ${res.status}`);
+  }
   return res.json();
 }
 
@@ -304,9 +308,8 @@ function home() {
 type DestinoRetos = 'ranking' | { sala: string };
 const sinPaquete = () => alert('No se pudo cargar. Revisá tu conexión e intentá de nuevo.');
 function abrirRetos(destino?: DestinoRetos, alSalir: () => void = home) {
-  // ponytail: el cast sobra cuando el bloque B agrega el tercer parámetro a montarRetos (B7); mientras tanto compila con la firma vieja.
   import('./retos/index')
-    .then((m) => (m.montarRetos as (a: HTMLElement, salir: () => void, d?: DestinoRetos) => void)(app, alSalir, destino))
+    .then((m) => m.montarRetos(app, alSalir, destino))
     .catch(sinPaquete);
 }
 function abrirPerfil() {
@@ -817,7 +820,11 @@ function finish() {
         <button class="btn secondary" id="seeRank">Ver ranking</button>`;
       document.getElementById('seeRank')!.onclick = rankingScreen;
     })
-    .catch(() => rankBox.remove());
+    .catch((e: Error) => {
+      if (e.message !== 'Nombre no permitido') return rankBox.remove();
+      rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>
+        <p>Esta carrera no entró al ranking: el nombre <b>${esc(fullName())}</b> no está permitido. Revisá los <a href="${import.meta.env.BASE_URL}terminos.html">términos</a>.</p>`;
+    });
 
   const canvas = document.createElement('canvas');
   const toast = (msg: string) => (document.getElementById('toast')!.textContent = msg);
