@@ -625,7 +625,7 @@ export interface CareerSummary {
   assists: number;
   clubs: { club: Club; from: string; to: string; apps: number; goals: number }[];
   titles: string[];
-  verdict: { title: string; line: string };
+  verdict: ReturnType<typeof verdictFor>;
   score: number;
 }
 
@@ -661,16 +661,19 @@ export function summarize(p: Player): CareerSummary {
   return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score), score };
 }
 
-const VERDICTS: [number, string, string][] = [
-  [230, 'Leyenda chapina', 'Tu nombre se canta en los estadios de todo el país.'],
-  [170, 'Ídolo nacional', 'Los patojos piden tu camisola en el mercado.'],
-  [120, 'Referente de la Liga', 'Una carrera que se recuerda con respeto.'],
-  [70, 'Jugador de culto', 'Tu afición te recuerda con cariño.'],
-  [38, 'Cumplidor', 'Profesional, constante y sin escándalos.'],
-  [-999, 'Promesa que no fue', 'El fútbol a veces no devuelve lo que uno le da.'],
+// Cada veredicto trae su carta, de la más rara a la más común.
+export type CardTier = 'icono' | 'heroe' | 'salon' | 'oro' | 'plata' | 'bronce';
+
+const VERDICTS: [number, string, string, CardTier][] = [
+  [230, 'Leyenda chapina', 'Tu nombre se canta en los estadios de todo el país.', 'icono'],
+  [170, 'Ídolo nacional', 'Los patojos piden tu camisola en el mercado.', 'heroe'],
+  [120, 'Referente de la Liga', 'Una carrera que se recuerda con respeto.', 'salon'],
+  [70, 'Jugador de culto', 'Tu afición te recuerda con cariño.', 'oro'],
+  [38, 'Cumplidor', 'Profesional, constante y sin escándalos.', 'plata'],
+  [-999, 'Promesa que no fue', 'El fútbol a veces no devuelve lo que uno le da.', 'bronce'],
 ];
 
 export function verdictFor(score: number) {
-  const [, title, line] = VERDICTS.find(([min]) => score >= min)!;
-  return { title, line };
+  const [, title, line, tier] = VERDICTS.find(([min]) => score >= min)!;
+  return { title, line, tier };
 }
