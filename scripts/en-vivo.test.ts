@@ -88,7 +88,7 @@ function reiniciar() {
   reloj = T0; fila = { payload: [], actualizado: null, intento: 0 }; baseCaida = false;
   porSlug = (s) => ({ body: s === 'gua.1' ? EN_VIVO : VACIO });
   llamadas.neon = 0; llamadas.espn = {}; plazos.length = 0; cuerposEspn = []; retardoMs = 0; maxSimultaneas = 0;
-  delete process.env.ESPN_EN_VIVO; logs.length = 0;
+  process.env.ESPN_EN_VIVO = 'on'; logs.length = 0;
 }
 let n = 0;
 async function caso(nombre: string, f: () => Promise<void>) { reiniciar(); await f(); n++; process.stdout.write(`  ok  ${nombre}\n`); }
@@ -271,25 +271,21 @@ await caso('CA-8: lo guardado vale 30 minutos (29 sí, 31 no)', async () => {
   assert.equal(fila.payload.length, 2);
 });
 
-await caso('CA-9: ESPN_EN_VIVO=off no consulta, no sirve lo guardado y no toca la base', async () => {
+await caso('CA-9: apagada por defecto; solo ESPN_EN_VIVO=on consulta', async () => {
   await pedir();
   const neon = llamadas.neon, espn = total();
-  process.env.ESPN_EN_VIVO = 'off';
-  reloj = T0 + min(1);
-  const r = await pedir();
-  assert.equal(r.status, 200);
-  assert.deepEqual(r.json, { actualizado: null, partidos: [] });
+  // Sin la variable, o con cualquier valor distinto de "on", no consulta, no sirve lo guardado y no toca la base.
+  for (const v of [undefined, 'off', 'OFF', 'ON', '']) {
+    if (v === undefined) delete process.env.ESPN_EN_VIVO; else process.env.ESPN_EN_VIVO = v;
+    reloj += min(10);
+    const r = await pedir();
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json, { actualizado: null, partidos: [] }, `"${v}" no apaga`);
+  }
   assert.equal(total(), espn);
   assert.equal(llamadas.neon, neon);
-  reloj = T0 + min(10); await pedir();
-  assert.equal(total(), espn);
-  // Solo el valor exacto "off" apaga.
-  for (const v of ['OFF', 'on', '']) {
-    process.env.ESPN_EN_VIVO = v;
-    assert.equal((await pedir()).json.partidos.length, 2, `"${v}" no apaga`);
-  }
-  // Al quitarlo vuelve solo.
-  delete process.env.ESPN_EN_VIVO;
+  // Con "on" vuelve a consultar.
+  process.env.ESPN_EN_VIVO = 'on';
   assert.equal((await pedir()).json.partidos.length, 2);
 });
 

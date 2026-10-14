@@ -111,7 +111,8 @@ const VACIO = { actualizado: null, partidos: [] };
 
 export async function GET() {
   // Apaga toda la feature sin tocar la base (Vercel exige redesplegar para que una variable nueva rija).
-  if (process.env.ESPN_EN_VIVO === 'off') return Response.json(VACIO, { headers: { ...CABECERAS, 'cache-control': 'public, max-age=0, s-maxage=60' } });
+  // Apagada por defecto: ESPN responde 403 a los servidores de Vercel (verificado 2026-10-14). Solo "on" la enciende.
+  if (process.env.ESPN_EN_VIVO !== 'on') return Response.json(VACIO, { headers: { ...CABECERAS, 'cache-control': 'public, max-age=0, s-maxage=60' } });
   try {
     // Con el ritmo vencido, una sola solicitud consulta a ESPN; el resto sirve lo guardado. intento_at se marca antes de consultar:
     // si falla o la función muere, nadie reintenta hasta que venza el ritmo, y lo guardado no se toca.

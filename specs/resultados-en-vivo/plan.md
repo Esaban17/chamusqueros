@@ -151,3 +151,9 @@ Vacío: `{ "actualizado": null, "partidos": [] }`. `gl`/`gv` enteros o `null`; `
 
 ## Cobertura
 RF-01: servidor paso 4 (vigencia), cliente `hidden`. RF-02: cliente. RF-03: servidor paso 5 y tabla `LIGAS`. RF-04: tabla, tope en el paso 5, filtro de estado. RF-05: CSS sin animaciones. RF-06: cliente. RF-07: cliente (temporizador y `visibilitychange`). RF-08: reclamo atómico y concurrencia de 5. RF-09: pasos 3 y 4, error por liga. RF-10: servidor paso 1. RF-11: seguridad A02/A05, A09, A10. RF-12: integración y `:has(#mg)`. RF-13: cliente y CSS. RF-14: CSS y T8. RF-15: `textContent` y saneado. RF-16: sección Legal. RF-17: Pasos para activar y Pruebas.
+
+## Textos legales para publicar al activar una fuente
+Retirados de `privacidad.html` y `terminos.html` mientras la barra esté apagada; ajustar el nombre del proveedor al activar.
+
+- Privacidad, sección "Resultados de fútbol en vivo": "La barra de resultados en vivo muestra marcadores de partidos que se están jugando. Los obtiene nuestro servidor de un proveedor externo, <proveedor>, y los guarda temporalmente en nuestra base de datos. Tu navegador solo se conecta a nuestro servidor, nunca al proveedor, y no le enviamos datos tuyos: ni tu dirección IP, ni tu identificador anónimo. Los datos de partidos no incluyen datos personales. Datos: <proveedor>."
+- Términos, sección "Resultados en vivo": "Los marcadores de la barra de resultados en vivo son solo informativos. Vienen de un proveedor externo, <proveedor>, pueden tener retraso de varios minutos o errores, y no son una fuente oficial. No los uses para tomar decisiones como apuestas. La barra puede dejar de mostrarse en cualquier momento y sin aviso." Y sumar al proveedor en la lista de "sin afiliación".

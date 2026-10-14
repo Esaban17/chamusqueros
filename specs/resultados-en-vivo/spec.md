@@ -95,3 +95,11 @@ Decisiones del orquestador y del usuario que cierran lo que la primera versión 
 5. **Amistosos:** no van.
 
 Pendiente de la T11 (verificación real, no bloquea implementar): qué slugs de ESPN responden y si la Liga Nacional responde desde la red de Vercel. Un endpoint combinado de ESPN que traiga varias ligas en una llamada **no se pudo confirmar con fuentes públicas** (ver plan, "Optimización por verificar"); no se usa.
+
+## Estado: pospuesta (2026-10-14)
+La verificación T11 en la vista previa de Vercel dio **HTTP 403 de ESPN en las 22 ligas**: ESPN bloquea las consultas que salen de los servidores de Vercel. No se disfrazan las solicitudes para saltar ese bloqueo. Decisión del usuario: **posponer la barra** e integrar el trabajo apagado.
+
+- La barra está **apagada por defecto**: el endpoint solo consulta con `ESPN_EN_VIVO=on`; con cualquier otro valor, o sin la variable, responde vacío sin tocar Neon ni ESPN, y la barra no aparece (CA-9 actualizado).
+- La tabla `en_vivo_cache` ya existe en Neon (migración aplicada y prueba atómica en OK).
+- Los textos legales sobre ESPN (privacidad y términos) **no** se publican mientras la barra esté apagada; están en `plan.md` y se agregan al activar una fuente.
+- Para reactivar con otra fuente: reemplazar el adaptador de `api/en-vivo.ts` (el modelo común, la caché, el ritmo, la barra y las pruebas se conservan), volver a correr la T11 y publicar los textos legales.
