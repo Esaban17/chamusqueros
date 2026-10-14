@@ -2,7 +2,7 @@
 
 | ID | Entregable | Depende de | Cubre |
 |----|------------|------------|-------|
-| T-01 | `KOFI_URL` (vacía hasta tener la cuenta) y helper `donateLink` en `src/main.ts`. | — | RF-03, RF-09 |
+| T-01 | `DONATE_URL` (vacía hasta tener la cuenta) y helper `donateLink` en `src/main.ts`. | — | RF-03, RF-09 |
 | T-02 | Enlace en `footer()`. | T-01 | RF-01 |
 | T-03 | Bloque "¿Te gustó?" en `finish()`, después de "Jugar otra carrera". | T-01 | RF-02, RF-09 |
 | T-04 | Color y área de toque de `footer a` en `src/style.css`. | T-02 | RF-07 |
