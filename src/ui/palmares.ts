@@ -1,6 +1,7 @@
 // Palmarés y momento más destacado de una carrera, con sus imágenes en SVG. Lo usan los resúmenes y la tarjeta para compartir.
 import { CLUB_CUPS, type CareerSummary } from '../engine/engine';
-import { countryOf } from '../engine/countries';
+import { AWARD_LABEL_ES } from '../engine/awards';
+import { COUNTRIES, countryOf } from '../engine/countries';
 import { seleccionDe } from '../engine/nacionalidad';
 import type { AwardKind, Avatar, Player } from '../engine/types';
 import { NT_KIT, avatarSVG } from './avatar';
@@ -16,6 +17,10 @@ export const ICON: Record<TrophyIcon, string> = {
   joven: '<path d="M12 21v-9M12 12c0-4-3-7-8-7 0 4 3 7 8 7zM12 14c0-3 2.5-6 7-6 0 3.5-2.5 6-7 6z"/>',
   mvp: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>',
   ideal: '<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M10 9.5l1.5-1V15M14 8.5V15"/>',
+  // Premios de specs/trofeos-reales: balón sobre una peana, bota con tapones y estrella con laurel. Sirven de respaldo de la imagen y para la carta.
+  balon: '<circle cx="12" cy="9" r="6"/><path d="M12 6.4l2.2 1.6-.8 2.6h-2.8L9.8 8z"/><path d="M9.5 16L9 20.5M14.5 16l.5 4.5M7 21h10"/>',
+  bota: '<path d="M5 4h6l.5 5c1.5 1 4 1.5 7 2.5 1.5.5 2.5 1.5 2.5 3V17H3V9c0-2 1-4 2-5z"/><path d="M6 17v3M11 17v3M16 17v3"/>',
+  golden: '<path d="M12 4l1.9 4 4.4.6-3.2 3.1.8 4.4L12 14l-3.9 2.1.8-4.4L5.7 8.6l4.4-.6z"/><path d="M4.5 9c-1 4 .5 8 4.5 10.5M19.5 9c1 4-.5 8-4.5 10.5"/>',
 };
 
 export const AWARD_LABEL: Record<AwardKind, string> = {
@@ -25,14 +30,60 @@ export const AWARD_LABEL: Record<AwardKind, string> = {
   joven: 'Jugador joven del año',
   mvp: 'Mejor jugador',
   ideal: 'Once ideal',
+  ...AWARD_LABEL_ES,
 };
 
-export interface PalmaresItem { icon: TrophyIcon; label: string; count: number }
+/** Imagen de un trofeo: archivo de public/trofeos/ y texto alternativo. Constantes: nada de esto sale de datos de la carrera. */
+export interface TrofeoImg { file: string; alt: string }
+export interface PalmaresItem { icon: TrophyIcon; label: string; count: number; img?: TrofeoImg }
 
-const AWARD_ORDER: AwardKind[] = ['mvp', 'goleador', 'portero', 'asistidor', 'joven', 'ideal'];
+const AWARD_ORDER: AwardKind[] = ['balon', 'bota', 'golden', 'mvp', 'goleador', 'portero', 'asistidor', 'joven', 'ideal'];
 /** Copa continental, liga del extranjero, Copa Centroamericana y después las ligas del país, de primera hacia abajo. */
 const titleRank = (label: string, leagues: string[]) =>
   CLUB_CUPS.includes(label) ? 0 : label === 'Copa Centroamericana' ? 2 : leagues.includes(label) ? 3 + leagues.indexOf(label) : 1;
+
+const COPA: TrofeoImg = { file: 'copa-dorada.svg', alt: 'Copa dorada' };
+const BOTA: TrofeoImg = { file: 'bota-dorada.svg', alt: 'Bota dorada, el premio al máximo goleador' };
+const trofeo = (file: string, alt: string): TrofeoImg => ({ file: `${file}.webp`, alt });
+/**
+ * Imagen de cada trofeo, por la etiqueta del título o del premio. Con foto o dibujo de Wikimedia Commons (licencias y autores en creditos.html),
+ * o ilustración propia (copa-dorada, bota-dorada, golden-boy). Sin entrada: el premio no tiene trofeo famoso y se queda con su ícono de trazo.
+ */
+export const TROFEO_IMG: Record<string, TrofeoImg> = {
+  'Balón de Oro': trofeo('balon-de-oro', 'Balón de Oro, trofeo dorado con forma de balón'),
+  Pichichi: trofeo('pichichi', 'Trofeo Pichichi, copa de plata con dos asas'),
+  'Golden Boy': { file: 'golden-boy.svg', alt: 'Golden Boy, balón dorado sobre un pedestal con una estrella' },
+  'Bota de Oro': BOTA,
+  Torjägerkanone: BOTA,
+  Capocannoniere: BOTA,
+  'Bota de Oro de la Premier League': BOTA,
+  'Máximo goleador de la Ligue 1': BOTA,
+  LaLiga: trofeo('laliga', 'Trofeo de LaLiga'),
+  'Premier League': trofeo('premier-league', 'Trofeo de la Premier League'),
+  'Serie A': trofeo('serie-a', 'Trofeo de la Serie A'),
+  Bundesliga: trofeo('bundesliga', 'Meisterschale, el plato de la Bundesliga'),
+  'Liga MX': trofeo('liga-mx', 'Trofeo de la Liga MX'),
+  MLS: trofeo('mls', 'Trofeo de la MLS'),
+  Eredivisie: trofeo('eredivisie', 'Trofeo de la Eredivisie'),
+  'Liga Profesional Argentina': trofeo('argentina', 'Trofeo de la Liga Profesional Argentina'),
+  'Brasileirão Série A': trofeo('brasil', 'Trofeo del Brasileirão'),
+  'Liga BetPlay': trofeo('colombia', 'Trofeo de la Liga colombiana'),
+  'Liga 1 de Perú': trofeo('peru', 'Trofeo de la Liga 1 de Perú'),
+  'Primera División de Paraguay': trofeo('paraguay', 'Trofeo de la Primera División de Paraguay'),
+  'LigaPro Serie A': trofeo('ecuador', 'Trofeo de la LigaPro de Ecuador'),
+  'Primera División de Costa Rica': trofeo('costa-rica', 'Trofeo de la Primera División de Costa Rica'),
+  'Champions League': trofeo('champions-league', 'Trofeo de la Champions League'),
+  'Copa Libertadores': trofeo('libertadores', 'Trofeo de la Copa Libertadores'),
+  'Concacaf Champions Cup': trofeo('concacaf', 'Trofeo de la Concacaf Champions Cup'),
+  'Champions League de la CAF': trofeo('caf', 'Trofeo de la Champions League de la CAF'),
+};
+/** Todo título de club (cualquier liga o división, copa continental o Copa Centroamericana); los de Selección no entran. */
+const CLUB_COMPETITIONS = new Set([...COUNTRIES.flatMap((c) => c.leagues), ...CLUB_CUPS, 'Copa Centroamericana']);
+/** La imagen del trofeo; sin foto propia, un título de club lleva la copa dorada. Undefined: se dibuja el ícono de trazo. */
+export const trophyImg = (label: string, icon: TrophyIcon): TrofeoImg | undefined =>
+  TROFEO_IMG[label] ?? (icon === 'copa' && CLUB_COMPETITIONS.has(label) ? COPA : undefined);
+/** "Liga Nacional · Clausura 2038" y "LaLiga 2031" son el título de "Liga Nacional" y de "LaLiga". */
+export const titleLabel = (t: string) => t.replace(/ · (Apertura|Clausura) \d{4}$/, '').replace(/ \d{4}$/, '');
 
 /** Títulos agrupados por competición (sin torneo ni año) y premios por tipo, de mayor a menor importancia. */
 export function palmares(p: Player): PalmaresItem[] {
@@ -44,11 +95,12 @@ export function palmares(p: Player): PalmaresItem[] {
     items.set(label, it);
   };
   for (const t of p.titles) {
-    const label = t.replace(/ · (Apertura|Clausura) \d{4}$/, '').replace(/ \d{4}$/, '');
+    const label = titleLabel(t);
     add('copa', label, titleRank(label, leagues));
   }
-  for (const a of p.seasons.flatMap((r) => r.awards)) add(a.kind, AWARD_LABEL[a.kind], 10 + AWARD_ORDER.indexOf(a.kind));
-  return [...items.values()].sort((a, b) => a.rank - b.rank || b.count - a.count).map(({ icon, label, count }) => ({ icon, label, count }));
+  // Se agrupa por el nombre propio: el Pichichi no se mezcla con el "Goleador de Liga Nacional".
+  for (const a of p.seasons.flatMap((r) => r.awards)) add(a.kind, a.label ?? AWARD_LABEL[a.kind], 10 + AWARD_ORDER.indexOf(a.kind));
+  return [...items.values()].sort((a, b) => a.rank - b.rank || b.count - a.count).map(({ icon, label, count }) => ({ icon, label, count, img: trophyImg(label, icon) }));
 }
 
 export interface PorSeleccion { team: string; caps: number; goals: number; titles: number }
@@ -70,7 +122,7 @@ export interface Moment { kind: MomentKind; kicker: string; title: string; nt: b
 
 /** Puntos extra según la división de esa temporada: lo mismo vale más en primera o afuera (0) que en las de ascenso. */
 const leagueBonus = (tier: number) => (tier === 0 ? 20 : [15, 5, 0][tier - 1]);
-const AWARD_BASE: Record<AwardKind, number> = { mvp: 40, goleador: 35, portero: 35, asistidor: 28, joven: 12, ideal: 12 };
+const AWARD_BASE: Record<AwardKind, number> = { mvp: 40, goleador: 35, portero: 35, asistidor: 28, joven: 12, ideal: 12, balon: 90, bota: 55, golden: 45 };
 
 /** El momento más importante de la carrera: el de más puntos; si empatan, el más reciente. */
 export function bestMoment(p: Player, s: CareerSummary): Moment {

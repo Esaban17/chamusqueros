@@ -8,8 +8,9 @@
 //        prestigio, que es lo más parecido a la política de antes, cuando había un solo club)
 // La sección final "Minijuegos" (specs/minijuegos) mide frecuencia, pisos de categoría, Simular, equidad y modo por turnos.
 import { readFileSync } from 'node:fs';
-import { Career, earned, summarize, yearsText } from '../src/engine/engine';
+import { Career, MATCHES, earned, summarize, yearsText } from '../src/engine/engine';
 import { COUNTRIES, countryOf, moneyShort } from '../src/engine/countries';
+import { SCORER_NAME, majorAwards, scorerName, type SeasonFacts } from '../src/engine/awards';
 import { DIASPORA, elegible, residencia } from '../src/engine/nacionalidad';
 import { clubById, clubsOf, viewClub, ALL_CLUBS } from '../src/engine/clubs';
 import { salaryFor } from '../src/engine/contracts';
@@ -24,6 +25,8 @@ import { CENTER, LABELS, RISK_K, params, penalScore, riskScore, sideScore, stopS
 import { FLAG_CODE } from '../src/ui/flags';
 
 const N = Number(process.argv[2] ?? 5000);
+// Límite de puntaje que acepta api/ranking.ts (se lee de allí para que el reporte y el servidor no se desfasen).
+const SCORE_LIMIT = Number(/isInt\(b\.score, -100, (\d+)\)/.exec(readFileSync(new URL('../api/ranking.ts', import.meta.url), 'utf8'))?.[1]);
 const only = process.argv[3]?.toUpperCase();
 const countries = only ? [countryOf(only)] : COUNTRIES;
 // Un jugador de otro país no puede ver textos de Guatemala (ni "de el" / "a el" sin contraer). Sí puede ver clubes
@@ -524,7 +527,7 @@ for (const [k, v] of Object.entries(verdicts).sort((a, b) => b[1] - a[1])) conso
 scores.sort((a, b) => a - b);
 console.log(`Puntaje medio: ${avg(scores)}`);
 console.log('Puntaje p25/p50/p75/p90/p97:', [0.25, 0.5, 0.75, 0.9, 0.97].map((q) => scores[Math.floor(q * N)].toFixed(0)).join(' / '));
-console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, '(el servidor acepta hasta 1000 y 200)');
+console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, `(el servidor acepta hasta ${SCORE_LIMIT} y 200)`);
 console.log('Fase final (torneos jugados · campeón · finalista):');
 for (const [k, v] of Object.entries(koStats).sort()) console.log(`  ${k}: ${v.played} · ${((100 * v.champ) / v.played).toFixed(1)}% · ${((100 * v.final) / v.played).toFixed(1)}%`);
 const totalEvents = Object.values(eventCount).reduce((a, b) => a + b, 0);
@@ -594,7 +597,7 @@ if (!only && N >= 5000) {
   if (nac.madre / nac.herencia < 0.45 || nac.madre / nac.herencia > 0.55) nacErrors.add(`ascendencia por la madre ${pn(nac.madre, nac.herencia)} fuera de 45-55 %`);
 }
 // Límites que acepta el servidor (api/ranking.ts).
-if (scores.at(-1)! > 1000 || scores[0] < -100 || maxTitles > 200 || maxCaps > 500) nacErrors.add(`fuera de los límites del servidor: puntaje ${scores[0]}..${scores.at(-1)}, títulos ${maxTitles}, partidos ${maxCaps}`);
+if (scores.at(-1)! > SCORE_LIMIT || scores[0] < -100 || maxTitles > 200 || maxCaps > 500) nacErrors.add(`fuera de los límites del servidor: puntaje ${scores[0]}..${scores.at(-1)}, títulos ${maxTitles}, partidos ${maxCaps}`);
 // La lista de códigos de api/ranking.ts (copia a mano) coincide con COUNTRIES.
 {
   const api = readFileSync(new URL('../api/ranking.ts', import.meta.url), 'utf8');
@@ -618,7 +621,7 @@ if (amorErrors.size) {
   console.error(`Vida sentimental con errores:\n  ${[...amorErrors].join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Amor: estado coherente, sin menores, rutas cerradas, hitos en orden y opciones que suman 1.');
-if (Math.max(...scores) >= 1000) { console.error(`Puntaje máximo ${Math.max(...scores)}: el servidor acepta menos de 1000 (CA-13)`); process.exitCode = 1; }
+if (Math.max(...scores) >= SCORE_LIMIT) { console.error(`Puntaje máximo ${Math.max(...scores)}: el servidor acepta menos de ${SCORE_LIMIT} (CA-13)`); process.exitCode = 1; }
 
 // ---------- Mercado y contratos ----------
 const GT = countryOf('GT');
@@ -897,3 +900,228 @@ if (mjErrors.size) {
   console.error(`Minijuegos con errores (${mjErrors.size}):\n  ${[...mjErrors].slice(0, 40).join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Minijuegos: situaciones, frecuencia, pisos de categoría, dificultad, Simular, equidad, resultados, textos, puntaje y modo por turnos cuadran.');
+
+// ---------- Trofeos (specs/trofeos-reales) ----------
+// Juega una carrera completa con decisiones al azar (de su propio generador) o "optimistas" (la opción de mayor valor esperado en nivel y fama).
+const trSetup = (seed: number, country = COUNTRIES[seed % COUNTRIES.length]) => ({
+  firstName: 'T', lastName: `#${seed}`, country: country.code, dept: country.regions[0], position: positions[seed % 4], foot: 'Derecho' as const, number: 10, mode: modes[seed % 3],
+  avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 },
+});
+function trCarrera(seed: number, optimista = false, country?: ReturnType<typeof countryOf>) {
+  const c = new Career(trSetup(seed, country), seed);
+  c.start();
+  let guard = 0;
+  while (!c.isOver && guard++ < 100) {
+    if (!c.pendingEvent) c.playBlock();
+    const ev = c.pendingEvent;
+    if (!ev) continue;
+    let pick = Math.floor(c.rng() * ev.options.length);
+    if (optimista) {
+      const value = (o: (typeof ev.options)[number]) => o.outcomes.reduce((t, x) => t + x.p * (3 * (x.effects.rating ?? 0) + (x.effects.potential ?? 0) + 0.1 * (x.effects.fame ?? 0) + 0.05 * (x.effects.morale ?? 0)), 0);
+      pick = ev.options.reduce((best, o, i) => (value(o) > value(ev.options[best]) ? i : best), 0);
+    }
+    c.choose(pick);
+  }
+  return c.player;
+}
+// CA-5: huella de las temporadas (sin premios) de las semillas 1 a 200. Con el motor de antes de esta función daba ca5eb9d9 (4171 temporadas).
+const trErrors = new Set<string>();
+const HUELLA_BASE = 'ca5eb9d9';
+{
+  let h = 2166136261;
+  let n = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    for (const r of trCarrera(seed).seasons) {
+      const { awards: _premios, ...resto } = r;
+      for (const ch of JSON.stringify(resto)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+      n++;
+    }
+  }
+  const huella = (h >>> 0).toString(16);
+  console.log(`Trofeos, huella de las temporadas sin premios (semillas 1 a 200): ${huella} (${n} temporadas; antes ${HUELLA_BASE})`);
+  if (huella !== HUELLA_BASE) trErrors.add(`huella ${huella} distinta de ${HUELLA_BASE}: algo además de los premios cambió las temporadas (CA-5)`);
+  // Dos corridas de la misma semilla dan los mismos premios.
+  for (let seed = 1; seed <= 40; seed++) {
+    const a = JSON.stringify(trCarrera(seed).seasons.map((r) => r.awards));
+    if (a !== JSON.stringify(trCarrera(seed).seasons.map((r) => r.awards))) trErrors.add(`semilla ${seed}: dos corridas dieron premios distintos (CA-5)`);
+  }
+}
+
+// Carrera i del mismo reparto que el bucle principal (país, posición y ritmo van rotando sin repetir pares), decisiones al azar u "optimistas".
+function trReparto(i: number) {
+  const country = countries[i % countries.length];
+  const k = Math.floor(i / countries.length);
+  return { country, setup: { ...trSetup(i + 1, country), dept: country.regions[k % country.regions.length], position: positions[k % 4], mode: modes[k % 3] } };
+}
+function trJugar(i: number, optimista: boolean) {
+  const { setup } = trReparto(i);
+  const c = new Career(setup, i + 1);
+  c.start();
+  let guard = 0;
+  while (!c.isOver && guard++ < 100) {
+    if (!c.pendingEvent) c.playBlock();
+    const ev = c.pendingEvent;
+    if (!ev) continue;
+    const value = (o: (typeof ev.options)[number]) => o.outcomes.reduce((t, x) => t + x.p * (3 * (x.effects.rating ?? 0) + (x.effects.potential ?? 0) + 0.1 * (x.effects.fame ?? 0) + 0.05 * (x.effects.morale ?? 0)), 0);
+    c.choose(optimista ? ev.options.reduce((best, o, j) => (value(o) > value(ev.options[best]) ? j : best), 0) : Math.floor(c.rng() * ev.options.length));
+  }
+  return c.player;
+}
+const POTENCIAS = ['ES', 'EN', 'IT', 'DE', 'FR', 'AR', 'BR', 'PT', 'NL'];
+const NEW = ['balon', 'bota', 'golden'] as const;
+const NAMES = { balon: 'Balón de Oro', bota: 'Bota de Oro', golden: 'Golden Boy' };
+const trGroup = (code: string) => (code === 'GT' ? 'Guatemala' : POTENCIAS.includes(code) ? 'potencias' : 'resto');
+
+// CA-2: pruebas de borde directas de las reglas (RF-02 a RF-04).
+{
+  const base: SeasonFacts = { rating: 84, age: 25, fame: 60, apps: 31, goals: 15, matches: 44, clubTitles: 0, own: { country: 'ES', tier: 1 }, held: { balon: 0, bota: 0, golden: false } };
+  const win = (f: Partial<SeasonFacts>) => majorAwards({ ...base, ...f });
+  const borde = (nombre: string, got: string[], want: string[]) => { if (got.join() !== want.join()) trErrors.add(`borde ${nombre}: dio [${got}], esperado [${want}]`); };
+  borde('Balón: nivel 83', win({ rating: 83 }), []);
+  borde('Balón: nivel 84', win({}), ['balon']);
+  borde('Balón: fama 59', win({ fame: 59 }), []);
+  borde('Balón: fama 60', win({ fame: 60 }), ['balon']);
+  borde('Balón: 14 goles sin título', win({ goals: 14 }), []);
+  borde('Balón: 14 goles con título', win({ goals: 14, clubTitles: 1 }), ['balon']);
+  borde('Balón: 30 de 44 partidos (68 %)', win({ apps: 30 }), []);
+  borde('Balón: 31 de 44 partidos (70,5 %)', win({ apps: 31 }), ['balon']);
+  borde('Balón: liga de nivel 12 (EE. UU.)', win({ own: { country: 'US', tier: 1 } }), []);
+  borde('Balón: segunda división', win({ own: { country: 'ES', tier: 2 } }), []);
+  borde('Balón: ya tiene 5', win({ held: { balon: 5, bota: 0, golden: false } }), []);
+  borde('Balón: ya tiene 4', win({ held: { balon: 4, bota: 0, golden: false } }), ['balon']);
+  borde('Bota: 24 goles en casa (grande)', win({ rating: 60, goals: 24 }), []);
+  borde('Bota: 25 goles en casa (grande)', win({ rating: 60, goals: 25 }), ['bota']);
+  borde('Bota: 32 goles en casa (otra europea)', win({ rating: 60, goals: 32, own: { country: 'PT', tier: 1 } }), []);
+  borde('Bota: 33 goles en casa (otra europea)', win({ rating: 60, goals: 33, own: { country: 'PT', tier: 1 } }), ['bota']);
+  borde('Bota: 19 goles afuera (grande)', win({ rating: 60, goals: 19, matches: 36 }), []);
+  borde('Bota: 20 goles afuera (grande)', win({ rating: 60, goals: 20, matches: 36 }), ['bota']);
+  borde('Bota: 26 goles afuera (otra europea)', win({ rating: 60, goals: 26, matches: 36, own: { country: 'NL', tier: 1 } }), []);
+  borde('Bota: 27 goles afuera (otra europea)', win({ rating: 60, goals: 27, matches: 36, own: { country: 'NL', tier: 1 } }), ['bota']);
+  borde('Bota: fuera de la UEFA', win({ rating: 60, goals: 40, own: { country: 'AR', tier: 1 } }), []);
+  borde('Bota: ya tiene 3', win({ rating: 60, goals: 25, held: { balon: 0, bota: 3, golden: false } }), []);
+  borde('Golden: 22 años', win({ rating: 70, age: 22, goals: 0 }), []);
+  borde('Golden: 21 años', win({ rating: 70, age: 21, goals: 0 }), ['golden']);
+  borde('Golden: nivel 69', win({ rating: 69, age: 21, goals: 0 }), []);
+  borde('Golden: nivel 70', win({ rating: 70, age: 21, goals: 0 }), ['golden']);
+  borde('Golden: 21 de 44 partidos', win({ rating: 70, age: 21, goals: 0, apps: 21 }), []);
+  borde('Golden: 22 de 44 partidos', win({ rating: 70, age: 21, goals: 0, apps: 22 }), ['golden']);
+  borde('Golden: ya lo ganó', win({ rating: 70, age: 21, goals: 0, held: { balon: 0, bota: 0, golden: true } }), []);
+  borde('Golden: liga de otro continente', win({ rating: 70, age: 21, goals: 0, own: { country: 'MX', tier: 1 } }), []);
+  borde('Golden: división de ascenso', win({ rating: 70, age: 21, goals: 0, own: { country: 'ES', tier: 2 } }), []);
+  borde('El goleador de Hypermotion no tiene nombre propio', [scorerName('ES', 2) ?? ''], ['']);
+  borde('El goleador de LaLiga se llama Pichichi', [scorerName('ES', 1) ?? ''], ['Pichichi']);
+}
+
+// Una pasada por las carreras con la política dada: reparto de premios por grupo y chequeos de CA-1 y CA-2 sobre cada temporada.
+function trMedir(n: number, optimista: boolean) {
+  type G = { n: number; any: Record<string, number>; total: Record<string, number> };
+  const mk = (): G => ({ n: 0, any: { balon: 0, bota: 0, golden: 0 }, total: { balon: 0, bota: 0, golden: 0 } });
+  const g: Record<string, G> = { Guatemala: mk(), potencias: mk(), resto: mk(), todos: mk() };
+  const names = new Map<string, number>(); // nombre del goleador -> premios en total
+  let balonDos = 0, botaForanea = 0, maxPuntaje = 0, maxBalon = 0, maxBota = 0, maxGolden = 0;
+  for (let i = 0; i < n; i++) {
+    const { country } = trReparto(i);
+    const p = trJugar(i, optimista);
+    const seasons = p.seasons;
+    const cnt: Record<string, number> = { balon: 0, bota: 0, golden: 0 };
+    for (const r of seasons) {
+      const own = clubById(r.clubId);
+      const matches = MATCHES[r.tier];
+      const ntTitles = (r.nt?.groups ?? []).filter((x) => x.out === 'Campeón').length;
+      const clubTitles = r.titles.length - ntTitles;
+      const had = (k: string) => r.awards.filter((a) => a.kind === k);
+      // CA-1: el nombre del goleador.
+      const scorer = had('goleador');
+      const must = r.goals >= (r.tier === 3 ? 16 : 20);
+      if (scorer.length !== (must ? 1 : 0)) trErrors.add(`goleador: ${scorer.length} premios con ${r.goals} goles en la división ${r.tier} (RF-01)`);
+      for (const a of scorer) {
+        const want = scorerName(own.country, own.tier);
+        const nombre = a.label ?? a.name.replace(/ de .+$/, '');
+        names.set(nombre, (names.get(nombre) ?? 0) + 1);
+        if (want ? a.label !== want || a.name !== `${want} ${r.label}` : a.label !== undefined || !a.name.startsWith('Goleador de ') || !a.name.endsWith(r.label)) trErrors.add(`goleador de ${own.country} división ${own.tier} se llama "${a.name}" (RF-01)`);
+      }
+      // CA-2: cada premio nuevo cumple sus condiciones (la fama no queda en el registro; sus bordes se prueban arriba) y los topes.
+      const strong = own.tier === 1 && countryOf(own.country).level >= 14;
+      const uefa = own.tier === 1 && countryOf(own.country).conf === 'UEFA';
+      const peso = ['ES', 'EN', 'IT', 'DE', 'FR'].includes(own.country) ? 2 : 1.5;
+      const okBalon = strong && r.rating >= 84 && r.apps >= 0.7 * matches && (r.goals >= 15 || clubTitles >= 1);
+      const okBota = uefa && r.goals * peso >= 1.1 * matches;
+      const okGolden = uefa && r.age <= 21 && r.apps >= 0.5 * matches && r.rating >= 70;
+      if (had('balon').length > 1 || had('bota').length > 1 || had('golden').length > 1) trErrors.add('dos premios iguales en una temporada');
+      if (had('balon').length && !okBalon) trErrors.add(`Balón sin cumplir: nivel ${r.rating}, ${r.apps}/${matches} partidos, ${r.goals} goles, ${clubTitles} títulos, ${own.country} división ${own.tier} (RF-04)`);
+      if (had('bota').length && !okBota) trErrors.add(`Bota sin cumplir: ${r.goals} goles en ${matches} partidos, ${own.country} división ${own.tier} (RF-02)`);
+      if (!had('bota').length && okBota && cnt.bota < 3) trErrors.add(`Bota que faltó: ${r.goals} goles en ${matches} partidos, ${own.country} (RF-02)`);
+      if (had('golden').length && !okGolden) trErrors.add(`Golden Boy sin cumplir: ${r.age} años, nivel ${r.rating}, ${r.apps}/${matches} partidos (RF-03)`);
+      if (!had('golden').length && okGolden && cnt.golden < 1) trErrors.add(`Golden Boy que faltó: ${r.age} años, nivel ${r.rating} (RF-03)`);
+      for (const k of NEW) {
+        cnt[k] += had(k).length;
+        for (const a of had(k)) if (a.name !== `${NAMES[k]} ${r.label}` || a.label !== undefined) trErrors.add(`nombre del premio nuevo: "${a.name}"`);
+      }
+      if (had('bota').length && r.tier === 0) botaForanea++;
+    }
+    if (cnt.balon > 5 || cnt.bota > 3 || cnt.golden > 1) trErrors.add(`tope superado: ${cnt.balon} Balones, ${cnt.bota} Botas, ${cnt.golden} Golden Boy (RF-05)`);
+    if (cnt.balon >= 2) balonDos++;
+    maxBalon = Math.max(maxBalon, cnt.balon); maxBota = Math.max(maxBota, cnt.bota); maxGolden = Math.max(maxGolden, cnt.golden);
+    maxPuntaje = Math.max(maxPuntaje, summarize(p).score);
+    for (const grupo of [trGroup(country.code), 'todos']) {
+      g[grupo].n++;
+      for (const k of NEW) { g[grupo].any[k] += cnt[k] > 0 ? 1 : 0; g[grupo].total[k] += cnt[k]; }
+    }
+  }
+  return { g, names, balonDos, botaForanea, maxPuntaje, maxBalon, maxBota, maxGolden };
+}
+const trPct = (x: number, n: number) => `${((100 * x) / Math.max(1, n)).toFixed(2)}%`;
+function trReporte(titulo: string, r: ReturnType<typeof trMedir>) {
+  console.log(`Trofeos, ${titulo} (carreras con al menos uno · media por carrera):`);
+  for (const [nombre, v] of Object.entries(r.g)) {
+    if (!v.n) continue;
+    console.log(`  ${nombre.padEnd(10)} n=${String(v.n).padStart(5)} · ${NEW.map((k) => `${NAMES[k]} ${trPct(v.any[k], v.n)} (${(v.total[k] / v.n).toFixed(3)})`).join(' · ')}`);
+  }
+  console.log(`  Balón de Oro con 2 o más: ${r.balonDos} carreras · Botas de un jugador extranjero: ${r.botaForanea} · máximos por carrera: ${r.maxBalon} Balones, ${r.maxBota} Botas, ${r.maxGolden} Golden Boy · puntaje máximo ${r.maxPuntaje}`);
+}
+const trAzar = trMedir(N, false);
+trReporte(`decisiones al azar, ${N} carreras`, trAzar);
+console.log(`Trofeos, goleadores por carrera (premios en total): ${[...trAzar.names].sort().map(([k, v]) => `${k} ${(v / N).toFixed(3)} (${v})`).join(' · ')}`);
+// Techo: la política optimista (mayor valor esperado en nivel y fama) en una muestra menor, por tiempo.
+const trN2 = Math.min(N, 8000);
+const trTecho = trMedir(trN2, true);
+trReporte(`política optimista, ${trN2} carreras (techo)`, trTecho);
+// RF-05 (con las 20.000 carreras; con menos el ruido pasa de las bandas, y solo se reporta).
+if (N >= 20000 && !only) {
+  for (const k of NEW) {
+    const pot = (100 * trAzar.g.potencias.any[k]) / trAzar.g.potencias.n;
+    const gt = (100 * trAzar.g.Guatemala.any[k]) / trAzar.g.Guatemala.n;
+    const todos = (100 * trAzar.g.todos.any[k]) / trAzar.g.todos.n;
+    if (pot < 0.7 || pot > 2.5) trErrors.add(`${NAMES[k]}: ${pot.toFixed(2)} % de las carreras de potencias, fuera de 0,7 a 2,5 (RF-05)`);
+    if (gt > 0.3) trErrors.add(`${NAMES[k]}: ${gt.toFixed(2)} % de las carreras de Guatemala, sobre 0,3 (RF-05)`);
+    if (todos > 1.2) trErrors.add(`${NAMES[k]}: ${todos.toFixed(2)} % de todas las carreras, sobre 1,2 (RF-05)`);
+  }
+  if ((100 * trAzar.g.todos.any.balon) / trAzar.g.todos.n < 0.3) trErrors.add('Balón de Oro: menos de 0,3 % de todas las carreras (RF-05)');
+  if (!trAzar.balonDos) trErrors.add('ningún ganador del Balón de Oro lo ganó 2 o más veces (CA-3)');
+}
+// CA-1: los cinco nombres salen al menos una vez.
+if (N >= 5000 && !only) for (const nombre of Object.values(SCORER_NAME)) if (!trAzar.names.get(nombre)) trErrors.add(`el goleador "${nombre}" nunca salió (CA-1)`);
+// CA-4: el puntaje medio y los veredictos casi no se mueven; el límite del servidor deja margen sobre el máximo medido.
+{
+  const mean = scores.reduce((t, x) => t + x, 0) / scores.length;
+  console.log(`Trofeos, puntaje medio ${f1(mean)} (línea base 108.3, banda 105.1 a 111.5) · máximo ${scores.at(-1)} (azar de la corrida principal), ${trAzar.maxPuntaje} (azar de este bloque), ${trTecho.maxPuntaje} (optimista) · límite del servidor ${SCORE_LIMIT}`);
+  if (big && (mean < 105.1 || mean > 111.5)) trErrors.add(`puntaje medio ${f1(mean)} fuera de 105,1 a 111,5 (CA-4)`);
+  const BASE_VEREDICTOS: Record<string, number> = { 'Jugador de culto': 31.8, Cumplidor: 30.4, 'Referente de la Liga': 14.1, 'Promesa que no fue': 8.2, 'Ídolo nacional': 7.3, Leyenda: 8.4 };
+  const grouped: Record<string, number> = {};
+  for (const [k, v] of Object.entries(verdicts)) grouped[k.startsWith('Leyenda ') ? 'Leyenda' : k] = (grouped[k.startsWith('Leyenda ') ? 'Leyenda' : k] ?? 0) + v;
+  for (const [k, base] of Object.entries(BASE_VEREDICTOS)) {
+    const now = (100 * (grouped[k] ?? 0)) / N;
+    if (big && Math.abs(now - base) > 2) trErrors.add(`veredicto ${k}: ${f1(now)} % contra ${f1(base)} % (CA-4)`);
+  }
+  const peor = Math.max(scores.at(-1)!, trAzar.maxPuntaje, trTecho.maxPuntaje);
+  if (SCORE_LIMIT < 1.25 * peor || peor > 0.8 * SCORE_LIMIT) trErrors.add(`límite del servidor ${SCORE_LIMIT} sin 25 % de margen sobre el máximo medido ${peor} (RF-12)`);
+  // Un jugador armado a mano con un Balón, una Bota y un Golden Boy suma 50 puntos por ellos.
+  const p = trJugar(0, false);
+  const antes = summarize(p).score;
+  p.seasons[0].awards.push({ kind: 'balon', name: 'x' }, { kind: 'bota', name: 'x' }, { kind: 'golden', name: 'x' });
+  if (summarize(p).score - antes !== 50) trErrors.add(`Balón + Bota + Golden Boy sumaron ${summarize(p).score - antes}, no 50 (RF-06)`);
+}
+if (trErrors.size) {
+  console.error(`Trofeos con errores (${trErrors.size}):\n  ${[...trErrors].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Trofeos: nombres del goleador, condiciones y topes de los premios nuevos, huella de las temporadas, premios repetibles por semilla, puntaje y límite del servidor cuadran.');
