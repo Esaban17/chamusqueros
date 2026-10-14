@@ -10,7 +10,7 @@ import {
   tarifaTotal, validar, type Rol,
 } from './tienda';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
-import { AJUSTES, armarAgenda, claseDe, decisionesDe, escalar, pRetiroDe, type Clase, type Item } from './ritmo';
+import { AJUSTES, armarAgenda, claseDe, decisionesDe, escalar, escalarMj, pRetiroDe, type Clase, type Item } from './ritmo';
 import {
   type AwardKind,
   type Effects,
@@ -168,7 +168,7 @@ export class Career {
   private de = 0;
   private ritmoK = 0;
   private mjHecho = false;
-  /** Cuánto pesan los efectos de la decisión pendiente (ESCALA / K en las de ritmo, ESCALA_MJ en el minijuego, 1 en el resto). */
+  /** Cuánto pesan los efectos de la decisión pendiente: ESCALA / K en las de ritmo y 1 en el resto (el minijuego usa escalarMj). */
   private escala = 1;
   /** Para `scripts/simulate.ts`: veces que se relajó el espaciado por falta de candidatas y ítems de historia que se saltaron. */
   readonly stats = { relajadas: 0, saltadas: 0 };
@@ -1003,7 +1003,6 @@ export class Career {
     if (!pool.length) return null;
     const t = pick(this.rng, pool); // ponytail: parejo entre las que aplican; las de contexto (clásico, Selección) no pesan más
     this.lastSeen.set(t.id, p.seasons.length);
-    this.escala = AJUSTES.ESCALA_MJ;
     return {
       id: t.id,
       category: t.category,
@@ -1117,7 +1116,7 @@ export class Career {
       if (option.outcomes.length !== 3) throw new Error(`El minijuego ${event.id} no tiene tres desenlaces`);
       const result = resultOf(score ?? simulatedScore(this.rng, event.minigame.difficulty));
       const outcome = option.outcomes[{ ok: 0, half: 1, fail: 2 }[result]];
-      const changes = this.applyEffects(escalar(outcome.effects, this.escala, this.rng));
+      const changes = this.applyEffects(escalarMj(outcome.effects, this.rng));
       this.pending = null;
       return { text: outcome.text, changes, result };
     }

@@ -375,7 +375,7 @@ function createForm() {
         ['normal', 'Normal', '2 o 3 por temporada'],
         ['expres', 'Exprés', '2 por temporada'],
       ], last.mode ?? 'intensa')}
-        <p class="meta">Decisiones por temporada. Cada temporada trae además un minijuego.</p></div>
+        <p class="season-empty">Decisiones por temporada. Cada temporada trae además un minijuego.</p></div>
       <p class="error" id="error" role="alert"></p>
       <button class="btn big" type="submit">Debutar</button>
     </form>

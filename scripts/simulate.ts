@@ -1403,9 +1403,12 @@ function trCarrera(seed: number, optimista = false, country?: ReturnType<typeof 
   }
   return c.player;
 }
-// CA-5: huella de las temporadas (sin premios) de las semillas 1 a 200. Con el motor de antes de esta función daba ca5eb9d9 (4171 temporadas).
+// CA-5: huella de las temporadas (sin premios) de las semillas 1 a 200. Con el motor de antes de trofeos-reales daba ca5eb9d9 (4171 temporadas).
+// ritmo-por-temporada la rompe a propósito (cambian las decisiones, sus efectos y el orden del azar: las temporadas simuladas son otras) y se
+// recalcula con el motor nuevo: adaf6479 (4006 temporadas), con las perillas de AJUSTES y el contenido de variedad.ts y minijuegos-extra.ts.
+// Cualquier cambio de perillas o de contenido la mueve: se vuelve a anotar. Dos corridas de la misma semilla siguen dando los mismos premios.
 const trErrors = new Set<string>();
-const HUELLA_BASE = 'ca5eb9d9';
+const HUELLA_BASE = 'adaf6479';
 {
   let h = 2166136261;
   let n = 0;
@@ -1417,7 +1420,7 @@ const HUELLA_BASE = 'ca5eb9d9';
     }
   }
   const huella = (h >>> 0).toString(16);
-  console.log(`Trofeos, huella de las temporadas sin premios (semillas 1 a 200): ${huella} (${n} temporadas; antes ${HUELLA_BASE})`);
+  console.log(`Trofeos, huella de las temporadas sin premios (semillas 1 a 200): ${huella} (${n} temporadas; esperada ${HUELLA_BASE})`);
   if (huella !== HUELLA_BASE) trErrors.add(`huella ${huella} distinta de ${HUELLA_BASE}: algo además de los premios cambió las temporadas (CA-5)`);
   // Dos corridas de la misma semilla dan los mismos premios.
   for (let seed = 1; seed <= 40; seed++) {

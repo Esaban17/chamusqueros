@@ -213,14 +213,6 @@ const DEFS: Def[] = [
     fail: ['El ritmo te ganó y llegaste un paso tarde. El rival aprovechó con tranquilidad.', 'Te pasó por el costado y definió. Por un instante, extrañaste la liga de siempre.'] },
 ];
 
-// ponytail: puente con el motor actual (el viejo draw de una sola decisión), borrar con el scheduler por temporada.
-// Hoy minijuegos.ts cuenta las banderas mj_* (choose() las escribe) y limita a 3 por carrera y sin decisiones seguidas;
-// sin esto estas plantillas se saltarían ese tope (y la bandera es una por plantilla: repetirla no sumaría, así que aquí vale una vez).
-// El motor nuevo no escribe esas banderas: en él la compuerta no filtra nada.
-const hechos = (p: Player) => Object.keys(p.flags).filter((k) => k.startsWith('mj_'));
-const ultimoAnio = (p: Player) => Math.max(0, ...hechos(p).map((k) => p.flags[k]));
-const hayLugar = (p: Player) => hechos(p).length < 3 && p.year - ultimoAnio(p) > { intensa: 1, normal: 2, expres: 3 }[p.setup.mode];
-
 const importancia: Record<Situacion, (c: EventContext) => 1 | 2 | 3> = {
   copa: (c) => (c.tier === 1 || c.abroad ? 3 : 2),
   jornada: () => 1,
@@ -239,8 +231,6 @@ export const MINIJUEGOS_EXTRA_EVENTS: EventTemplate[] = DEFS.map((d) => ({
     p.age >= 18 &&
     p.seasons.length >= 2 &&
     p.setup.position === d.pos &&
-    hayLugar(p) &&
-    p.flags[`mj_${d.kind}_${d.sit}`] === undefined && // ponytail: puente, ver arriba
     (d.sit === 'ascenso' ? !c.abroad && c.tier >= 2 : d.sit === 'extranjero' ? c.abroad : true),
   minigame: (_p, c) => ({ kind: d.kind, importance: importancia[d.sit](c) }),
   options: (p, c) => {

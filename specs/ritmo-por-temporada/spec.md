@@ -182,6 +182,42 @@ No hay superficie nueva: no hay rutas, parámetros, autenticación, almacenamien
 - **A7** [NECESITA ACLARACIÓN: ¿el minijuego empieza a los 18 años (default, igual que hoy: edad 18 y 2 temporadas jugadas) o también en las temporadas de 16 y 17?] No bloquea.
 - **A8** [NECESITA ACLARACIÓN: ¿la oferta de cambio de Selección (ascendencia o naturalización) sigue siendo "una oferta cuando se puede" con una probabilidad por temporada calibrada para mantener el 0,8 % de cambios (default), o se quiere que sea más visible?] No bloquea.
 
+## Aclaraciones resueltas
+Del usuario y del orquestador, antes de implementar. Cada una cierra la aclaración del mismo número de arriba.
+1. **A1, Normal:** alterna 3 y 2 decisiones por temporada (empieza en 3).
+2. **A2, nivel de igualación:** el promedio actual (default). Jugando bien, todos los modos llegan a unos 132 de media; el balance de premios, Mundial y dinero se mantiene.
+3. **A3, duración:** el usuario **acepta 17 a 21 minutos** por carrera. No hay atajos de "simular el resto".
+4. **A4, variedad:** se agrega contenido (unas 50 decisiones y variantes más 20 situaciones de minijuego, en `variedad.ts` y `minijuegos-extra.ts`). El criterio de repetición (CA-08) se mide con el contenido integrado.
+5. **A5, tasas contra proporción:** se mantienen las **tasas**. La perilla `PESO_CATEGORIA` acerca las proporciones de las categorías de ritmo (cancha, vida, medios, formación); amor y Selección quedan sobre el piso de 40 % de su proporción de hoy (CA-12) y no más.
+6. **A6, pesos:** se acepta que cada decisión de ritmo pese de 1/6 a 1/4 de lo de hoy y que el minijuego sea casi cosmético en el puntaje (`ESCALA_MJ`; el ánimo que deja se ve más, `ESCALA_MJ_ANIMO`, porque no puntúa).
+7. **A7, minijuego:** solo desde los 18 años.
+8. **A8, cambio de Selección:** es una oferta por temporada (`P_NAC`), calibrada para mantener el 0,8 % de cambios.
+
+Corrección que el spec advertía (RF-05): la temporada de la oferta de retiro también trae sus decisiones de ritmo. La oferta de retiro y la de traspaso son decisiones de historia que se suman a las de ritmo y van primero; quien elige "una temporada más" sigue con todas las de su temporada.
+
+## Calibración (T6, con `variedad.ts` y `minijuegos-extra.ts` integrados)
+Medida con `npx tsx scripts/ritmo.ts 20000` (20.000 carreras por modo con decisiones al azar, 8.000 con mejor opción y techo, las mismas carreras en los tres modos). Perillas finales (`AJUSTES` en `src/engine/ritmo.ts`): `ESCALA` 0,5 · `ESCALA_MJ` 0,03 · `ESCALA_MJ_ANIMO` 0,06 · `P_PASO` 1 · `P_ENTRADA` 0,04 · `P_ENTRADA_AMOR` 0,105 · `P_CONSECUENCIA` 0,01 · `P_OFERTA` 0,6 · `P_NAC` 0,25 · `PESO_CATEGORIA` cancha 0,2, vida 0,2, medios 0,45, formación 0,5, amor 0,2.
+
+| | intensa | normal | exprés | hoy (media) |
+|---|---|---|---|---|
+| Puntaje al azar: media / p50 / p90 | 108,8 / 84 / 208 | 109,3 / 84 / 208 | 108,9 / 84 / 209 | 107,6 / 82 / 206 |
+| Mejor opción: media / p50 / p90 | 130,8 / 98 / 263 | 131,9 / 101 / 269 | 132,5 / 99 / 267 | |
+| Techo: media / p50 / p90 | 133,9 / 102 / 266 | 134,6 / 101 / 271 | 133,8 / 101 / 272 | |
+| Mundial · jugó afuera · Selección mayor | 10,6 · 11,2 · 23,9 % | 10,7 · 11,1 · 23,9 % | 10,6 · 10,9 · 24,1 % | 10,8 · 12,0 · 21,7 % |
+| Cambió de Selección | 0,94 % | 0,81 % | 0,88 % | 0,8 % |
+| Ofertas de traspaso por carrera | 1,71 | 1,72 | 1,71 | 1,68 |
+| Interacciones por carrera (decisiones + minijuegos) | 87,7 (69,7 + 18,0) | 78,0 (60,0 + 18,0) | 67,8 (49,8 + 18,0) | |
+| Duración estimada | 21,4 min | 19,5 min | 17,4 min | |
+| Decisiones con una plantilla ya vista en la carrera | 16,7 % | 13,8 % | 11,0 % | 15 / 11 / 9 % |
+
+Resultados que el spec dejó como pregunta: el puntaje máximo de las tres políticas fue 838 (el límite del servidor, 1.200, deja 43 % de margen); el minijuego aporta 0,51 puntos por carrera con "Simular" y el techo sube 2,4 sobre mejor opción; el 49 % de los minijuegos y el 86 % de las decisiones de ritmo muestran algún cambio; el espaciado no se relajó en ninguna decisión.
+
+Proporción de categorías contra hoy (sin traspaso, retiro ni minijuego): amor 4,4 % (10,8), cancha 13,8 % (13,4), contrato 12,9 % (9,7), ascenso 19,3 % (18,7), extranjero 2,4 % (3,4), formación 6,8 % (3,8), medios 23,0 % (21,4), Selección 3,2 % (6,8), vida 14,2 % (11,9). `PESO_CATEGORIA` acerca las categorías de ritmo (todas a 4 puntos o menos de hoy); amor queda apenas sobre su piso de 40 % (4,3 %) y Selección sobre el suyo (2,7 %): A5, se mantienen las tasas. Amor lleva 2,4 a 2,5 eventos por carrera (máximo 12).
+
+Rutas (arranca / finalización, media de los tres modos; hoy): extranjero 30,8 % / 7,1 % (13,8 / 1); prelista → debut 8,7 / 59,3 % (5,4 / 40); eliminatoria 23,2 / 50,6 % (17,1 / 12); Sub-20 9,8 / 8,7 % (6,4 / 4); cita → compromiso 51,0 / 38,4 % (24,6 / 41); compromiso → boda 25,4 / 44,4 % (10,9 / 31); hija del técnico 30,9 / 25,0 % (13,9 / 19); pareja de un compañero 30,3 / 47,8 % (14,4 / 42). **Cita → compromiso en intensa queda en 37,0 %, a una décima del piso (90 % de 41 = 36,9 %)**, y compromiso → boda arranca en 24,5 a 26,0 % contra un tope de 27,3 %: subir amor para ganar margen en uno rompe el otro (riesgo 1).
+
+Pendiente de contenido (no son de la calibración): las 12 situaciones de `minijuegos.ts` todavía no traen 2 variantes de texto (RF-11); las 20 de `minijuegos-extra.ts` sí.
+
 ## Cambios a specs anteriores
 - **minijuegos** (`specs/minijuegos`): RF-13 (máximo 3 por carrera, nunca en dos decisiones seguidas, media de 1,0 a 1,2 en normal) y CA-2 (frecuencia y pisos de categoría) quedan reemplazados por RF-09 a RF-13 de esta spec; "cada plantilla sale una sola vez por carrera" y el empuje por edad desaparecen; se agregan al menos 12 situaciones (el plan propone 20) y variantes de texto. CA-8 (puntaje medio entre 104,4 y 110,8; veredictos a 2 puntos) **sigue valiendo** y es el ancla de CA-05.
 - **vida-sentimental**: CA-7 ("de 1,0 a 3,0 eventos por carrera en intensa", "ninguna carrera con más de 8", tope de 15 %) pasa a "de 1,0 a 3,0 en cada modo, máximo 14, 15 % o menos de las decisiones" (CA-12). Los pasos de las rutas siguen cerrándose; el chequeo de rutas abiertas (menos de 2 %) sigue.

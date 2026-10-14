@@ -253,6 +253,23 @@ export function medirRitmo(n: number, todos = true): string[] {
     }
   }
   const mjs = ALL_EVENTS.filter((e) => e.category === 'minijuego');
+  {
+    // RF-11: cada situación trae 2 variantes de texto (la del motor sale de la paridad de las temporadas jugadas).
+    const c = crear(0, 'normal');
+    c.player.ntLevel = 1;
+    const ctx = c.context();
+    const sinVariante: string[] = [];
+    for (const t of mjs) {
+      const cuerpo = (n: number) => {
+        c.player.seasons.length = 0;
+        for (let i = 0; i < n; i++) c.player.seasons.push({} as never);
+        const o = t.options(c.player, ctx)[0].outcomes.map((x) => x.text);
+        return [t.text(c.player, ctx), ...o].join('|');
+      };
+      if (cuerpo(2) === cuerpo(3)) sinVariante.push(t.id);
+    }
+    if (sinVariante.length) blandos.add(`pendiente de contenido (T6): ${sinVariante.length} de ${mjs.length} situaciones de minijuego sin 2 variantes de texto (${sinVariante.slice(0, 12).join(', ')}) (CA-02)`);
+  }
   if (mjs.length < 24) blandos.add(`pendiente de contenido (T6): ${mjs.length} situaciones de minijuego (mínimo 24, CA-02)`);
 
   // ---- CA-03, CA-04, CA-05: equidad ----
@@ -384,7 +401,7 @@ export function medirRitmo(n: number, todos = true): string[] {
   // ---- CA-09: redondeo sin sesgo y neutralidad con escala 1 ----
   {
     const rng = createRng(99);
-    const escalas = [AJUSTES.ESCALA / 3, AJUSTES.ESCALA / 2, AJUSTES.ESCALA_MJ];
+    const escalas = [AJUSTES.ESCALA / 3, AJUSTES.ESCALA / 2, AJUSTES.ESCALA_MJ, AJUSTES.ESCALA_MJ_ANIMO];
     for (const s of escalas) {
       for (const v of [1, 2, 4, 6, 12, -3, -10]) {
         let tot = 0;

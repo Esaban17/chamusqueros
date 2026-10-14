@@ -10,27 +10,28 @@ export const decisionesDe = (mode: Mode, temporada: number) => DECISIONES[mode][
 
 /**
  * Perillas de calibración (T6). Un solo lugar a propósito: se mueven juntas y se miden con `npm run simulate`.
- * ponytail: valores de partida del prototipo, ajustados con las 12 plantillas de minijuego de hoy; hay que recalibrarlos
- * cuando entre el contenido nuevo (decisiones y situaciones de minijuego). `scripts/ritmo.ts` los puede sobrescribir (AJUSTES=json).
+ * ponytail: valores de partida del prototipo, recalibrados con el contenido nuevo (variedad.ts y minijuegos-extra.ts); hay que
+ * volver a moverlos si cambia el repertorio. `scripts/ritmo.ts` los puede sobrescribir (AJUSTES=json).
  */
 export const AJUSTES = {
   /** Peso total de las decisiones de ritmo de una temporada: cada una pesa ESCALA / K (1/6 con 3, 1/4 con 2). */
   ESCALA: 0.5,
-  /** Peso de los efectos de un minijuego (casi cosmético en el puntaje, RF-13). */
-  ESCALA_MJ: 0.04,
+  /** Peso de los efectos de un minijuego en nivel y fama (casi cosmético en el puntaje, RF-13) y, aparte, en ánimo (que no puntúa pero se ve). */
+  ESCALA_MJ: 0.03,
+  ESCALA_MJ_ANIMO: 0.06,
   /** Probabilidad por temporada de que una categoría con un paso de ruta disponible lo traiga. */
   P_PASO: 1,
   /** Ídem para la entrada a una ruta (categorías de historia) y, aparte, para amor. */
   P_ENTRADA: 0.04,
-  P_ENTRADA_AMOR: 0.11,
+  P_ENTRADA_AMOR: 0.105,
   /** Una decisión con consecuencias fuertes (Selección, traspaso, retiro) por temporada, como mucho. */
-  P_CONSECUENCIA: 0.025,
+  P_CONSECUENCIA: 0.01,
   /** Multiplica el offerChance de la oferta de traspaso (que era por decisión y ahora es por temporada). */
   P_OFERTA: 0.6,
   /** Probabilidad por temporada de cada oferta de otro país disponible (ascendencia o naturalización). */
   P_NAC: 0.25,
   /** Multiplicadores por categoría sobre las decisiones de ritmo (lo que falta para acercar las proporciones, CA-12). */
-  PESO_CATEGORIA: { cancha: 0.2, vida: 0.3, medios: 0.45, formacion: 0.8, amor: 0.05 } as Partial<Record<EventCategory, number>>,
+  PESO_CATEGORIA: { cancha: 0.2, vida: 0.2, medios: 0.45, formacion: 0.5, amor: 0.2 } as Partial<Record<EventCategory, number>>,
 };
 
 /** Tope de decisiones de historia por temporada, sin contar traspaso ni retiro (RF-03). */
@@ -142,3 +143,10 @@ export function armarAgenda(rng: Rng, a: EntradaAgenda): Item[] {
 
 /** Probabilidad de ofrecer el retiro: a los 33 años 0,16 y sube 0,16 por año hasta 0,8 (la misma de siempre, ahora por temporada). */
 export const pRetiroDe = (age: number) => (age >= 33 ? clamp((age - 32) * 0.16, 0, 0.8) : 0);
+
+/** Efectos de un minijuego: ESCALA_MJ en lo que puntúa y ESCALA_MJ_ANIMO en el ánimo, para que el resultado se vea sin mover el puntaje. */
+export function escalarMj(e: Effects, rng: Rng): Effects {
+  const out = escalar({ ...e, morale: 0 }, AJUSTES.ESCALA_MJ, rng);
+  if (e.morale) out.morale = escalar({ morale: e.morale }, AJUSTES.ESCALA_MJ_ANIMO, rng).morale;
+  return out;
+}
