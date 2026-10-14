@@ -76,11 +76,12 @@ export interface NtGroupRow {
   pts: number;
 }
 
-export type AwardKind = 'goleador' | 'asistidor' | 'portero' | 'joven' | 'mvp' | 'ideal';
+export type AwardKind = 'goleador' | 'asistidor' | 'portero' | 'joven' | 'mvp' | 'ideal' | 'balon' | 'bota' | 'golden';
 
 export interface SeasonAward {
   kind: AwardKind;
   name: string; // "Goleador de Liga Nacional 2026-27", el mismo texto que va a Player.awards
+  label?: string; // nombre propio sin liga ni temporada ("Pichichi"); sin él se usa el nombre del tipo (AWARD_LABEL)
 }
 
 export interface NtMatch {

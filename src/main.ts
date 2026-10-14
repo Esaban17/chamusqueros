@@ -1,4 +1,5 @@
 import './style.css';
+import './ui/en-vivo';
 import { Career, summarize, verdictFor, yearsText, type CareerSummary } from './engine/engine';
 import { ALL_CLUBS, clubById, viewClub, type Club } from './engine/clubs';
 import { COUNTRIES, countryOf, moneyShort, type Country } from './engine/countries';
@@ -22,7 +23,7 @@ import { mountMinigame } from './ui/minigames';
 import { esc } from './ui/esc';
 import { bindTienda, comprasDestacadasHtml, estadoInicial, tiendaHtml } from './ui/tienda';
 import { flag } from './ui/flags';
-import { AWARD_LABEL, ICON, palmares, porSeleccion, type TrophyIcon } from './ui/palmares';
+import { AWARD_LABEL, ICON, palmares, porSeleccion, titleLabel, trophyImg, type TrofeoImg, type TrophyIcon } from './ui/palmares';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
@@ -282,6 +283,7 @@ function footer() {
     <p>Juego de ficción. Los partidos, resultados y situaciones son simulados.</p>
     <p><a href="${import.meta.env.BASE_URL}privacidad.html">Política de privacidad</a></p>
     <p><a href="${import.meta.env.BASE_URL}terminos.html">Términos y condiciones</a></p>
+    <p><a href="${import.meta.env.BASE_URL}creditos.html">Créditos de imágenes</a></p>
     ${DONATE_URL ? `<p>${donateLink()}</p>` : ''}
   </footer>`;
 }
@@ -477,9 +479,26 @@ function advance() {
 
 const ntCall = (team: Country = career!.nt) => `<p class="nt-title">${flag(team.name, 'mini-flag')}¡Te han llamado a la Selección!</p>`;
 
-function trophy(icon: TrophyIcon, label: string, detail: string) {
-  return `<li class="trophy${icon === 'copa' ? '' : ' award'}"><svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg><span><b>${label}</b><small>${esc(detail)}</small></span></li>`;
+const trophySvg = (icon: TrophyIcon) => `<svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg>`;
+/** Archivo local de public/trofeos/ (el nombre sale de la tabla fija TROFEO_IMG, nunca de datos de la carrera). */
+const trofeoSrc = (img: TrofeoImg) => `${import.meta.env.BASE_URL}trofeos/${img.file}`;
+
+/** Un trofeo con su imagen (caja fija de 48 x 48: no mueve nada al cargar) o, sin imagen, su ícono de trazo. */
+function trophy(icon: TrophyIcon, label: string, detail: string, img?: TrofeoImg) {
+  const pic = img
+    ? `<img class="trophy-img" src="${esc(trofeoSrc(img))}" width="48" height="48" loading="lazy" decoding="async" alt="${esc(img.alt)}" data-icon="${icon}">`
+    : trophySvg(icon);
+  return `<li class="trophy${icon === 'copa' ? '' : ' award'}">${pic}<span><b>${esc(label)}</b><small>${esc(detail)}</small></span></li>`;
 }
+// Si una imagen no carga (archivo faltante, bloqueada, sin conexión) se cambia por el ícono de trazo del mismo trofeo, en la misma caja.
+// 'error' no burbujea: un solo oyente en la fase de captura, sin manejadores en línea. La clave se busca en la lista fija ICON.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.dataset.icon) return;
+  const icon = img.dataset.icon;
+  if (Object.hasOwn(ICON, icon)) img.outerHTML = trophySvg(icon as TrophyIcon);
+  else img.remove();
+}, true);
 
 /** team: la Selección de esa temporada (puede no ser la de hoy ni la de origen). */
 function matchRow(m: NtMatch, team: Country) {
@@ -538,7 +557,13 @@ function seasonCard(r: SeasonRecord) {
     r.cleanSheets === undefined ? ['Goles', r.goals] : ['Vallas invictas', r.cleanSheets],
     ['Asistencias', r.assists],
   ];
-  const trophies = [...r.titles.map((t) => trophy('copa', 'Campeón', t)), ...r.awards.map((a) => trophy(a.kind, AWARD_LABEL[a.kind], league))];
+  const trophies = [
+    ...r.titles.map((t) => trophy('copa', 'Campeón', t, trophyImg(titleLabel(t), 'copa'))),
+    ...r.awards.map((a) => {
+      const label = a.label ?? AWARD_LABEL[a.kind];
+      return trophy(a.kind, label, league, trophyImg(label, a.kind));
+    }),
+  ];
   return `<section class="panel season-card">
     <span class="eyebrow">Temporada ${r.label} · ${r.age} años</span>
     <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
@@ -566,8 +591,13 @@ function seasonSummary(played: SeasonRecord[], first = true) {
   if (!first) return; // al volver de la tienda no se celebra otra vez
   // Solo aquí, al revelar las temporadas nuevas: el historial no la repite. El Mundial, si lo hay, manda.
   const cups = played.flatMap((r) => (r.nt?.groups ?? []).filter((g) => g.out === 'Campeón').map((g) => g.comp));
-  const top = cups.find((c) => c.startsWith('Mundial')) ?? cups[0];
-  if (top) celebrate(top, top.startsWith('Mundial'));
+  const mundial = cups.find((c) => c.startsWith('Mundial'));
+  const balon = played.flatMap((r) => r.awards).find((a) => a.kind === 'balon');
+  const img = trophyImg('Balón de Oro', 'balon');
+  // Prioridad: Mundial, Balón de Oro y después una copa de selección.
+  if (mundial) celebrate(mundial, true);
+  else if (balon && img) celebrate(balon.name, false, { title: '¡Balón de Oro!', img: { src: trofeoSrc(img), alt: img.alt, icon: 'balon' } });
+  else if (cups[0]) celebrate(cups[0], false);
 }
 
 /** Monto en la moneda de la nacionalidad (los datos están en quetzales). */
@@ -619,7 +649,7 @@ function seasonRow(r: SeasonRecord, fresh: boolean) {
   const tier = club.abroad ? countryOf(club.country).name : ((career!.home.short ?? ['', '2da Div.'])[r.tier - 1] ?? '');
   const chips = [
     ...r.titles.map((t) => `<span class="chip gold">${esc(t)}</span>`),
-    ...r.awards.map((a) => `<span class="chip gold">${AWARD_LABEL[a.kind]}</span>`),
+    ...r.awards.map((a) => `<span class="chip gold">${esc(a.label ?? AWARD_LABEL[a.kind])}</span>`),
     `<span class="chip">Ganó ${esc(cash(r.salary))}</span>`,
     r.nt ? `<span class="chip">Selección · ${r.nt.matches.length} PJ</span>` : '',
     r.note ? `<span class="chip">${esc(r.note)}</span>` : '',
@@ -761,8 +791,8 @@ function finish() {
       ${comprasDestacadasHtml(p) ? `<p class="meta">Lo mejor que compraste: ${comprasDestacadasHtml(p)}</p>` : ''}
       <p class="meta">Los contratos de ${p.seasons.length} temporadas, menos lo que gastaste. No cuenta para el puntaje.</p>
     </section>
-    ${trophies.length ? `<section class="panel"><span class="eyebrow">Palmarés</span><ul class="trophies">${trophies
-      .map((t) => trophy(t.icon, t.label, `${t.icon === 'copa' ? 'Campeón ' : ''}${t.count === 1 ? '1 vez' : `${t.count} veces`}`))
+    ${trophies.length ? `<section class="panel"><span class="eyebrow">Palmarés</span><p class="meta"><a href="${import.meta.env.BASE_URL}creditos.html">Créditos de imágenes</a></p><ul class="trophies">${trophies
+      .map((t) => trophy(t.icon, t.label, `${t.icon === 'copa' ? 'Campeón ' : ''}${t.count === 1 ? '1 vez' : `${t.count} veces`}`, t.img))
       .join('')}</ul></section>` : ''}
     ${porSel ? `<section class="panel"><span class="eyebrow">Con cada Selección</span><ul class="list">${porSel
       .map((t) => `<li>${flag(t.team, 'mini-flag')}<b>${esc(t.team)}</b>: ${t.caps} PJ · ${t.goals} ${t.goals === 1 ? 'gol' : 'goles'} · ${t.titles} ${t.titles === 1 ? 'título' : 'títulos'}</li>`)

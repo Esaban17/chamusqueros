@@ -22,11 +22,14 @@ npm run simulate -- 2000 GT  # solo un país
 | `src/engine/countries.ts` | Cada país: Selección (fuerza, umbral de convocatoria, chance de Mundial), nivel de su liga, moneda y textos propios |
 | `src/engine/clubs.ts` | Nivel de cada club y cómo se ve un club extranjero según la nacionalidad del jugador |
 | `src/engine/events/` | Las 129 decisiones, por tema: `base`, `divisiones`, `extranjero`, `medios`, `seleccion` |
+| `src/engine/awards.ts` | Premios con nombre propio: el goleador según la liga (Pichichi, Capocannoniere...), Bota de Oro, Golden Boy y Balón de Oro, con sus umbrales |
 | `src/engine/engine.ts` | Simulación de temporadas, Selección, traspasos, elección de escenarios y veredicto final |
 | `src/ui/avatar.ts` | Avatar personalizable (piel, pelo, barba, accesorios) dibujado en SVG |
 | `src/ui/card.ts` | Tarjeta final en imagen (1080x1350) |
 | `src/ui/flags.ts` | Banderas de las selecciones rivales (código de país para flagcdn.com) |
 | `src/main.ts` | Pantallas del juego |
+| `public/trofeos/` | Imágenes de los trofeos (WebP de Wikimedia Commons y tres ilustraciones propias), recortadas a 200 px |
+| `creditos.html` | Créditos de las imágenes: obra, autor, licencia y fuente de cada una |
 | `scripts/simulate.ts` | Simulación masiva para balancear |
 
 Para agregar una decisión nueva, copiá un bloque del archivo de su tema en `src/engine/events/`. Las probabilidades de cada opción deben sumar 1. Las rutas (Selección, salir al extranjero) se encadenan con banderas: un resultado pone `flag`, el paso siguiente la exige en `when` y tiene `weight` de 3 o más. El motor le da prioridad a los pasos de una ruta en curso y evita repetir el mismo tipo de escena seguida. Después corré `npm run simulate`: muestra el balance y qué eventos nunca salen.

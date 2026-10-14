@@ -3,8 +3,11 @@
 const COLORS = ['#f0c14b', '#ffffff', '#6cb4ee', '#e5484d', '#3fb950'];
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
+/** Título e imagen propios del banner (el Balón de Oro); sin ellos, "¡Campeón!" como siempre. */
+export interface CelebrateExtra { title: string; img: { src: string; alt: string; icon: string } }
+
 /** name: nombre del trofeo ("Mundial 2042"); big: el Mundial, más grande y más largo. */
-export function celebrate(name: string, big: boolean) {
+export function celebrate(name: string, big: boolean, extra?: CelebrateExtra) {
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const root = document.createElement('div');
   root.className = `party${big ? ' big' : ''}`;
@@ -12,10 +15,19 @@ export function celebrate(name: string, big: boolean) {
   const banner = document.createElement('div');
   banner.className = 'party-banner';
   const title = document.createElement('b');
-  title.textContent = '🏆 ¡Campeón!';
+  title.textContent = extra?.title ?? '🏆 ¡Campeón!';
   const trophy = document.createElement('span');
   trophy.textContent = name; // textContent: el nombre nunca se interpreta como HTML
   banner.append(title, trophy);
+  if (extra) {
+    // Caja fija de 96 x 96 (no mueve el cartel al cargar). La imagen es local; si falla, main.ts la cambia por el ícono (data-icon).
+    const img = document.createElement('img');
+    img.src = extra.img.src;
+    img.alt = extra.img.alt;
+    img.width = img.height = 96;
+    img.dataset.icon = extra.img.icon;
+    banner.prepend(img);
+  }
   root.append(banner);
   if (!calm) {
     const piece = (cls: string, vars: Record<string, string>) => {

@@ -1,6 +1,7 @@
 import { HOME_CLUBS_BY_DEPT, clubById, clubsOf, viewClub, ALL_CLUBS, type Club } from './clubs';
 import { salaryFor } from './contracts';
 import { CONFED_CUP, countryOf, moneyShort, type Confed, type Country } from './countries';
+import { AWARD_LABEL_ES, majorAwards, scorerName } from './awards';
 import { ALL_EVENTS } from './events';
 import { difficultyFor, resultOf, simulatedScore } from './minigames';
 import { seleccionDe, sortearHerencia } from './nacionalidad';
@@ -34,7 +35,7 @@ import {
 export const START_YEAR = 2026;
 const FIRST_WORLD_CUP = 2030;
 /** Partidos posibles por temporada (Apertura + Clausura con fase final) según la división. */
-const MATCHES: Record<Tier, number> = { 0: 36, 1: 44, 2: 40, 3: 32 };
+export const MATCHES: Record<Tier, number> = { 0: 36, 1: 44, 2: 40, 3: 32 };
 const GOALS_PER_APP = { POR: 0, DEF: 0.045, MED: 0.14, DEL: 0.37 };
 const ASSISTS_PER_APP = { POR: 0.005, DEF: 0.06, MED: 0.19, DEL: 0.13 };
 const DEBUT_WEIGHT: Record<Tier, number> = { 0: 0, 1: 0.2, 2: 0.35, 3: 0.45 };
@@ -128,10 +129,11 @@ export const isLeagueTitle = (title: string, league: string) => {
 };
 
 /**
- * Puntos de ranking por premio. Solo suman los que existían cuando se abrió el ranking (goleador y mejor jugador),
- * para que las carreras ya guardadas sigan siendo comparables; los demás se muestran pero no puntúan.
+ * Puntos de ranking por premio. Goleador (con cualquier nombre) y mejor jugador sumaban desde que se abrió el ranking.
+ * Balón de Oro, Bota de Oro y Golden Boy puntúan por decisión del producto (specs/trofeos-reales): son muy raros, así que el puntaje
+ * medio casi no se mueve, y sus topes por carrera (5, 3 y 1) acotan lo que pueden sumar (180 puntos). Los demás se muestran pero no puntúan.
  */
-const AWARD_POINTS: Record<AwardKind, number> = { goleador: 5, mvp: 5, portero: 0, asistidor: 0, joven: 0, ideal: 0 };
+const AWARD_POINTS: Record<AwardKind, number> = { goleador: 5, mvp: 5, portero: 0, asistidor: 0, joven: 0, ideal: 0, balon: 25, bota: 15, golden: 10 };
 
 const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 export const seasonLabel = (year: number) => `${year}-${String((year + 1) % 100).padStart(2, '0')}`;
@@ -315,12 +317,23 @@ export class Career {
     const cleanSheets = pos === 'POR' ? Math.round(apps * clamp(0.3 + diff / 40, 0.12, 0.5) * randRange(rng, 0.8, 1.2)) : undefined;
     const awards: SeasonAward[] = [];
     const award = (kind: AwardKind, name: string) => awards.push({ kind, name: `${name} de ${leagueName} ${seasonLabel(p.year)}` });
-    if (goals >= (tier === 3 ? 16 : 20)) award('goleador', 'Goleador');
+    // El goleador toma el nombre de la liga del club real (primera división de España, Italia...); el resto es "Goleador de <liga>".
+    const named = scorerName(own.country, own.tier);
+    if (goals >= (tier === 3 ? 16 : 20)) {
+      if (named) awards.push({ kind: 'goleador', label: named, name: `${named} ${seasonLabel(p.year)}` });
+      else award('goleador', 'Goleador');
+    }
     if (assists >= (tier === 3 ? 9 : 11)) award('asistidor', 'Máximo asistidor');
     if (cleanSheets !== undefined && share >= 0.7 && cleanSheets >= apps * 0.45 && chance(rng, 0.35)) award('portero', 'Guardameta menos vencido');
     if (share >= 0.7 && diff >= 8 && chance(rng, 0.3)) award('mvp', 'Mejor jugador');
     else if (share >= 0.6 && diff >= 4 && chance(rng, 0.35)) award('ideal', 'Once ideal');
     if (p.age <= 21 && share >= 0.5 && diff >= -2 && chance(rng, 0.3)) award('joven', 'Jugador joven del año');
+    // Balón de Oro, Bota de Oro y Golden Boy: al final, sin azar ni efectos fuera del puntaje (la misma semilla da la misma carrera).
+    const held = (k: AwardKind) => p.seasons.reduce((n, r) => n + r.awards.filter((a) => a.kind === k).length, 0);
+    for (const kind of majorAwards({
+      rating: Math.round(p.rating), age: p.age, fame: p.fame, apps, goals, matches: MATCHES[tier], clubTitles: titles.length, own,
+      held: { balon: held('balon'), bota: held('bota'), golden: held('golden') > 0 },
+    })) awards.push({ kind, name: `${AWARD_LABEL_ES[kind]} ${seasonLabel(p.year)}` });
     p.awards.push(...awards.map((a) => a.name));
 
     const clubTitles = titles.length; // los títulos de selección no cuentan para el ánimo ni la fama de club

@@ -504,3 +504,8 @@ button.season:hover { background: var(--surface-2); }
 .t-totales b.saldo { color: var(--gold); }
 .t-totales span { overflow-wrap: anywhere; }
 .t-totales { grid-template-columns: repeat(3, 1fr); }
+
+/* Imágenes de trofeos (specs/trofeos-reales): la caja de 48 x 48 es la misma del ícono de trazo, así que nada se mueve al cargar ni al fallar. */
+.trophy-img { flex: none; width: 48px; height: 48px; box-sizing: border-box; padding: 4px; border-radius: 12px; background: #fff; object-fit: contain; }
+.party-banner img, .party-banner svg { flex: none; width: 96px; height: 96px; box-sizing: border-box; border-radius: 16px; background: #fff; padding: 6px; object-fit: contain; }
+.party-banner svg { padding: 22px; border-radius: 50%; background: #f0c14b; fill: none; stroke: #0d1b2a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

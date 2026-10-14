@@ -40,7 +40,7 @@ for (const malo of ['ZZ', 'gt', 'GTX', 'G', '', '<img src=x onerror=alert(1)>', 
   assert.equal(r.card?.pos, 'DEL', `${JSON.stringify(malo)}: el resto de la carta se conserva`);
 }
 // Los límites de puntaje y títulos siguen igual (CA-9).
-for (const [extra, ok] of [[{ score: 1000, titles: 200, caps: 500 }, true], [{ score: 1001 }, false], [{ score: -101 }, false], [{ titles: 201 }, false], [{ caps: 501 }, false]] as const) {
+for (const [extra, ok] of [[{ score: 1200, titles: 200, caps: 500 }, true], [{ score: 1201 }, false], [{ score: -101 }, false], [{ titles: 201 }, false], [{ caps: 501 }, false]] as const) {
   const r = await guardar('IT', extra);
   assert.equal(r.status === 200, ok, `límites ${JSON.stringify(extra)}`);
 }
