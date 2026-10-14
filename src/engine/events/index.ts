@@ -4,6 +4,7 @@ import { BASE_EVENTS } from './base';
 import { DIVISIONES_EVENTS } from './divisiones';
 import { EXTRANJERO_EVENTS } from './extranjero';
 import { MEDIOS_EVENTS } from './medios';
+import { MINIJUEGOS_EVENTS } from './minijuegos';
 import { NACIONALIDAD_EVENTS } from './nacionalidad';
 import { SELECCION_EVENTS } from './seleccion';
 
@@ -15,6 +16,7 @@ export const ALL_EVENTS: EventTemplate[] = [
   ...NACIONALIDAD_EVENTS,
   ...SELECCION_EVENTS,
   ...AMOR_EVENTS,
+  ...MINIJUEGOS_EVENTS,
 ];
 
 const ids = new Set<string>();

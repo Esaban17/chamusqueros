@@ -18,6 +18,7 @@ import {
 import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
 import { TIERS, drawCareerCard } from './ui/card';
 import { celebrate } from './ui/celebrate';
+import { mountMinigame } from './ui/minigames';
 import { flag } from './ui/flags';
 import { AWARD_LABEL, ICON, palmares, porSeleccion, type TrophyIcon } from './ui/palmares';
 
@@ -641,6 +642,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   divisiones: 'Ascenso',
   amor: 'Vida sentimental',
   retiro: 'Final de carrera',
+  minijuego: 'Minijuego',
 };
 
 function gameScreen() {
@@ -659,7 +661,7 @@ function gameScreen() {
           <span class="eyebrow">${CATEGORY_LABEL[ev.category] ?? ''} · ${p.year} · ${p.age} años</span>
           <h3>${esc(ev.title)}</h3>
           <p class="text">${esc(ev.text)}</p>
-          <div class="options">${ev.options.map((o, i) => `<button class="btn secondary" data-opt="${i}">${esc(o.label)}</button>`).join('')}</div>
+          ${ev.minigame ? '<div class="mg" id="mg"></div>' : `<div class="options">${ev.options.map((o, i) => `<button class="btn secondary" data-opt="${i}">${esc(o.label)}</button>`).join('')}</div>`}
         </section>`
       : '';
   render(`${playerHead()}${statsBar()}${eventHtml}${seasonLog()}`);
@@ -670,6 +672,19 @@ function gameScreen() {
       gameScreen();
     };
   });
+  // Un minijuego reemplaza a las opciones de texto: "Continuar" vuelve a dibujar y muestra el desenlace como cualquier decisión.
+  if (!res && ev?.minigame) {
+    mountMinigame(
+      document.getElementById('mg')!,
+      ev.minigame,
+      career!.rng,
+      (score) => (lastResolution = career!.choose(0, score)),
+      () => {
+        freshSeasons = 0;
+        gameScreen();
+      },
+    );
+  }
   const next = document.getElementById('next');
   if (next) next.onclick = () => (career!.isOver ? finish() : advance());
 }
