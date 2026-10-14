@@ -412,22 +412,6 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
         o(0.5, `Otro año a medias. El cuerpo está aquí, la cabeza en ${ctx.country.code === 'GT' ? 'Guate' : ctx.country.name}.`, { morale: -10, coach: -4 })),
     ],
   },
-  {
-    id: 'ext_doble_nacionalidad',
-    category: 'extranjero',
-    title: 'Te ofrecen otra selección',
-    text: (p, ctx) =>
-      `Tras años en ${ctx.club.city}, un dirigente te sugiere naturalizarte y jugar por otro país. Con ${ctx.country.name} llevás ${p.caps} partidos.`,
-    when: (p, ctx) => ctx.abroad && p.ntLevel <= 1 && p.caps <= 2 && p.age <= 27 && p.rating >= 72,
-    once: true,
-    options: (p, ctx) => [
-      opt(`Mi selección es ${ctx.country.name}`,
-        o(0.6, `Lo dijiste en una entrevista y en ${ctx.country.name} te aplaudieron. ${cap(ctx.country.federation)} tomó nota.`, { fame: 10, morale: 6 }),
-        o(0.4, `${ctx.country.name} no te llama igual. Pero dormís tranquilo.`, { morale: 2, fame: 4 })),
-      opt('Lo pienso con calma',
-        o(1, `Se filtró que lo estás pensando. En ${ctx.country.name} hay críticas.`, { fame: -6, morale: -4 })),
-    ],
-  },
 
   // ---------- C) Contrato ----------
   {

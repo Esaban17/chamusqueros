@@ -1,12 +1,16 @@
 // Simula miles de carreras con decisiones al azar para revisar el balance del juego.
 // Uso: npm run simulate -- 5000       (todas las nacionalidades, por turnos)
 //      npm run simulate -- 2000 GT    (solo un país)
+//      NAC=aceptar npm run simulate   (toda oferta de otro país se acepta: cota superior de Mundiales)
+//      NAC=rechazar | NAC=off         (toda oferta se rechaza | se quitan los eventos nac_*: la base sin la función)
+import { readFileSync } from 'node:fs';
 import { Career, summarize } from '../src/engine/engine';
 import { COUNTRIES, countryOf } from '../src/engine/countries';
+import { DIASPORA, elegible, residencia } from '../src/engine/nacionalidad';
 import { clubById, clubsOf } from '../src/engine/clubs';
 import { ALL_EVENTS } from '../src/engine/events';
 import type { Mode, Position } from '../src/engine/types';
-import { bestMoment, palmares } from '../src/ui/palmares';
+import { bestMoment, palmares, porSeleccion } from '../src/ui/palmares';
 import { FLAG_CODE } from '../src/ui/flags';
 
 const N = Number(process.argv[2] ?? 5000);
@@ -40,6 +44,48 @@ const koStats: Record<string, { played: number; champ: number; final: number }> 
 // El palmarés agrupa sin perder ni inventar trofeos, y siempre hay un momento destacado con texto.
 const summaryErrors = new Set<string>();
 const momentCount: Record<string, number> = {};
+// ---------- Convocatoria de otro país (src/engine/nacionalidad.ts) ----------
+const NAC = process.env.NAC; // aceptar | rechazar | off | (vacío: al azar)
+if (NAC === 'off') ALL_EVENTS.splice(0, ALL_EVENTS.length, ...ALL_EVENTS.filter((e) => !e.id.startsWith('nac_')));
+const nacErrors = new Set<string>();
+const nac = { herencia: 0, madre: 0, oferta: { nac_ascendencia: 0, nac_naturalizacion: 0, alguna: 0 }, disponible: { nac_ascendencia: 0, nac_naturalizacion: 0 }, sinVer: 0, cambio: 0, via: {} as Record<string, number>, mundialCambio: 0 };
+const nacByOrigin: Record<string, { n: number; herencia: number; oferta: number; cambio: number }> = {};
+// Un texto de Selección no puede nombrar (apodo, federación o estadio) a una Selección distinta de la actual.
+const NT_EVENTS = (e: { id: string; category: string }) => (e.category === 'seleccion' && !e.id.startsWith('nac_')) || e.id === 'med_sele' || e.id === 'med_resp_sele';
+const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const otherNt = (nt: ReturnType<typeof countryOf>, text: string) => {
+  const mine = [nt.ntName, nt.federation, nt.stadium];
+  for (const c of COUNTRIES) {
+    if (c.code === nt.code) continue;
+    for (const name of [c.ntName, c.federation, c.stadium]) {
+      if (name === 'la Sele' || mine.some((m) => m.includes(name) || name.includes(m))) continue; // 'la Sele' (apodo de Costa Rica) también es la forma corta de decir Selección
+      if (new RegExp(`(?<![\\p{L}\\d])${esc(name)}(?![\\p{L}\\d])`, 'u').test(text)) return name;
+    }
+  }
+  return null;
+};
+let maxCaps = 0;
+// CA-3: la regla de elegibilidad con los casos del spec. addCaps es privado: se usa para marcar los partidos a los 21 o más.
+{
+  const mk = (age: number, caps: number, comp?: string) => {
+    const c = new Career({ firstName: 'T', lastName: 'T', country: 'GT', dept: 'Guatemala', position: 'DEL', foot: 'Derecho', number: 9, mode: 'normal', avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 } }, 1);
+    c.player.age = age;
+    (c as any).addCaps(caps);
+    if (comp) c.player.seasons.push({ nt: { debut: false, matches: [{ comp, rival: 'X', gf: 0, ga: 0, goals: 0 }] } } as any);
+    return c.player;
+  };
+  const casos: [string, boolean, boolean][] = [
+    ['0 partidos', elegible(mk(25, 0)), true],
+    ['3 partidos a los 19', elegible(mk(19, 3)), true],
+    ['3 partidos, uno a los 22', elegible({ ...mk(22, 1), caps: 3 }), false],
+    ['4 partidos', elegible(mk(19, 4)), false],
+    ['1 partido en un Mundial', elegible(mk(19, 1, 'Mundial 2030')), false],
+    ['1 partido en la Copa Oro', elegible(mk(19, 1, 'Copa Oro 2031')), false],
+    ['1 partido en la Copa América', elegible(mk(19, 1, 'Copa América 2028')), false],
+    ['1 partido de eliminatoria', elegible(mk(19, 1, 'Eliminatoria Mundial 2030 · Ronda final')), true],
+  ];
+  for (const [nombre, got, want] of casos) if (got !== want) nacErrors.add(`elegibilidad: ${nombre} dio ${got}`);
+}
 let maxTitles = 0, years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -56,10 +102,24 @@ for (let i = 0; i < N; i++) {
     i + 1,
   );
   const leak = (where: string, t: string) => {
-    if (country.code === 'GT' || clubById(career.player.clubId).country === 'GT') return;
+    if (country.code === 'GT' || clubById(career.player.clubId).country === 'GT' || career.nt.code === 'GT') return;
+    if (where === 'nac_naturalizacion' && residencia(career.player)?.code === 'GT') return; // la oferta de Guatemala nombra a Guatemala
     if (GT_LEAK.test(legit(t))) leaks.add(`${country.code} ${where}: ${t}`);
   };
   debutTier[career.club.tier]++;
+  const org = (nacByOrigin[country.code] ??= { n: 0, herencia: 0, oferta: 0, cambio: 0 });
+  org.n++;
+  const her = career.player.herencia;
+  if (her) {
+    nac.herencia++;
+    org.herencia++;
+    if (her.side === 'madre') nac.madre++;
+    if (her.country === country.code || her.country === 'GT') nacErrors.add(`${country.code}: ascendencia de su propio país o de Guatemala (${her.country})`);
+    if (!DIASPORA[country.code].some(([c]) => c === her.country)) nacErrors.add(`${country.code}-${her.country} no está en la lista de diásporas`);
+  }
+  const offered: string[] = []; // países que le hicieron una oferta: ninguno se repite
+  const seen = new Set<string>();
+  const avail = new Set<string>();
   let guard = 0;
   let decisions = 0;
   const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
@@ -72,7 +132,11 @@ for (let i = 0; i < N; i++) {
       const matches = played.flatMap((s) => s.nt?.matches ?? []);
       for (const s of played) {
         const groups = s.nt?.groups ?? [];
+        // La Selección de esa temporada: la de origen o, tras un cambio, la nueva.
+        const team = countryOf(s.nt?.team ?? country.code);
+        if (s.nt && !s.nt.team) ntErrors.add('temporada con Selección sin team');
         for (const m of s.nt?.matches ?? []) {
+          if (m.rival === team.name) ntErrors.add(`${team.name} es rival de sí misma`);
           if (!FLAG_CODE[m.rival]) ntErrors.add(`sin bandera: ${m.rival}`);
           const g = groups.find((x) => x.comp === m.comp);
           if (g && !m.round && !g.table.some((r) => r.team === m.rival)) ntErrors.add(`${m.rival} no está en la tabla de ${m.comp}`);
@@ -90,15 +154,15 @@ for (let i = 0; i < N; i++) {
           if (ko.length && !g.out) ntErrors.add(`fase final sin cierre en ${g.comp}`);
           if (g.out) {
             const kind = g.comp.startsWith('Mundial') ? 'Mundial' : /Naciones/.test(g.comp) ? 'Liga de Naciones' : 'Copa';
-            const bucket = ['ES', 'AR', 'BR'].includes(country.code) ? `${kind} (ES/AR/BR)` : country.code === 'GT' ? `${kind} (GT)` : `${kind} (otros)`;
+            const bucket = ['ES', 'AR', 'BR'].includes(team.code) ? `${kind} (ES/AR/BR)` : team.code === 'GT' ? `${kind} (GT)` : `${kind} (otros)`;
             const st = (koStats[bucket] ??= { played: 0, champ: 0, final: 0 });
             st.played++;
             if (g.out === 'Campeón') st.champ++;
             if (g.out === 'Campeón' || g.out === 'Subcampeón') st.final++;
           }
-          const gt = g.table.findIndex((r) => r.team === country.name);
-          if (gt < 0) ntErrors.add(`${country.name} no está en la tabla de ${g.comp}`);
-          if (!FLAG_CODE[country.name]) ntErrors.add(`sin bandera: ${country.name}`);
+          const gt = g.table.findIndex((r) => r.team === team.name);
+          if (gt < 0) ntErrors.add(`${team.name} no está en la tabla de ${g.comp}`);
+          if (!FLAG_CODE[team.name]) ntErrors.add(`sin bandera: ${team.name}`);
           if (g.table.some((r) => !FLAG_CODE[r.team])) ntErrors.add(`sin bandera en ${g.comp}`);
           if (g.table.some((r) => r.pj !== r.g + r.e + r.p || r.pts !== 3 * r.g + r.e)) ntErrors.add(`tabla mal sumada en ${g.comp}`);
           if (g.table.reduce((t, r) => t + r.gf - r.ga, 0) !== 0) ntErrors.add(`goles a favor y en contra no cuadran en ${g.comp}`);
@@ -106,7 +170,7 @@ for (let i = 0; i < N; i++) {
           if (wc && g.comp.endsWith('Segunda ronda') && gt >= 2) outEarly.add(wc);
           if (wc && g.comp.endsWith('Ronda final')) {
             if (outEarly.has(wc)) ntErrors.add('ronda final después de quedar fuera en la segunda ronda');
-            if ((gt < g.advance) !== groups.some((x) => x.comp === `Mundial ${wc}`)) ntErrors.add(`${country.code}: la ronda final no cuadra con jugar el Mundial`);
+            if ((gt < g.advance) !== groups.some((x) => x.comp === `Mundial ${wc}`)) ntErrors.add(`${team.code}: la ronda final no cuadra con jugar el Mundial`);
           }
         }
       }
@@ -118,6 +182,33 @@ for (let i = 0; i < N; i++) {
     }
     const ev = career.pendingEvent;
     if (ev) {
+      const p = career.player;
+      // Ofertas de otro país: qué eventos estaban disponibles y, si sale uno, que cumpla todas las condiciones.
+      const ctx = career.context();
+      for (const id of ['nac_ascendencia', 'nac_naturalizacion'] as const) if (ALL_EVENTS.find((e) => e.id === id)?.when(p, ctx)) avail.add(id);
+      if (NT_EVENTS(ev)) {
+        for (const t of [ev.title, ev.text, ...ev.options.flatMap((o) => [o.label, ...o.outcomes.map((x) => x.text)])]) {
+          const other = otherNt(career.nt, t);
+          if (other) nacErrors.add(`${ev.id} con ${career.nt.name} nombra a otra Selección (${other}): ${t.slice(0, 80)}`);
+        }
+      }
+      if (ev.id.startsWith('nac_')) {
+        const code = ev.id === 'nac_ascendencia' ? p.herencia?.country : residencia(p)?.code;
+        const to = code ? countryOf(code) : null;
+        if (!to || !code) nacErrors.add(`${ev.id} sin país de destino`);
+        else {
+          if (ev.id === 'nac_ascendencia' && !p.herencia) nacErrors.add('oferta por ascendencia sin ascendencia');
+          if (ev.id === 'nac_naturalizacion' && (residencia(p)?.n ?? 0) < 5) nacErrors.add('naturalización sin 5 temporadas seguidas');
+          if (p.cambioSel) nacErrors.add(`${ev.id}: oferta después de cambiar de Selección`);
+          if (offered.includes(code)) nacErrors.add(`${code} ofreció dos veces`);
+          if (!elegible(p)) nacErrors.add(`${ev.id}: oferta a un jugador comprometido (${p.caps} partidos)`);
+          if (p.age < 19 || p.age > 31) nacErrors.add(`${ev.id}: oferta a los ${p.age} años`);
+          if (p.rating < to.callup) nacErrors.add(`${ev.id}: nivel ${Math.round(p.rating)} menor al mínimo de ${to.name} (${to.callup})`);
+          if (p.wcProgress !== 0) nacErrors.add(`${ev.id}: oferta a media eliminatoria`);
+          offered.push(code);
+        }
+        seen.add(ev.id);
+      }
       for (const t of [ev.title, ev.text, ...ev.options.flatMap((o) => [o.label, ...o.outcomes.map((x) => x.text)])]) leak(ev.id, t);
       eventCount[ev.id] = (eventCount[ev.id] ?? 0) + 1;
       catCount[ev.category] = (catCount[ev.category] ?? 0) + 1;
@@ -126,8 +217,20 @@ for (let i = 0; i < N; i++) {
           if (KEEPER_GOAL.test(t)) keeperGoals.add(`${ev.id}: ${t}`);
         }
       }
-      career.choose(Math.floor(career.rng() * ev.options.length));
+      const antes = { caps: p.caps, goals: p.natGoals, home: career.home.code, nt: career.nt.code };
+      const forced = ev.id.startsWith('nac_') ? (NAC === 'aceptar' ? 0 : NAC === 'rechazar' ? 1 : -1) : -1;
+      const res = career.choose(forced >= 0 ? forced : Math.floor(career.rng() * ev.options.length));
       decisions++;
+      // Tras aceptar: nivel de convocatoria 1 o 2, los partidos y goles previos se conservan, y casa, moneda y clubes siguen igual.
+      if (ev.id.startsWith('nac_') && p.cambioSel) {
+        const c = p.cambioSel;
+        if (p.ntLevel !== 1 && p.ntLevel !== 2) nacErrors.add(`aceptó con nivel de convocatoria ${p.ntLevel}`);
+        if (p.caps !== antes.caps || p.natGoals !== antes.goals || c.caps !== antes.caps || c.goals !== antes.goals) nacErrors.add('el cambio alteró los partidos o goles con la Selección');
+        if (career.home.code !== antes.home || p.setup.country !== antes.home || c.from !== antes.home) nacErrors.add('el cambio alteró el país de origen');
+        if (career.nt.code !== c.to || c.to === antes.nt) nacErrors.add('la Selección no cambió a la nueva');
+        if (!res.changes.includes(`Ahora jugás con ${career.nt.name}`)) nacErrors.add('falta el aviso "Ahora jugás con"');
+        if (p.wcProgress !== 0) nacErrors.add('el cambio no reinició la eliminatoria');
+      }
     }
   }
   (decisionsByMode[mode] ??= []).push(decisions);
@@ -160,12 +263,50 @@ for (let i = 0; i < N; i++) {
   titles += s.titles.length;
   maxTitles = Math.max(maxTitles, s.titles.length);
   caps += p.caps;
+  maxCaps = Math.max(maxCaps, p.caps);
   if (p.caps > 0) nt++;
+  // ---- Convocatoria de otro país: contadores y coherencia de la carrera completa ----
+  for (const id of ['nac_ascendencia', 'nac_naturalizacion'] as const) {
+    if (avail.has(id)) nac.disponible[id]++;
+    if (seen.has(id)) nac.oferta[id]++;
+  }
+  if (seen.size) {
+    nac.oferta.alguna++;
+    org.oferta++;
+  } else if (avail.size) nac.sinVer++;
+  const cs = p.cambioSel;
+  const hitos = p.milestones.filter((m) => /^(Se nacionalizó en|Eligió jugar para)/.test(m));
+  if (cs) {
+    nac.cambio++;
+    org.cambio++;
+    nac.via[cs.via] = (nac.via[cs.via] ?? 0) + 1;
+    if (p.flags.mundial) nac.mundialCambio++;
+    const to = countryOf(cs.to);
+    const hito = cs.via === 'naturalizacion' ? `Se nacionalizó en ${to.name}` : `Eligió jugar para ${to.name} por su ${cs.via === 'madre' ? 'madre' : 'padre'}`;
+    if (hitos.length !== 1 || hitos[0] !== `${hito} (${cs.year})`) nacErrors.add(`hito del cambio: ${hitos.join(' | ') || 'ninguno'}`);
+    // Las temporadas viejas conservan la Selección anterior y solo las siguientes usan la nueva.
+    for (const r of p.seasons) {
+      const want = Number(r.label.slice(0, 4)) >= cs.year ? cs.to : cs.from;
+      if (r.nt && r.nt.team !== want) nacErrors.add(`temporada ${r.label} con ${r.nt.team}, debía ser ${want}`);
+    }
+    const first = p.seasons.find((r) => r.nt && Number(r.label.slice(0, 4)) >= cs.year);
+    if (p.seasons.filter((r) => r.nt?.cambio).length !== (first ? 1 : 0) || (first && !first.nt!.cambio)) nacErrors.add('el aviso de cambio no está solo en la primera temporada con la nueva Selección');
+    // Con cada Selección: la suma coincide con el total de la carrera.
+    const ps = porSeleccion(p)!;
+    const cups = p.seasons.reduce((t, r) => t + (r.nt?.groups ?? []).filter((g) => g.out === 'Campeón').length, 0);
+    if (ps.reduce((t, x) => t + x.caps, 0) !== p.caps || ps.reduce((t, x) => t + x.goals, 0) !== p.natGoals || ps.reduce((t, x) => t + x.titles, 0) !== cups) nacErrors.add('"Con cada Selección" no suma el total');
+    if (ps.some((x) => x.caps < 0 || x.goals < 0)) nacErrors.add('"Con cada Selección" con valores negativos');
+    if (s.verdict.title.startsWith('Leyenda ') && !s.verdict.title.endsWith(to.adj)) nacErrors.add('el veredicto no usa el gentilicio de la Selección actual');
+  } else {
+    if (hitos.length) nacErrors.add('hito de cambio sin cambio');
+    if (porSeleccion(p)) nacErrors.add('"Con cada Selección" sin cambio');
+    if (p.seasons.some((r) => r.nt && r.nt.team !== country.code)) nacErrors.add('temporada con otra Selección sin haber cambiado');
+  }
   // Si un evento contó la clasificación y el jugador siguió en la Selección esa temporada, tiene que jugar el Mundial.
   for (const m of p.milestones) {
     const wc = m.match(/^Clasificó al Mundial (\d+)/)?.[1];
     const season = wc && p.seasons.find((r) => Number(r.label.slice(0, 4)) + 1 === Number(wc));
-    if (season && season.nt && !p.milestones.includes(`Jugó el Mundial ${wc} con ${country.name}`)) ntErrors.add(`contó que clasificó al Mundial ${wc} y no lo jugó`);
+    if (season && season.nt && !p.milestones.includes(`Jugó el Mundial ${wc} con ${countryOf(season.nt.team ?? country.code).name}`)) ntErrors.add(`contó que clasificó al Mundial ${wc} y no lo jugó`);
   }
   if (p.flags.mundial) mundial++;
   if (s.clubs.some((c) => c.club.abroad)) abroad++;
@@ -214,6 +355,33 @@ if (ntErrors.size) {
   console.error(`Partidos con la Selección que no cuadran:\n  ${[...ntErrors].join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Selección: los partidos listados cuadran con partidos y goles sumados.');
+// ---------- Convocatoria de otro país: reporte ----------
+const pn = (x: number, d = N) => `${((100 * x) / d).toFixed(1)}%`;
+console.log(`Ascendencia: ${pct(nac.herencia)} de las carreras (por la madre ${pn(nac.madre, nac.herencia || 1)})`);
+console.log(`Ofertas de otro país (% de carreras): por ascendencia ${pct(nac.oferta.nac_ascendencia)} · por naturalización ${pct(nac.oferta.nac_naturalizacion)} · alguna ${pct(nac.oferta.alguna)} · disponibles y nunca vistas ${pct(nac.sinVer)}`);
+console.log(`Cambiaron de Selección: ${pct(nac.cambio)} (${Object.entries(nac.via).map(([k, v]) => `${k} ${v}`).join(', ') || 'ninguno'}) · de ellos jugaron un Mundial: ${pn(nac.mundialCambio, nac.cambio || 1)}`);
+if (countries.length > 1) {
+  console.log('Por origen (ascendencia / recibe oferta / cambia):');
+  console.log('  ' + Object.entries(nacByOrigin).map(([code, v]) => `${code} ${pn(v.herencia, v.n)}/${pn(v.oferta, v.n)}/${pn(v.cambio, v.n)}`).join(' · '));
+}
+// CA-1: tasa de ascendencia y reparto madre/padre (solo con una muestra grande y todos los países).
+if (!only && N >= 5000) {
+  if (nac.herencia / N < 0.22 || nac.herencia / N > 0.28) nacErrors.add(`ascendencia ${pct(nac.herencia)} fuera de 22-28 %`);
+  if (nac.madre / nac.herencia < 0.45 || nac.madre / nac.herencia > 0.55) nacErrors.add(`ascendencia por la madre ${pn(nac.madre, nac.herencia)} fuera de 45-55 %`);
+}
+// Límites que acepta el servidor (api/ranking.ts).
+if (scores.at(-1)! > 1000 || scores[0] < -100 || maxTitles > 200 || maxCaps > 500) nacErrors.add(`fuera de los límites del servidor: puntaje ${scores[0]}..${scores.at(-1)}, títulos ${maxTitles}, partidos ${maxCaps}`);
+// La lista de códigos de api/ranking.ts (copia a mano) coincide con COUNTRIES.
+{
+  const api = readFileSync(new URL('../api/ranking.ts', import.meta.url), 'utf8');
+  const listed = [...(api.match(/COUNTRY_CODES = new Set\(\[([^\]]*)\]\)/)?.[1] ?? '').matchAll(/'([A-Z]{2})'/g)].map((m) => m[1]).sort();
+  const real = COUNTRIES.map((c) => c.code).sort();
+  if (listed.join() !== real.join()) nacErrors.add(`api/ranking.ts no coincide con COUNTRIES: ${listed.join(',')} vs ${real.join(',')}`);
+}
+if (nacErrors.size) {
+  console.error(`Convocatoria de otro país con errores (${nacErrors.size}):\n  ${[...nacErrors].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Convocatoria: ofertas, elegibilidad, cambio, hito, temporadas y "Con cada Selección" cuadran; la lista de la API coincide con COUNTRIES.');
 if (keeperGoals.size) {
   console.error(`Textos donde el portero anota (${keeperGoals.size}):\n  ${[...keeperGoals].join('\n  ')}`);
   process.exitCode = 1;

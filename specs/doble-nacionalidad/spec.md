@@ -61,8 +61,13 @@ Jugador "comprometido" es el que no cumple ninguna. A un comprometido no se le o
 - La carta del ranking guarda un solo país: la Selección actual. Su gentilicio y su bandera salen de ahí.
 - El hito dice "en <país>" y no el gentilicio para evitar el género ("Se nacionalizó en Francia").
 
-## Aclaraciones abiertas (no bloquean)
-- [NECESITA ACLARACIÓN: ¿los amistosos deben contar como partidos que atan a la Selección de origen? Hoy el juego no los distingue y se cuentan todos (más estricto que la FIFA actual). Se asume que cuentan.]
-- [NECESITA ACLARACIÓN: ¿el veredicto del ranking de un jugador nacionalizado debe decir "Leyenda estadounidense" (Selección) o "Leyenda chapina" (origen)? Se asume la Selección, porque la carta guarda un solo país. Pasar a dos campos agregaría un campo al ranking.]
-- [NECESITA ACLARACIÓN: ¿Guatemala puede ser país de ascendencia de, por ejemplo, un jugador estadounidense? Se asume que no, para no mezclar textos de Guatemala en carreras de otros países.]
-- [NECESITA ACLARACIÓN: ¿el límite de 2 puntos porcentuales en la tasa global de Mundiales (CA-10) es el correcto? Si la simulación lo supera con "todos aceptan", se baja la probabilidad de ascendencia antes de tocar el resto.]
+## Aclaraciones resueltas
+- **Amistosos:** cuentan como partidos que atan a la Selección de origen. Es más estricto que la FIFA real (ponytail: no se distinguen amistosos de oficiales).
+- **Veredicto del ranking y carta:** usan la Selección actual (la carta guarda un solo país).
+- **Guatemala:** no es país de ascendencia para jugadores de otros países. Sí puede ser destino de naturalización.
+- **Límite del CA-10:** se aceptan hasta 2 puntos porcentuales; si se supera, se baja la probabilidad de ascendencia. Con la implementación actual no se supera (ver abajo).
+
+## Ajustes al implementar
+- **Peso de las ofertas:** `weight` pasó de 2 a una función que devuelve 100. Con 2 solo el 0,2 % de las carreras veía una oferta (la regla deja a muy pocos jugadores elegibles y la ventana dura un par de bloques). Una función y no un número, porque un número >= 3 cuenta como "ruta" y desplaza ofertas de fichaje y otras rutas. Con 100, ~2,5 % de las carreras recibe una oferta y, aun aceptando todas, la tasa de Mundial sube menos de 1 punto.
+- **Naturalización:** no exige primera división ni extranjero (RF-04 no lo pide; 5 temporadas seguidas afuera lo hacen casi siempre cierto). Si el país de residencia es el de su ascendencia, la oferta es la de ascendencia (por la madre o el padre), no la de naturalización.
+- **Aviso de cambio:** `SeasonRecord.nt.cambio` marca la primera temporada con partidos de la nueva Selección (no necesariamente la siguiente al cambio). Si en esa temporada es su primera convocatoria absoluta, la pantalla muestra el texto de debut.

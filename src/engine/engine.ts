@@ -1,6 +1,7 @@
 import { HOME_CLUBS_BY_DEPT, clubById, clubsOf, viewClub, ALL_CLUBS, type Club } from './clubs';
 import { CONFED_CUP, countryOf, type Confed, type Country } from './countries';
 import { ALL_EVENTS } from './events';
+import { seleccionDe, sortearHerencia } from './nacionalidad';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
 import {
   MODE_SEASONS,
@@ -133,7 +134,7 @@ const nextWorldCup = (year: number) => FIRST_WORLD_CUP + Math.max(0, Math.ceil((
 export class Career {
   readonly rng: Rng;
   readonly player: Player;
-  /** Nacionalidad: liga del debut, Selección y textos. */
+  /** Nacionalidad de origen: liga del debut, clubes de casa, moneda y textos de casa. La Selección está en nt. */
   readonly home: Country;
   /** Clubes del país del jugador y primeras divisiones del resto del mundo, ya vistas desde su nacionalidad. */
   private readonly homeClubs: Club[];
@@ -178,6 +179,14 @@ export class Career {
     };
     this.player.clubId = this.debutClub(setup.dept).id;
     this.player.peakRating = this.player.rating;
+    // Ascendencia oculta con un rng propio: no gasta el principal y las carreras sin ella siguen igual que antes.
+    const herencia = sortearHerencia(createRng(seed ^ 0x9e3779b9), this.home.code);
+    if (herencia) this.player.herencia = herencia;
+  }
+
+  /** Selección que representa hoy el jugador: la de su origen, o la nueva si cambió (ver nacionalidad.ts). */
+  get nt(): Country {
+    return seleccionDe(this.player);
   }
 
   get club(): Club {
@@ -321,7 +330,7 @@ export class Career {
     const groups: NtGroup[] = [];
     const summer = p.year + 1;
     const wcYear = summer >= FIRST_WORLD_CUP && (summer - FIRST_WORLD_CUP) % 4 === 0;
-    const h = this.home;
+    const h = this.nt;
     const conf = CONFEDS[h.conf];
     const bar = h.callup - 71; // los umbrales de Guatemala, corridos según lo difícil que es entrar a cada Selección
     // Fase final del grupo g: fama por victoria, hito de semifinal y, si gana, el título (a la temporada y a la carrera).
@@ -429,7 +438,7 @@ export class Career {
       }
       const played = this.ntMatches(comps, fixtures, caps, goals);
       matches.push(...played.matches, ...ko);
-      p.caps += caps + ko.length;
+      this.addCaps(caps + ko.length);
       p.natGoals += played.goals;
       p.fame += (caps + ko.length) * 0.6;
     }
@@ -444,7 +453,7 @@ export class Career {
         const g = this.drawGroup(`Mundial ${summer}`, this.rivals(WORLD_CUP), 4, 1);
         const ng: NtGroup = { comp: `Mundial ${summer}`, note: 'Pasan los dos primeros y los mejores terceros.', advance: 2, table: g.table };
         groups.push(ng);
-        p.caps += 3;
+        this.addCaps(3);
         matches.push(...g.fixtures);
         const prob = { POR: 0, DEF: 0.12, MED: 0.25, DEL: 0.45 }[p.setup.position];
         const goalHit = `Gol en el Mundial ${summer}`;
@@ -461,7 +470,7 @@ export class Career {
           if (pos === 2) ng.advance = 3;
           const ms = play(ng, ROUNDS, this.rivals(WORLD_CUP), 5, 50, 0.5);
           matches.push(...ms);
-          p.caps += ms.length;
+          this.addCaps(ms.length);
           if (strike(ms, prob) && !p.milestones.includes(goalHit)) {
             p.milestones.push(goalHit);
             p.fame += 15;
@@ -474,7 +483,9 @@ export class Career {
       // Las banderas de la eliminatoria valen solo para un ciclo mundialista.
       for (const f of ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje', 'sel_elim_r2']) delete p.flags[f];
     }
-    return matches.length ? { debut, matches, groups } : undefined;
+    // team: la Selección de esa temporada (RF-08); cambio: la primera con la nueva Selección, para el aviso de la pantalla.
+    const cambio = !!p.cambioSel && !p.seasons.some((r) => r.nt?.cambio);
+    return matches.length ? { debut, matches, groups, team: h.code, ...(cambio && { cambio }) } : undefined;
   }
 
   /**
@@ -513,16 +524,16 @@ export class Career {
     return matches;
   }
 
-  /** Fuerza de la Selección del jugador; en Guatemala, 64 + (nivel - 70) / 4 + su peso en el equipo. */
+  /** Fuerza de la Selección que representa el jugador; en Guatemala, 64 + (nivel - 70) / 4 + su peso en el equipo. */
   private gtStrength() {
-    return this.home.strength - 2 + (this.player.rating - this.home.callup + 1) * 0.25 + this.player.ntLevel;
+    return this.nt.strength - 2 + (this.player.rating - this.nt.callup + 1) * 0.25 + this.player.ntLevel;
   }
 
   /** Rivales sin la propia Selección del jugador. near: solo los 7 de fuerza más parecida (ligas de naciones por nivel). */
   private rivals(list: Rival[], near = false): Rival[] {
-    const others = list.filter(([name]) => name !== this.home.name);
+    const others = list.filter(([name]) => name !== this.nt.name);
     if (!near) return others;
-    const s = this.home.strength;
+    const s = this.nt.strength;
     return [...others].sort((a, b) => Math.abs(a[1] - s) - Math.abs(b[1] - s)).slice(0, 7);
   }
 
@@ -533,7 +544,7 @@ export class Career {
    */
   private drawGroup(comp: string, pool: Rival[], size: number, legs: number, band: [number, number] = [0, size - 1]) {
     const rng = this.rng;
-    const home = this.home.name;
+    const home = this.nt.name;
     const left = [...pool];
     const rivals = Array.from({ length: size - 1 }, () => left.splice(Math.floor(rng() * left.length), 1)[0]);
     for (let bias = 0; ; bias += band[0] > 0 ? -2 : 2) {
@@ -590,6 +601,30 @@ export class Career {
       scored++;
     }
     return { matches, goals: scored };
+  }
+
+  /** Suma partidos con la Selección; uno a los 21 o más ya no deja cambiar de país (ver elegible en nacionalidad.ts). */
+  private addCaps(n: number) {
+    this.player.caps += n;
+    if (n > 0 && this.player.age >= 21) this.player.flags.cap_tarde = 1;
+  }
+
+  /**
+   * Pasa a representar a otro país, una sola vez por carrera. Los partidos y goles previos se conservan; el avance de la
+   * eliminatoria y los eventos pendientes de la Selección anterior se reinician. Rige desde la siguiente temporada que se juega.
+   */
+  private switchTeam(code: string, changes: string[]) {
+    const p = this.player;
+    const to = countryOf(code);
+    if (p.cambioSel || to.code !== code || code === p.setup.country) return;
+    const h = p.herencia;
+    p.cambioSel = { to: code, from: p.setup.country, caps: p.caps, goals: p.natGoals, year: p.year, via: h?.country === code ? h.side : 'naturalizacion' };
+    // Convocado según su nivel frente al mínimo de la nueva Selección: nunca titular indiscutible ni sin convocar.
+    // No pasa por setNtLevel (solo sube y repetiría el hito de debut).
+    p.ntLevel = p.rating >= to.callup + 6 ? 2 : 1;
+    p.wcProgress = 0;
+    for (const f of ['sel_elim_fuera', 'sel_elim_decidido', 'sel_repechaje', 'sel_elim_r2', 'sel_prelista', 'sel_sub17', 'sel_sub17_mundial', 'sel_sub20', 'sel_sub20_mundial']) delete p.flags[f];
+    changes.push(`Ahora jugás con ${to.name}`);
   }
 
   private setNtLevel(level: NtLevel, announced = false) {
@@ -666,6 +701,7 @@ export class Career {
       qualifiers: wc - (p.year + 1) <= 2,
       worldCupYear: wc,
       suitor: this.suitor,
+      nt: this.nt,
     };
   }
 
@@ -819,17 +855,18 @@ export class Career {
       this.setNtLevel(e.ntLevel, !!e.milestone);
     }
     if (e.caps) {
-      p.caps += e.caps;
+      this.addCaps(e.caps);
       changes.push(`+${e.caps} PJ Selección`);
     }
     if (e.natGoals) {
       p.natGoals += e.natGoals;
-      changes.push(`+${e.natGoals} gol${e.natGoals > 1 ? 'es' : ''} con ${this.home.name}`);
+      changes.push(`+${e.natGoals} gol${e.natGoals > 1 ? 'es' : ''} con ${this.nt.name}`);
     }
     if (e.wcProgress) {
       p.wcProgress = clamp(p.wcProgress + e.wcProgress, 0, 3);
-      changes.push(`${this.home.name} avanza en la eliminatoria`);
+      changes.push(`${this.nt.name} avanza en la eliminatoria`);
     }
+    if (e.natTeam) this.switchTeam(e.natTeam, changes);
     const dest = e.transferTo
       ? viewClub(clubById(e.transferTo), this.home)
       : e.transfer === 'suitor'
@@ -946,7 +983,7 @@ export function summarize(p: Player): CareerSummary {
     (abroadTop ? 15 : 0) + p.fame * 0.15 + (p.peakRating - 60) * 1.2 + firstDivApps * 0.05,
   );
 
-  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score, home.adj), score };
+  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score, seleccionDe(p).adj), score };
 }
 
 // Cada veredicto trae su carta, de la más rara a la más común.

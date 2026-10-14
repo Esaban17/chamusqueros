@@ -1,6 +1,7 @@
 // Palmarés y momento más destacado de una carrera, con sus imágenes en SVG. Lo usan los resúmenes y la tarjeta para compartir.
 import { CLUB_CUPS, type CareerSummary } from '../engine/engine';
 import { countryOf } from '../engine/countries';
+import { seleccionDe } from '../engine/nacionalidad';
 import type { AwardKind, Avatar, Player } from '../engine/types';
 import { NT_KIT, avatarSVG } from './avatar';
 
@@ -50,6 +51,20 @@ export function palmares(p: Player): PalmaresItem[] {
   return [...items.values()].sort((a, b) => a.rank - b.rank || b.count - a.count).map(({ icon, label, count }) => ({ icon, label, count }));
 }
 
+export interface PorSeleccion { team: string; caps: number; goals: number; titles: number }
+
+/** Partidos, goles y títulos con cada Selección; null si el jugador nunca cambió. Los títulos salen del cierre "Campeón" de cada temporada. */
+export function porSeleccion(p: Player): PorSeleccion[] | null {
+  const c = p.cambioSel;
+  if (!c) return null;
+  const titles = (code: string) =>
+    p.seasons.filter((r) => (r.nt?.team ?? c.from) === code).reduce((t, r) => t + (r.nt?.groups ?? []).filter((g) => g.out === 'Campeón').length, 0);
+  return [
+    { team: countryOf(c.from).name, caps: c.caps, goals: c.goals, titles: titles(c.from) },
+    { team: countryOf(c.to).name, caps: p.caps - c.caps, goals: p.natGoals - c.goals, titles: titles(c.to) },
+  ];
+}
+
 export type MomentKind = 'mundial' | 'gol' | 'titulo' | 'premio' | 'seleccion' | 'carrera';
 export interface Moment { kind: MomentKind; kicker: string; title: string; nt: boolean }
 
@@ -63,12 +78,14 @@ export function bestMoment(p: Player, s: CareerSummary): Moment {
   const add = (score: number, kind: MomentKind, kicker: string, title: string, nt = false) => {
     if (score >= best[0]) best = [score, { kind, kicker, title, nt }];
   };
-  const nt = `Con ${countryOf(p.setup.country).name}`;
+  // El país del kicker sale del sufijo " con X" del hito; sin él, la Selección actual.
+  const con = (m: string) => `Con ${m.match(/ con (.+)$/)?.[1] ?? seleccionDe(p).name}`;
+  const nt = `Con ${seleccionDe(p).name}`;
   for (const m of p.milestones) {
-    if (/^Campeón del Mundial \d/.test(m)) add(120, 'mundial', nt, m.replace(/ con .+$/, ''), true);
-    else if (/^Campeón de /.test(m)) add(88, 'seleccion', nt, m.replace(/ con .+$/, ''), true);
+    if (/^Campeón del Mundial \d/.test(m)) add(120, 'mundial', con(m), m.replace(/ con .+$/, ''), true);
+    else if (/^Campeón de /.test(m)) add(88, 'seleccion', con(m), m.replace(/ con .+$/, ''), true);
     else if (/^Gol en el Mundial \d/.test(m)) add(100, 'gol', nt, m, true);
-    else if (/^Jugó el Mundial \d/.test(m)) add(90, 'mundial', nt, m.replace(/ con .+$/, ''), true);
+    else if (/^Jugó el Mundial \d/.test(m)) add(90, 'mundial', con(m), m.replace(/ con .+$/, ''), true);
     else if (/^Clasificó al Mundial \d/.test(m)) add(85, 'mundial', nt, m, true);
     else if (/^Héroe ante /.test(m)) add(80, 'seleccion', nt, m, true);
     else if (/^(Clasificó a los Juegos Olímpicos|Semifinal de |Capitán de la Selección)/.test(m)) add(52, 'seleccion', nt, m, true);

@@ -1,7 +1,7 @@
 import './style.css';
 import { Career, summarize, verdictFor, type CareerSummary } from './engine/engine';
 import { ALL_CLUBS, clubById, viewClub, type Club } from './engine/clubs';
-import { COUNTRIES, countryOf } from './engine/countries';
+import { COUNTRIES, countryOf, type Country } from './engine/countries';
 import { de } from './engine/helpers';
 import {
   POSITION_NAMES,
@@ -19,7 +19,7 @@ import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT,
 import { TIERS, drawCareerCard } from './ui/card';
 import { celebrate } from './ui/celebrate';
 import { flag } from './ui/flags';
-import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
+import { AWARD_LABEL, ICON, palmares, porSeleccion, type TrophyIcon } from './ui/palmares';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
@@ -59,7 +59,7 @@ function save(key: string, value: unknown) {
 /** avatar: [piel, pelo, color de pelo, barba, extra, dorsal], o null en carreras guardadas antes de que existiera. */
 interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; avatar: number[] | null; card: RankCard | null; me: boolean }
 /** Carta estilo FIFA de esa misma carrera; null en las guardadas antes de que existiera. ovr: la valoración más alta. */
-/** country: nacionalidad (las cartas guardadas antes de que existiera son de Guatemala). */
+/** country: Selección que representa (la de origen si nunca cambió); las cartas guardadas antes de que existiera son de Guatemala. */
 interface RankCard { pos: Position; ovr: number; club: string; dept: string; foot: Foot; apps: number; goals: number; assists: number; country?: string }
 
 let pid = '';
@@ -472,26 +472,27 @@ function advance() {
 
 // ---------- Resumen de temporada ----------
 
-const ntCall = () => `<p class="nt-title">${flag(career!.home.name, 'mini-flag')}¡Te han llamado a la Selección!</p>`;
+const ntCall = (team: Country = career!.nt) => `<p class="nt-title">${flag(team.name, 'mini-flag')}¡Te han llamado a la Selección!</p>`;
 
 function trophy(icon: TrophyIcon, label: string, detail: string) {
   return `<li class="trophy${icon === 'copa' ? '' : ' award'}"><svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg><span><b>${label}</b><small>${esc(detail)}</small></span></li>`;
 }
 
-function matchRow(m: NtMatch) {
+/** team: la Selección de esa temporada (puede no ser la de hoy ni la de origen). */
+function matchRow(m: NtMatch, team: Country) {
   // Las carreras viejas no traen penales ni ronda; si vienen mal formados se ignoran.
   const pen = Array.isArray(m.pen) && m.pen.length === 2 && m.pen.every(Number.isFinite) ? m.pen : null;
   const d = m.gf - m.ga || (pen ? pen[0] - pen[1] : 0);
   const [cls, tag, word] = d > 0 ? ['win', 'G', 'Victoria'] : d < 0 ? ['loss', 'P', 'Derrota'] : ['draw', 'E', 'Empate'];
   return `<li><span class="res ${cls}"><span aria-hidden="true">${tag}</span><span class="sr">${word}</span></span>
-    <span>${typeof m.round === 'string' ? `<small class="round">${esc(m.round)}</small>` : ''}${esc(career!.home.name)} ${m.gf}-${m.ga}${pen ? ` (${pen[0]}-${pen[1]} pen.)` : ''} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
+    <span>${typeof m.round === 'string' ? `<small class="round">${esc(m.round)}</small>` : ''}${esc(team.name)} ${m.gf}-${m.ga}${pen ? ` (${pen[0]}-${pen[1]} pen.)` : ''} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
 }
 
 /** Tabla final del grupo de la Selección del jugador; G, E y P se esconden en pantallas angostas. */
-function groupTable(g: NtGroup) {
+function groupTable(g: NtGroup, team: Country) {
   const rows = g.table.map((r, i) => {
     const dg = r.gf - r.ga;
-    const cls = [r.team === career!.home.name ? 'gt' : '', i < g.advance ? 'up' : ''].filter(Boolean).join(' ');
+    const cls = [r.team === team.name ? 'gt' : '', i < g.advance ? 'up' : ''].filter(Boolean).join(' ');
     return `<tr${cls ? ` class="${cls}"` : ''}><td>${i + 1}</td><td><span class="team">${flag(r.team)}<span>${esc(r.team)}</span></span></td>
       <td>${r.pj}</td><td class="wide">${r.g}</td><td class="wide">${r.e}</td><td class="wide">${r.p}</td><td>${dg > 0 ? '+' : ''}${dg}</td><td><b>${r.pts}</b></td></tr>`;
   });
@@ -505,18 +506,22 @@ function groupTable(g: NtGroup) {
 }
 
 function ntBlock(nt: NonNullable<SeasonRecord['nt']>) {
-  const home = career!.home;
+  // La Selección de esa temporada; sin nt.team (temporadas viejas) es la de origen, y un código raro cae en Guatemala.
+  const home = countryOf(nt.team ?? career!.home.code);
+  const camiseta = home.code === 'GT' ? 'azul y blanco' : `camiseta ${esc(de(home.ntName))}`;
   const groups = nt.groups ?? [];
   const comps = [...new Set([...groups.map((g) => g.comp), ...nt.matches.map((m) => m.comp)])];
   return `<div class="nt-call${nt.debut ? ' debut' : ''}">
-    ${nt.debut ? `${ntCall()}<p>${esc(home.name)} te convocó por primera vez. Vas a vestir la ${home.code === 'GT' ? 'azul y blanco' : `camiseta ${esc(de(home.ntName))}`}.</p>` : `<p class="nt-title">${flag(home.name, 'mini-flag')}Convocado a la Selección</p>`}
+    ${nt.debut ? `${ntCall(home)}<p>${esc(home.name)} te convocó por primera vez. Vas a vestir la ${camiseta}.</p>`
+      : nt.cambio ? `${ntCall(home)}<p>${esc(home.name)} te convocó. Elegiste vestir la ${camiseta}.</p>`
+      : `<p class="nt-title">${flag(home.name, 'mini-flag')}Convocado a la Selección</p>`}
     ${comps.map((c) => {
       const g = groups.find((x) => x.comp === c);
       const mine = nt.matches.filter((m) => m.comp === c && !m.round);
       const ko = nt.matches.filter((m) => m.comp === c && m.round);
       const out = typeof g?.out === 'string' ? g.out : '';
-      return `<p class="nt-comp">${esc(c)}</p>${g ? groupTable(g) : ''}${mine.length ? `${g ? '<p class="group-note">Tus partidos</p>' : ''}<ul class="matches">${mine.map(matchRow).join('')}</ul>` : g ? '<p class="group-note">No jugaste en este grupo.</p>' : ''}
-        ${ko.length ? `<p class="group-note">Fase final</p><ul class="matches">${ko.map(matchRow).join('')}</ul>` : ''}
+      return `<p class="nt-comp">${esc(c)}</p>${g ? groupTable(g, home) : ''}${mine.length ? `${g ? '<p class="group-note">Tus partidos</p>' : ''}<ul class="matches">${mine.map((m) => matchRow(m, home)).join('')}</ul>` : g ? '<p class="group-note">No jugaste en este grupo.</p>' : ''}
+        ${ko.length ? `<p class="group-note">Fase final</p><ul class="matches">${ko.map((m) => matchRow(m, home)).join('')}</ul>` : ''}
         ${out ? `<p class="ko-out${out === 'Campeón' ? ' champ' : ''}">${out === 'Campeón' ? '🏆 ' : ''}${esc(out)}</p>` : ''}`;
     }).join('')}
   </div>`;
@@ -613,7 +618,7 @@ function seasonLog() {
 }
 
 function chipClass(change: string) {
-  if (change.startsWith('+') || change.startsWith('Convocado') || change.endsWith('avanza en la eliminatoria') || change.startsWith('Más peso')) return 'up';
+  if (change.startsWith('+') || change.startsWith('Convocado') || change.startsWith('Ahora jugás con') || change.endsWith('avanza en la eliminatoria') || change.startsWith('Más peso')) return 'up';
   if (change.startsWith('-') || change === 'Lesión') return 'down';
   return '';
 }
@@ -679,6 +684,7 @@ function finish() {
 
   const highlights = p.milestones; // los premios ya están en el palmarés
   const trophies = palmares(p);
+  const porSel = porSeleccion(p); // solo si cambió de Selección
   render(`
     <section class="verdict">
       <span class="eyebrow">${esc(fullName())} · retirado a los ${p.age} años</span>
@@ -703,6 +709,9 @@ function finish() {
     ${trophies.length ? `<section class="panel"><span class="eyebrow">Palmarés</span><ul class="trophies">${trophies
       .map((t) => trophy(t.icon, t.label, `${t.icon === 'copa' ? 'Campeón ' : ''}${t.count === 1 ? '1 vez' : `${t.count} veces`}`))
       .join('')}</ul></section>` : ''}
+    ${porSel ? `<section class="panel"><span class="eyebrow">Con cada Selección</span><ul class="list">${porSel
+      .map((t) => `<li>${flag(t.team, 'mini-flag')}<b>${esc(t.team)}</b>: ${t.caps} PJ · ${t.goals} ${t.goals === 1 ? 'gol' : 'goles'} · ${t.titles} ${t.titles === 1 ? 'título' : 'títulos'}</li>`)
+      .join('')}</ul></section>` : ''}
     ${highlights.length ? `<section class="panel"><span class="eyebrow">Momentos</span><ul class="list">${highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></section>` : ''}
     ${seasonLog()}
     <button class="btn big" id="again">Jugar otra carrera</button>
@@ -713,7 +722,7 @@ function finish() {
   const rankBox = document.getElementById('rankBox')!;
   const card: RankCard = {
     pos: p.setup.position, ovr: p.peakRating, club: p.seasons.at(-1)?.clubId ?? p.clubId, dept: p.setup.dept, foot: p.setup.foot,
-    apps: s.apps, goals: s.goals, assists: s.assists, country: p.setup.country,
+    apps: s.apps, goals: s.goals, assists: s.assists, country: career!.nt.code, // la Selección actual (la de origen si nunca cambió)
   };
   rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number), card })
     .then((rows) => {
