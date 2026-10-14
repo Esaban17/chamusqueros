@@ -5,6 +5,7 @@ import { Career, summarize } from '../src/engine/engine';
 import { COUNTRIES, countryOf } from '../src/engine/countries';
 import { clubById, clubsOf } from '../src/engine/clubs';
 import { ALL_EVENTS } from '../src/engine/events';
+import { PAREJA, RUTAS } from '../src/engine/events/amor';
 import type { Mode, Position } from '../src/engine/types';
 import { bestMoment, palmares } from '../src/ui/palmares';
 import { FLAG_CODE } from '../src/ui/flags';
@@ -40,6 +41,15 @@ const koStats: Record<string, { played: number; champ: number; final: number }> 
 // El palmarés agrupa sin perder ni inventar trofeos, y siempre hay un momento destacado con texto.
 const summaryErrors = new Set<string>();
 const momentCount: Record<string, number> = {};
+// ---- Vida sentimental (specs/vida-sentimental) ----
+// Apoyo para RS-01 a RS-04 y RS-06 sobre los textos emitidos de la categoría amor. Es apoyo, no reemplazo: RS-07 exige leerlos.
+const AMOR_PROHIBIDO =
+  /sex|desnud|\bcama\b|acost(ar|ó|ad|ás)|hotel|habitaci|beso apasionado|golpe|golpea|puñ|patada|pelea|amenaz|\barmas?\b|sangre|mata|muert|violen|cachetada|\bmenor|\bniñ|colegio|escuela|quincea|adolescen|chiquill|\bchicas?\b|muchacha|patoj|interesad|cazafort|trofeo|objeto|mantenid|\bloca|histéric|celosa|bruja|zorra|gay\b|homosex|travest|buenota|cuerpazo|curvas|alcohol|cerveza|tragos?\b|\bvino\b|licor|borrach|\bebri|droga|whisky|brindis|resaca|presi[oó]n|presionar|insist/i;
+const amorProhibido = new Set<string>();
+const amorErrors = new Set<string>();
+const amorByMode: Record<string, { n: number[]; decisions: number }> = {};
+const amorTexts = new Set<string>();
+let amorOpen = 0, hijaPairs = 0, hijaMoved = 0, compStep = 0, compMoved = 0, boda = 0;
 let maxTitles = 0, years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -62,6 +72,8 @@ for (let i = 0; i < N; i++) {
   debutTier[career.club.tier]++;
   let guard = 0;
   let decisions = 0;
+  let amorN = 0; // eventos de amor de esta carrera
+  let hijaClub = ''; // club al abrir la ruta de la hija del técnico
   const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
   career.start();
   while (!career.isOver && guard++ < 100) {
@@ -126,12 +138,52 @@ for (let i = 0; i < N; i++) {
           if (KEEPER_GOAL.test(t)) keeperGoals.add(`${ev.id}: ${t}`);
         }
       }
+      // ---- Vida sentimental: chequeos antes de elegir ----
+      const pl = career.player;
+      const tiene = (f: string) => (pl.flags[f] ?? 0) > 0;
+      if (ev.category === 'amor') {
+        amorN++;
+        if (pl.age < 18) amorErrors.add(`${ev.id} con ${pl.age} años (RF-02)`);
+        if (['amor_cita', 'amor_hija_1', 'amor_companero_1', 'amor_famosa_1'].includes(ev.id) && (PAREJA.some(tiene) || RUTAS.some(tiene))) amorErrors.add(`${ev.id} con jugador no soltero (RF-03)`);
+        if (ev.id === 'amor_cita' && (tiene('amor_comprometido') || tiene('amor_casado'))) amorErrors.add('primera cita con comprometido o casado');
+        if (ev.id === 'amor_crisis' && tiene('amor_casado')) amorErrors.add('crisis de pareja con un casado');
+        if (ev.options.length < 2) amorErrors.add(`${ev.id} con menos de 2 opciones (RF-04)`);
+        for (const op of ev.options) if (Math.abs(op.outcomes.reduce((t, x) => t + x.p, 0) - 1) > 1e-6) amorErrors.add(`${ev.id}: "${op.label}" no suma probabilidad 1 (RF-04)`);
+        for (const t of [ev.title, ev.text, ...ev.options.flatMap((x) => [x.label, ...x.outcomes.map((y) => y.text)])]) {
+          amorTexts.add(t);
+          const m = t.match(AMOR_PROHIBIDO);
+          if (m) amorProhibido.add(`${ev.id} "${m[0]}": ${t}`);
+        }
+        if (ev.id === 'amor_hija_1') hijaClub = pl.clubId;
+        if (ev.id === 'amor_hija_3' && hijaClub) { hijaPairs++; if (pl.clubId !== hijaClub) hijaMoved++; }
+      }
+      if (ev.id === 'farandula' && (tiene('amor_comprometido') || tiene('amor_casado'))) amorErrors.add('farandula con comprometido o casado (RF-13)');
+      const clubAntes = pl.clubId;
       career.choose(Math.floor(career.rng() * ev.options.length));
+      if (ev.id === 'amor_companero_2') {
+        compStep++;
+        if (pl.clubId !== clubAntes) compMoved++;
+      }
+      if (PAREJA.filter(tiene).length > 1) amorErrors.add(`dos estados sentimentales a la vez tras ${ev.id} (RF-01)`);
+      if (tiene('amor_famosa') && !PAREJA.some(tiene)) amorErrors.add(`pareja famosa sin pareja tras ${ev.id} (RF-01)`);
       decisions++;
     }
   }
   (decisionsByMode[mode] ??= []).push(decisions);
   const p = career.player;
+  // ---- Vida sentimental: al terminar la carrera ----
+  const am = (amorByMode[mode] ??= { n: [], decisions: 0 });
+  am.n.push(amorN);
+  am.decisions += decisions;
+  if (RUTAS.some((f) => (p.flags[f] ?? 0) > 0)) amorOpen++;
+  const casos = p.milestones.filter((m) => m.startsWith('Se casó'));
+  boda += casos.length;
+  if (casos.length > 1) amorErrors.add('más de un hito "Se casó" (CA-6)');
+  if ((p.flags.amor_casado ?? 0) > 0 && !casos.length) amorErrors.add('casado sin hito de boda (CA-6)');
+  const iCom = p.milestones.findIndex((m) => m.startsWith('Se comprometió'));
+  const iBoda = p.milestones.findIndex((m) => m.startsWith('Se casó'));
+  if (iBoda >= 0 && (iCom < 0 || iCom > iBoda)) amorErrors.add('boda sin compromiso antes (CA-6)');
+  if (p.milestones.some((m) => /^(Se casó|Se comprometió)/.test(m) && !/\(\d{4}\)$/.test(m))) amorErrors.add('hito de amor sin año');
   const s = summarize(p);
   // Los títulos llevan el nombre de la liga donde se ganaron (puede ser la de Guatemala): no se revisan.
   for (const t of [...p.milestones, ...p.seasons.flatMap((r) => (r.nt?.matches ?? []).map((m) => m.comp)), s.verdict.title]) leak('carrera', t);
@@ -189,9 +241,31 @@ console.log('Fase final (torneos jugados · campeón · finalista):');
 for (const [k, v] of Object.entries(koStats).sort()) console.log(`  ${k}: ${v.played} · ${((100 * v.champ) / v.played).toFixed(1)}% · ${((100 * v.final) / v.played).toFixed(1)}%`);
 const totalEvents = Object.values(eventCount).reduce((a, b) => a + b, 0);
 console.log('Categorías:', Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(0)}%`).join(' · '));
+// ---- Vida sentimental: frecuencia, rutas y chequeos ----
+console.log('Categorías (un decimal):', Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(1)}%`).join(' · '));
+for (const m of modes) {
+  const a = amorByMode[m];
+  const total = a.n.reduce((x, y) => x + y, 0);
+  const mean = total / a.n.length;
+  const withAny = a.n.filter((x) => x > 0).length / a.n.length;
+  const max = Math.max(...a.n);
+  console.log(`Amor ${m}: ${mean.toFixed(2)} por carrera · ${(100 * withAny).toFixed(0)}% de carreras con alguno · máximo ${max} · ${((100 * total) / a.decisions).toFixed(1)}% de las decisiones`);
+  if (max > 8) amorErrors.add(`${m}: una carrera con ${max} eventos de amor (CA-7)`);
+}
+const amorTotal = catCount.amor ?? 0;
+console.log('Amor por evento:', Object.entries(eventCount).filter(([k]) => k.startsWith('amor_')).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k.slice(5)} ${v}`).join(' · '));
+console.log(`Amor total: ${((100 * amorTotal) / totalEvents).toFixed(1)}% de las decisiones (tope 15%)`);
+if (amorTotal / totalEvents > 0.15) amorErrors.add('la categoría amor pasa del 15% de las decisiones (CA-7)');
+console.log(`Amor: rutas abiertas al terminar ${(100 * amorOpen / N).toFixed(2)}% de las carreras (tope 2%) · bodas ${boda}`);
+if (amorOpen / N >= 0.02) amorErrors.add('2% o más de las carreras terminan con una ruta abierta (CA-3)');
+console.log(`Amor, hija del técnico: ${hijaMoved} de ${hijaPairs} cambiaron de club entre los pasos 1 y 3 (${hijaPairs ? ((100 * hijaMoved) / hijaPairs).toFixed(1) : '0'}%; si pasa de 5% se reporta, no se toca applyEffects)`);
+console.log(`Amor, pareja de un compañero: ${compMoved} de ${compStep} cambiaron de club en el paso 2 (${compStep ? ((100 * compMoved) / compStep).toFixed(1) : '0'}%; esperado entre 20% y 40%)`);
+if (compStep >= 50 && (compMoved / compStep < 0.2 || compMoved / compStep > 0.4)) amorErrors.add('la salida del club en amor_companero_2 queda fuera de 20%-40% (CA-5)');
+console.log(`Amor: ${amorTexts.size} textos emitidos revisados con la lista de términos prohibidos.`);
 const sorted = Object.entries(eventCount).sort((a, b) => b[1] - a[1]);
 console.log('Más frecuentes:', sorted.slice(0, 8).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(1)}%`).join(' · '));
 const never = ALL_EVENTS.filter((e) => !eventCount[e.id]).map((e) => e.id);
+if (N >= 5000 && !only) for (const id of never) if (id.startsWith('amor_')) amorErrors.add(`${id} nunca salió (CA-8)`);
 console.log(`Eventos distintos vistos: ${sorted.length} de ${ALL_EVENTS.length}. Nunca salieron: ${never.join(', ') || 'ninguno'}`);
 console.log('Premios por carrera:', Object.entries(awardCount).sort().map(([k, v]) => `${k} ${(v / (N / 4)).toFixed(2)}`).join(' · '));
 console.log('Momento destacado:', Object.entries(momentCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${pct(v)}`).join(' · '));
@@ -218,3 +292,12 @@ if (keeperGoals.size) {
   console.error(`Textos donde el portero anota (${keeperGoals.size}):\n  ${[...keeperGoals].join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Porteros: ningún texto los hace anotar de jugada.');
+if (amorProhibido.size) {
+  console.error(`Textos de amor con términos prohibidos (${amorProhibido.size}):\n  ${[...amorProhibido].join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Amor: la búsqueda de términos prohibidos (RS-01 a RS-04, RS-06) no encontró nada. Falta la lectura de RS-07.');
+if (amorErrors.size) {
+  console.error(`Vida sentimental con errores:\n  ${[...amorErrors].join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Amor: estado coherente, sin menores, rutas cerradas, hitos en orden y opciones que suman 1.');
+if (Math.max(...scores) >= 1000) { console.error(`Puntaje máximo ${Math.max(...scores)}: el servidor acepta menos de 1000 (CA-13)`); process.exitCode = 1; }

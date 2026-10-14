@@ -50,8 +50,8 @@ Los textos usan `ctx.club.name`, `ctx.club.city`, `ctx.country.name` y los ayuda
 | id | Cuándo (`when`) | Peso | Reparto |
 |---|---|---|---|
 | `amor_cita` | `soltero`, 18 a 32 años | `1.2 * PESO`, cooldown 6 | Aceptar: noviazgo (~60 %, ánimo +10) o no hubo química (ánimo +1). Esperar: sin cambio, nivel +1 por foco. |
-| `amor_compromiso` | `amor_novia`, 21+, sin `amor_ya_casado` | `1.5 * PESO`, cooldown 6 | Pedir matrimonio: comprometido (~80 %, hito "Se comprometió", ánimo +10) o "necesita tiempo" (ánimo -4). Esperar: 30 % ruptura (`FIN`, ánimo -12). |
-| `amor_boda` | `amor_comprometido`, sin `amor_ya_casado` | 3 (paso de ruta) | Boda grande o íntima: casado, hito "Se casó", ánimo +10 a +14, fama +4 en la grande. Una opción con 15 % de boda cancelada: ruptura. Todas las opciones se resuelven en este paso (sin "después"). Pone `amor_ya_casado`, que impide otro compromiso o boda (RF-07: una sola vez), y nunca deja un comprometido sin paso siguiente. |
+| `amor_compromiso` | `amor_novia`, 21+, sin `amor_ya_casado` | 3 (paso de ruta; con `1.5 * PESO` solo 1 de cada 3 noviazgos llegaba al compromiso), cooldown 6 | Pedir matrimonio: comprometido (~80 %, hito "Se comprometió", ánimo +10) o "necesita tiempo" (ánimo -4). Esperar: 30 % ruptura (`FIN`, ánimo -12). |
+| `amor_boda` | `amor_comprometido`, sin `amor_ya_casado` | 3 (paso de ruta) | Boda grande o íntima: casado, hito "Se casó", ánimo +10 a +14, fama +4 en la grande. Todas las opciones terminan en casado (RF-07: la boda lleva a casado; sin boda cancelada). No hay "después". Pone `amor_ya_casado`, que impide otro compromiso o boda (RF-07: una sola vez), y nunca deja un comprometido sin paso siguiente. |
 | `amor_crisis` | `amor_novia` o `amor_comprometido` | `1.2 * PESO`, cooldown 8 | Hablar: sigue (ánimo +4) o ruptura (ánimo -14, nivel -1 en el peor caso). Dar espacio: 50 % ruptura. |
 | `amor_hija_1` | `soltero`, 19 a 31 años | `0.8 * PESO`, `once` | Invitarla a salir: bandera `amor_hija` (ánimo +6). Distancia profesional: `coach` +3 a +5, ruta cerrada. |
 | `amor_hija_2` | `amor_hija` | 3, `once` | Seguir a escondidas, hacerlo público (`amor_hija_publica`) o terminarlo (borra `amor_hija`, ruta cerrada). Los dos primeros ponen `amor_hija_2` y borran `amor_hija`. |
@@ -60,14 +60,16 @@ Los textos usan `ctx.club.name`, `ctx.club.city`, `ctx.country.name` y los ayuda
 | `amor_companero_2` | `amor_traicion` | 3, `once` | Dar la cara y pedir disculpas: 75 % discusión en el vestuario (`coach` -6, ánimo -8) sin salida; 25 % salida (`transfer: 'any'`). Negarlo todo: 50 % se descubre, escándalo (fama -6, ánimo -10) y salida (`transfer: 'down'`); 50 % "te creen a medias" (`coach` -3, ánimo -4). Que el técnico medie: 75 % `coach` -6 y ánimo -6; 25 % salida (`transfer: 'any'`). Con opciones al azar la salida ronda el 33 % (CA-5). Todo desenlace borra `amor_traicion`. |
 | `amor_famosa_1` | `soltero`, fama >= 20, 19 a 32 años | `(fama >= 40 ? 1.5 : 0.7) * PESO`, `once` | Aceptar: `amor_novia` + `amor_famosa`, fama +8 a +12, nivel -1 o forma -6 (distracción). Rechazar: ánimo +2. |
 | `amor_famosa_2` | `amor_famosa` | 3, `once` | Posar: fama +6, ánimo +4. Pedir privacidad: fama +1, ánimo +2. Terminar: `FIN`, ánimo -8. Los paparazzi "te persiguen" en cualquier desenlace del texto, sin dinero. |
-| `amor_distancia` | `conPareja`, `ctx.abroad` | 2, `once` | Que se vaya conmigo: ánimo +8, sin cambio de estado. Larga distancia: 50 % sigue (ánimo -2), 50 % ruptura. Terminar: `FIN`, ánimo -8. |
+| `amor_distancia` | `conPareja`, `ctx.abroad` | 3 (paso de ruta; con 2 casi nunca salía), `once` | Que se vaya conmigo: ánimo +8, sin cambio de estado. Larga distancia: 50 % sigue (ánimo -2), 50 % ruptura. Terminar: `FIN`, ánimo -8. |
 | `amor_foto` | `conPareja`, fama >= 15, 19+ | `1 * PESO`, cooldown 8 | Resistir: ánimo +5 sin costo. Ceder: >= 50 % ruptura (`FIN`, fama -5, ánimo -14); si no, ánimo -3 por culpa. Todo desenlace de "ceder" tiene algo en negativo. |
 
 Notas de diseño:
 - Pasos de ruta (peso 3) dependen solo de su bandera, no de edad ni club (RF-12). Se cierran con `once` y con el borrado de su bandera.
 - Los eventos de entrada se separan por `soltero(p)`: con pareja o con una ruta abierta no aparecen (RF-03).
 - El compañero del paso 1 y la pareja de la hija son adultos por texto (trabajo, ocupación); no se nombran personas.
-- No hay efectos de dinero ni `transferTo` fijo: la salida usa `any` y `down` (fuera de alcance).
+- No hay efectos de dinero ni `transferTo` fijo: la salida usa `transfer: 'any'` en todos los casos (`down` devuelve null cuando no hay clubes de menor nivel, y desde el extranjero busca en el país de origen).
+- `peso(w)` en `amor.ts` multiplica por `PESO` y topa en 2,9: el motor trata todo peso numérico >= 3 como ruta, y subir `PESO` convertía en ruta a la crisis y a la tentación.
+- `amor_hija_1` tiene 15 % de "ella prefiere no mezclar trabajo y vida personal": un no cierra la ruta (RS-05).
 - Los desenlaces y números de la tabla son el punto de partida; se ajustan con `simulate` sin cambiar los límites del spec.
 
 ## Cómo cubre cada RF
