@@ -50,7 +50,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - RF-16: Explica cómo pedir el borrado de la fila del ranking: escribir al correo de contacto con el nombre publicado.
 - RF-17: Dice que el sitio no muestra anuncios. No menciona AdSense ni cookies de anuncios.
 - RF-18: Nombra los servicios externos que el juego contacta: el servicio de tipografías de Google y el servicio de banderas. Dice que reciben la dirección IP del navegador. Declara que el juego no crea cookies propias.
-- RF-19: Nombra la plataforma externa de donación, Ko-fi, y su política de privacidad, y dice que el sitio no guarda datos de pago (ver Aclaraciones resueltas).
+- RF-19: Nombra la plataforma de pagos externa de donación, Recurrente, y enlaza su política de privacidad. Dice que Chamusqueros no recibe ni guarda datos de tarjetas (ver Aclaraciones resueltas).
 
 ### No funcionales
 
@@ -76,7 +76,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - CA-10 (RF-15, RF-16): Dada la página de privacidad, cuando se revisa, entonces explica cómo borrar los datos del navegador y cómo pedir el borrado de la fila.
 - CA-11 (RNF-04, RNF-06): Dada cualquiera de las dos páginas con la red revisada, cuando carga, entonces no hay peticiones a otros dominios. Y al abrir el juego no se pide ninguna de las dos páginas.
 - CA-12 (RF-18): Dado el código del juego, cuando se busca la creación de cookies propias, entonces no aparece ninguna.
-- CA-13 (RF-19): Dada la plataforma de donación elegida, cuando se revisa la privacidad, entonces aparecen su nombre y un enlace a su política.
+- CA-13 (RF-19): Dada la plataforma de donación (Recurrente), cuando se revisa la privacidad, entonces aparecen su nombre y un enlace a su política.
 - CA-14 (RF-09): Dado un cambio en los términos o en la privacidad, cuando se publica, entonces la fecha de última actualización de esa página cambia.
 
 ## Decisiones
@@ -88,7 +88,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - Sin casilla de aceptación.
 - Sin anuncios, por decisión del usuario.
 - Borrado por correo, con el nombre publicado. No se agrega ninguna función nueva para eso. El riesgo que implica está en `plan.md`.
-- Donaciones en Ko-fi, una plataforma externa con sus propios términos y política de privacidad (ver Aclaraciones resueltas).
+- Donaciones en Recurrente, una plataforma de pagos externa (ver Aclaraciones resueltas).
 - La regla de nombres se publica tal como la decidió el orquestador, aunque el servidor todavía no la haga cumplir. El hallazgo queda registrado en Conflictos.
 - Nombres de archivo en español, como `privacidad.html`, por convención del repo.
 
@@ -104,10 +104,11 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 Las resolvió el orquestador antes de implementar. Los textos quedaron en `terminos.html` y `privacidad.html`.
 
 1. **Correo de contacto:** `estuardo1314@gmail.com`. El usuario autorizó publicarlo. Va en ambas páginas (RF-11).
-2. **Plataforma de donación:** Ko-fi. Los textos dicen "Ko-fi, una plataforma externa con sus propios términos y política de privacidad". Su política de privacidad es `https://more.ko-fi.com/privacy` (RF-19). Se comprobó que responde 200 y que su título es "Privacy". `https://ko-fi.com/privacy` no sirve: es el perfil de un usuario llamado "Privacy".
+2. **Plataforma de donación:** Recurrente (recurrente.com), pasarela de pagos de Guatemala. La decidió el orquestador tras la aclaración; la plataforma prevista antes no funcionaba en Guatemala. Los textos dicen "Recurrente, una plataforma de pagos externa con sus propios términos y política de privacidad; Chamusqueros no recibe ni guarda datos de tarjetas". El enlace va a su política de privacidad, `https://recurrente.com/privacidad` (comprobado: responde 200, su título es "Privacidad | Recurrente" y habla de cookies) (RF-19, CA-13).
 3. **Puntos de revisión humana.** Son textos razonables que hay que revisar antes de fusionar a main:
    - Responsable: no se nombra a una persona; se dice "el creador de Chamusqueros".
    - Plazo de respuesta a un borrado: "en un plazo razonable, normalmente dentro de 30 días".
    - Conservación: las filas del ranking se guardan mientras exista el ranking o hasta que se pida borrarlas.
    - Registros técnicos: el hosting (Vercel) y la base de datos (Neon) pueden guardar registros técnicos, como la dirección IP, según sus propias políticas.
 4. **Borrado por nombre publicado:** se acepta tal cual. El texto aclara que se puede pedir confirmación antes de borrar.
+5. **Dependencia de la rama de donación** (`specs/boton-donacion/spec.md`, Dependencias y Seguridad): esa spec pide que esta política quite AdSense, mencione el servicio de donación y diga que el destino usa sus propias cookies. Las tres cosas están en `privacidad.html`, sección Donaciones y Servicios externos. La rama de donación ya está en main (PR #7). Su spec y la constante `KOFI_URL` en `src/main.ts` todavía apuntan a Ko-fi: hay que cambiarlas a Recurrente en esa rama; esta rama no las toca.

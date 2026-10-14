@@ -62,7 +62,7 @@ Opcional: gq:e2e con el MCP de Playwright para los anchos y la red.
 - La regla de nombres no se hace cumplir en el servidor (ver spec, Conflictos). Los términos la declaran como política.
 - El borrado por nombre permite que alguien pida borrar una fila ajena. Se acepta mientras no haya un identificador que el jugador pueda ver.
 - Puntos para la revisión humana, sin bloquear: si se nombra al responsable del sitio, el plazo de respuesta a un borrado, el plazo de conservación de las filas y los registros que guardan el alojamiento y la base de datos (por ejemplo, direcciones IP).
-- Si cambia la plataforma de donación, hay que actualizar RF-19.
+- Si cambia la plataforma de donación (hoy Recurrente), hay que actualizar RF-19 y CA-13.
 - Ganancia: cero dependencias y cero cambios de backend. Costo: estilos repetidos, y sin analítica no se sabrá cuánta gente abre las páginas.
 
 ## Verificación contra la constitution
@@ -87,4 +87,4 @@ No existe `.gq/constitution.md`. Se verifica contra el estándar base de gq:prac
 
 ## Compuerta de publicación
 
-Resueltos: el correo de contacto (RF-11) y la plataforma de donación, Ko-fi (RF-19). Antes de fusionar a main siguen pendientes: que la variable de anuncios esté vacía en producción (RF-17) y la revisión humana del texto, con los cuatro puntos de `spec.md`, Aclaraciones resueltas.
+Resueltos: el correo de contacto (RF-11) y la plataforma de donación, Recurrente (RF-19). AdSense ya salió de main con la rama de donación (PR #7). Antes de fusionar a main sigue pendiente la revisión humana del texto, con los cuatro puntos de `spec.md`, Aclaraciones resueltas, y la comprobación manual en Vercel de que no hay variables `VITE_ADSENSE_*` (CA-13 de `specs/boton-donacion/spec.md`).
