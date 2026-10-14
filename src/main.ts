@@ -123,7 +123,7 @@ function futCard(r: RankRow) {
     <span class="fut-tier">${t.label}</span>
     <div class="fut-side">${c ? `<b>${c.ovr}</b><span>${c.pos}</span>` : ''}<i class="fut-flag" title="${esc(home.name)}" style="background:url(https://flagcdn.com/w40/${home.flag}.png) center/cover"></i>${club ? crest(club, true) : ''}</div>
     <div class="fut-face">${avatarSVG({ skin, hair, hairColor, beard, extra }, club?.colors ?? NT_KIT, number, 160)}</div>
-    <h2 class="fut-name">${esc(r.name)}</h2>
+    <h3 class="fut-name">${esc(r.name)}</h3>
     <dl class="fut-stats">${stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
     <p class="fut-meta"><b>${esc(v.title)}</b>${c ? ` · ${esc(c.dept)} · Pie ${c.foot.toLowerCase()}` : ''}</p>
   </div>`;
@@ -187,35 +187,87 @@ function render(html: string) {
 
 interface BestCareer { name: string; verdict: string; score: number; goals: number; titles: number; position: Position }
 
+/** Carta de ejemplo de la landing: constante, sin datos del usuario. */
+const DEMO_CARD: RankRow = {
+  pos: 1, name: 'Carlos Ruiz', score: 175, titles: 6, caps: 48, avatar: null, me: false,
+  card: { pos: 'DEL', ovr: 88, club: 'municipal', dept: 'Guatemala', foot: 'Derecho', apps: 512, goals: 231, assists: 94, country: 'GT' },
+};
+
 function home() {
-  const top = store<BestCareer[]>(BEST_KEY, [])[0];
+  // ponytail: localStorage lo puede editar el usuario; solo se valida lo mínimo para que la portada no se rompa.
+  const raw = store<unknown>(BEST_KEY, []);
+  const best = (Array.isArray(raw) ? (raw as Partial<BestCareer>[]) : []).filter((b) => b && typeof b === 'object').slice(0, 3);
+  const top = best[0];
   const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
   const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
   const number = last.number ?? 10;
+  const go = (what: 'start' | 'ranking', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
   render(`
     <div class="brand">Chamus<span>queros</span></div>
-    <div class="sticker" aria-hidden="true">
-      ${avatarSVG(last.avatar ?? DEFAULT_AVATAR, countryOf(last.country).kit, number, 234)}
-      <div class="sticker-band"><div><small>Selección · Dorsal ${number}</small><b>${esc(name)}</b></div><i></i></div>
-      <span class="seal"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" fill="currentColor"/></svg>Leyenda</span>
-    </div>
     <section class="hero center">
       <h1>Convertite <span>en leyenda</span></h1>
-      <p>Una carrera entera en dos minutos.</p>
+      <p>Creá a tu futbolista y viví su carrera entera en dos minutos.</p>
     </section>
-    <button class="btn big" id="start">Crear mi jugador</button>
+    ${go('start', 'Empezar mi carrera')}
     ${top
       ? `<div class="record">
           <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg>
-          <div><small>Tu récord</small><b>${esc(top.name)} · ${esc(top.verdict)}</b></div>
-          <button class="link" id="ranking">Ranking ›</button>
+          <div><small>Tu récord</small><b>${esc(String(top.name))} · ${esc(String(top.verdict))}</b></div>
+          <button class="link" data-go="ranking">Ranking ›</button>
         </div>`
-      : '<button class="btn secondary" id="ranking">Ver ranking</button>'}
-    ${adSlot('home')}
+      : ''}
+    <div class="sticker" aria-hidden="true">
+      ${avatarSVG(last.avatar ?? DEFAULT_AVATAR, countryOf(last.country).kit, number, 150)}
+      <div class="sticker-band"><div><small>Selección · Dorsal ${number}</small><b>${esc(name)}</b></div><i></i></div>
+      <span class="seal"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" fill="currentColor"/></svg>Leyenda</span>
+    </div>
+
+    <section class="land">
+      <h2>Cómo funciona</h2>
+      <ol class="steps">
+        <li><div><b>Creá a tu jugador</b><span>Elegí su cara, su país, su posición y su dorsal.</span></div></li>
+        <li><div><b>Decidí en cada etapa</b><span>Fichajes, lesiones, la Selección: cada elección cambia su carrera.</span></div></li>
+        <li><div><b>Mirá su carta y compará</b><span>Al retirarse recibe su carta de FC y compite en el ranking global.</span></div></li>
+      </ol>
+    </section>
+
+    <section class="land">
+      <h2>Qué incluye</h2>
+      <div class="feat">
+        <h3>${COUNTRIES.length} países con equipos reales</h3>
+        <p>Debutá en la liga de tu país y mirá si das el salto al extranjero.</p>
+        <div class="flags" aria-hidden="true">${COUNTRIES.slice(0, 8).map((c) => flag(c.name, 'mini-flag')).join('')}</div>
+      </div>
+      <div class="feat">
+        <h3>Selección y Mundial</h3>
+        <p>Si rendís, te convocan: eliminatorias mundialistas y el Mundial con tu país.</p>
+      </div>
+      <div class="feat">
+        <h3>Palmarés</h3>
+        <p>Títulos de liga y copa, y premios individuales: ${AWARD_LABEL.mvp}, ${AWARD_LABEL.goleador}, ${AWARD_LABEL.ideal} y más.</p>
+      </div>
+      <div class="feat">
+        <h3>Carta de FC</h3>
+        <p>Cada carrera termina en una carta para compartir. Ejemplo:</p>
+        <div class="fut-demo">${futCard(DEMO_CARD)}</div>
+      </div>
+    </section>
+
+    <section class="land">
+      <h2>${best.length ? 'Tus mejores carreras' : 'Ranking global'}</h2>
+      ${best.length
+        ? `<ol class="best">${best.map((b, i) => `<li><span class="n">${i + 1}</span><span class="who"><b>${esc(String(b.name))}</b><small>${esc(String(b.verdict))}</small></span><span class="pts">${Number(b.score) || 0} pts</span></li>`).join('')}</ol>`
+        : '<p>El ranking global guarda una carrera por jugador y gana quien tenga más puntos. Terminá la tuya y mirá en qué puesto quedás.</p>'}
+      ${go('ranking', 'Ver ranking', 'btn secondary')}
+    </section>
+
+    <section class="land closing">
+      <p class="closing-title">¿Listo para debutar?</p>
+      ${go('start', 'Empezar mi carrera')}
+    </section>
     ${footer()}
   `);
-  document.getElementById('start')!.onclick = createForm;
-  document.getElementById('ranking')!.onclick = rankingScreen;
+  app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = b.dataset.go === 'start' ? createForm : rankingScreen));
 }
 
 function footer() {

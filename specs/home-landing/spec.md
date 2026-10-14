@@ -50,7 +50,7 @@ Ruta o URL propia para la landing, navegación entre secciones, analítica, A/B,
   - `privacidad.html` dice que los datos "no se envían a nuestros servidores", pero el ranking guarda nombre, avatar, carta y un id anónimo; además habla de AdSense (que se elimina) y conserva `CORREO_DE_CONTACTO` sin llenar.
   - `.env.example` trae `VITE_SITE_URL=https://chamusqueros.com`; si Vercel la define con ese valor, "Compartir" apunta a un dominio distinto de chamusqueros.vercel.app.
 
-## Aclaraciones abiertas (no bloquean)
-- [NECESITA ACLARACIÓN: "el ranking global y sus premios": hoy no hay premios por posición en el ranking; solo hay premios individuales en el palmarés (Mejor jugador, Goleador...). Esta spec habla solo de esos. ¿Existen premios del ranking que deban anunciarse? Si sí, hay que definirlos antes de publicarlos.]
-- [NECESITA ACLARACIÓN: dominio para las etiquetas OG. Se usa https://chamusqueros.vercel.app (fijo en `index.html`). ¿Se migrará a chamusqueros.com pronto? Si sí, usar ese.]
-- [NECESITA ACLARACIÓN: cuando se integre la fase final del Mundial (rama `eliminatorias-selecciones`), ¿se actualiza el bloque "Selección" para mencionarla? Hoy no se menciona (D6).]
+## Aclaraciones resueltas
+- **Ranking:** no hay premios por posición. "Qué incluye" habla solo de los premios individuales del palmarés (Mejor jugador, Goleador, etc.) y del ranking global como tabla.
+- **Dominio:** el sitio se queda en `https://chamusqueros.vercel.app`; se usa en `og:*`, `twitter:*` y `canonical`.
+- **Fase final del Mundial:** se mantiene D6. Todavía no se menciona; el bloque "Selección" se actualiza cuando se integre la rama `eliminatorias-selecciones`.
