@@ -18,7 +18,9 @@ function toCard(c: any) {
   const ok = c && ['POR', 'DEF', 'MED', 'DEL'].includes(c.pos) && ['Derecho', 'Zurdo', 'Ambidiestro'].includes(c.foot)
     && isInt(c.ovr, 1, 99) && typeof c.club === 'string' && /^[a-z0-9-]{1,60}$/.test(c.club) && typeof c.dept === 'string' && c.dept.length <= 40
     && isInt(c.apps, 0, 2000) && isInt(c.goals, 0, 2000) && isInt(c.assists, 0, 2000);
-  return ok ? { pos: c.pos, ovr: c.ovr, club: c.club, dept: c.dept, foot: c.foot, apps: c.apps, goals: c.goals, assists: c.assists } : null;
+  // Nacionalidad: código de 2 letras; si falta o no cuadra, la carta se guarda sin ella (se muestra como Guatemala).
+  const country = typeof c?.country === 'string' && /^[A-Z]{2}$/.test(c.country) ? c.country : undefined;
+  return ok ? { pos: c.pos, ovr: c.ovr, club: c.club, dept: c.dept, foot: c.foot, apps: c.apps, goals: c.goals, assists: c.assists, country } : null;
 }
 
 /** Los TOP mejores más la fila del jugador si quedó afuera. Nunca devuelve player_id. */

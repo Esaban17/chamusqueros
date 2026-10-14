@@ -1,6 +1,8 @@
 import './style.css';
-import { Career, LEAGUE_NAME, summarize, verdictFor, type CareerSummary } from './engine/engine';
-import { ALL_CLUBS, DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
+import { Career, summarize, verdictFor, type CareerSummary } from './engine/engine';
+import { ALL_CLUBS, clubById, viewClub, type Club } from './engine/clubs';
+import { COUNTRIES, countryOf } from './engine/countries';
+import { de } from './engine/helpers';
 import {
   POSITION_NAMES,
   type Avatar,
@@ -54,7 +56,8 @@ function save(key: string, value: unknown) {
 /** avatar: [piel, pelo, color de pelo, barba, extra, dorsal], o null en carreras guardadas antes de que existiera. */
 interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; avatar: number[] | null; card: RankCard | null; me: boolean }
 /** Carta estilo FIFA de esa misma carrera; null en las guardadas antes de que existiera. ovr: la valoración más alta. */
-interface RankCard { pos: Position; ovr: number; club: string; dept: string; foot: Foot; apps: number; goals: number; assists: number }
+/** country: nacionalidad (las cartas guardadas antes de que existiera son de Guatemala). */
+interface RankCard { pos: Position; ovr: number; club: string; dept: string; foot: Foot; apps: number; goals: number; assists: number; country?: string }
 
 let pid = '';
 /** Id anónimo del dispositivo: cada usuario aparece una sola vez en el ranking, con su mejor carrera. */
@@ -96,7 +99,7 @@ function rankingTable(rows: RankRow[]) {
     ${rows.map((r, i) => `${i && r.pos > rows[i - 1].pos + 1 ? '<p class="season-empty">…</p>' : ''}
       <button class="season${r.me ? ' me' : ''}" data-i="${i}" aria-haspopup="dialog">
         <span class="year">${r.pos}</span>
-        <span class="club">${rankAvatar(r)}<span class="rank-name"><span>${esc(r.name)}</span><small>${esc(verdictFor(r.score).title)}</small></span></span>
+        <span class="club">${rankAvatar(r)}<span class="rank-name"><span>${esc(r.name)}</span><small>${esc(verdictFor(r.score, countryOf(r.card?.country).adj).title)}</small></span></span>
         <span>${r.score}</span><span>${r.titles}</span><span>${r.caps}</span>
       </button>`).join('')}
   </div>
@@ -109,14 +112,15 @@ function futCard(r: RankRow) {
   const c = r.card;
   const club = ALL_CLUBS.find((k) => k.id === c?.club); // no clubById: el id viene de la base y clubById tira error si no existe
   const [skin, hair, hairColor, beard, extra, number] = r.avatar ?? nameAvatar(r.name);
-  const v = verdictFor(r.score);
+  const home = countryOf(c?.country);
+  const v = verdictFor(r.score, home.adj);
   const t = TIERS[v.tier];
   const stats: [string, number | string][] = [
     ['PJ', c?.apps ?? '—'], ['GOL', c?.goals ?? '—'], ['AST', c?.assists ?? '—'], ['TÍT', r.titles], ['SEL', r.caps], ['PTS', r.score],
   ];
   return `<div class="fut" style="--fut-a:${t.bg[0]};--fut-b:${t.bg[1]};--fut-c:${t.bg[2]};--fut-ink:${t.ink};--fut-muted:${t.muted};--fut-accent:${t.accent};--fut-border:${t.border}">
     <span class="fut-tier">${t.label}</span>
-    <div class="fut-side">${c ? `<b>${c.ovr}</b><span>${c.pos}</span>` : ''}<i class="fut-flag" title="Guatemala"></i>${club ? crest(club, true) : ''}</div>
+    <div class="fut-side">${c ? `<b>${c.ovr}</b><span>${c.pos}</span>` : ''}<i class="fut-flag" title="${esc(home.name)}" style="background:url(https://flagcdn.com/w40/${home.flag}.png) center/cover"></i>${club ? crest(club, true) : ''}</div>
     <div class="fut-face">${avatarSVG({ skin, hair, hairColor, beard, extra }, club?.colors ?? NT_KIT, number, 160)}</div>
     <h2 class="fut-name">${esc(r.name)}</h2>
     <dl class="fut-stats">${stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
@@ -166,7 +170,10 @@ function bindCrests(root: ParentNode) {
   });
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const tierTag = (club: Club) => (club.abroad ? club.city : LEAGUE_NAME[club.tier]);
+/** Afuera se muestra el país del club; en casa, su liga. */
+const tierTag = (club: Club) => (club.abroad ? countryOf(club.country).name : club.league);
+/** Club de una temporada visto desde la nacionalidad del jugador (afuera = extranjero). */
+const seasonClub = (id: string) => viewClub(clubById(id), career!.home);
 
 function render(html: string) {
   app.innerHTML = `<div class="flag"></div>${html}`;
@@ -187,7 +194,7 @@ function home() {
   render(`
     <div class="brand">Chamus<span>queros</span></div>
     <div class="sticker" aria-hidden="true">
-      ${avatarSVG(last.avatar ?? DEFAULT_AVATAR, NT_KIT, number, 234)}
+      ${avatarSVG(last.avatar ?? DEFAULT_AVATAR, countryOf(last.country).kit, number, 234)}
       <div class="sticker-band"><div><small>Selección · Dorsal ${number}</small><b>${esc(name)}</b></div><i></i></div>
       <span class="seal"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" fill="currentColor"/></svg>Leyenda</span>
     </div>
@@ -244,9 +251,18 @@ function cycler(key: keyof Avatar, options: string[], value: number) {
   </div>`;
 }
 
+/** Departamentos (o estados, provincias...) del país; el elegido antes si es del mismo país. */
+function regionOptions(code: string, selected?: string) {
+  const regions = countryOf(code).regions;
+  const pick = selected && regions.includes(selected) ? selected : code === 'GT' ? 'Guatemala' : regions[0];
+  return regions.map((d) => `<option ${d === pick ? 'selected' : ''}>${esc(d)}</option>`).join('');
+}
+
 function createForm() {
   const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
   const avatar: Avatar = { ...DEFAULT_AVATAR, ...(last.avatar ?? {}) };
+  const country = countryOf(last.country).code;
+  const countries = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   render(`
     <section class="hero"><span class="eyebrow">Creá a tu jugador</span><h1>Tu jugador</h1></section>
     <form class="panel" id="form" novalidate>
@@ -265,10 +281,11 @@ function createForm() {
         <div class="field"><label for="firstName">Nombre</label><input id="firstName" maxlength="16" autocomplete="off" value="${esc(last.firstName ?? '')}" placeholder="Carlos"></div>
         <div class="field"><label for="lastName">Apellido</label><input id="lastName" maxlength="18" autocomplete="off" value="${esc(last.lastName ?? '')}" placeholder="Ruiz"></div>
       </div>
+      <div class="field"><label for="country">Nacionalidad</label><select id="country">${countries
+        .map((c) => `<option value="${c.code}" ${c.code === country ? 'selected' : ''}>${esc(c.name)}</option>`)
+        .join('')}</select></div>
       <div class="grid-2">
-        <div class="field"><label for="dept">Departamento</label><select id="dept">${DEPARTAMENTOS.map(
-          (d) => `<option ${d === (last.dept ?? 'Guatemala') ? 'selected' : ''}>${d}</option>`,
-        ).join('')}</select></div>
+        <div class="field"><label for="dept" id="deptLabel">${countryOf(country).regionLabel}</label><select id="dept">${regionOptions(country, last.dept)}</select></div>
         <div class="field"><label for="number">Dorsal</label><input id="number" type="number" min="1" max="99" inputmode="numeric" value="${last.number ?? 10}"></div>
       </div>
       <div class="field"><span class="label">Posición</span>${seg('position', [['POR', 'POR'], ['DEF', 'DEF'], ['MED', 'MED'], ['DEL', 'DEL']], last.position ?? 'DEL')}</div>
@@ -285,8 +302,15 @@ function createForm() {
   `);
 
   const preview = document.getElementById('avatarPreview')!;
+  const countrySel = document.getElementById('country') as HTMLSelectElement;
   const number = () => Number((document.getElementById('number') as HTMLInputElement).value) || 10;
-  const paint = () => (preview.innerHTML = avatarSVG(avatar, NT_KIT, number(), 132));
+  const paint = () => (preview.innerHTML = avatarSVG(avatar, countryOf(countrySel.value).kit, number(), 132));
+  // Cada país tiene sus regiones; el jugador debuta en un club de la suya si existe.
+  countrySel.onchange = () => {
+    document.getElementById('dept')!.innerHTML = regionOptions(countrySel.value);
+    document.getElementById('deptLabel')!.textContent = countryOf(countrySel.value).regionLabel;
+    paint();
+  };
   const sync = () => {
     (['skin', 'hairColor'] as const).forEach((k) => {
       const input = document.getElementById(`${k}-${avatar[k]}`) as HTMLInputElement | null;
@@ -333,6 +357,7 @@ function createForm() {
     const setup: PlayerSetup = {
       firstName: val('firstName'),
       lastName,
+      country: countrySel.value,
       dept: val('dept'),
       number: Math.min(99, Math.max(1, number())),
       position: radio('position') as Position,
@@ -354,16 +379,17 @@ const fullName = () => (career ? `${career.player.setup.firstName} ${career.play
 function debut() {
   const c = career!;
   const club = c.club;
+  const [first, second] = c.home.leagues;
   const where =
     club.tier === 1
-      ? 'Empezás en las fuerzas básicas de un club de Liga Nacional. Debutar en el primer equipo no va a ser fácil.'
+      ? `Empezás en las fuerzas básicas de un club de ${first}. Debutar en el primer equipo no va a ser fácil.`
       : club.tier === 2
-        ? 'Empezás en Primera División, la antesala de la Liga Nacional. Acá se forjan los que suben.'
-        : 'Empezás en Segunda División: canchas duras, viajes largos y mucha hambre. Desde aquí empiezan muchas leyendas.';
+        ? `Empezás en ${second}, la antesala de ${first}. Acá se forjan los que suben.`
+        : `Empezás en ${club.league}: canchas duras, viajes largos y mucha hambre. Desde aquí empiezan muchas leyendas.`;
   render(`
     ${playerHead()}
     <section class="panel event">
-      <span class="eyebrow">${esc(LEAGUE_NAME[club.tier])} · ${c.player.year}</span>
+      <span class="eyebrow">${esc(club.league)} · ${c.player.year}</span>
       <h3>Firmaste con ${esc(club.name)}</h3>
       <p class="text">Tenés 16 años y ${esc(club.name)} te abre las puertas.${club.stadium ? ` Vas a jugar de local en el ${esc(club.stadium)}, en ${esc(club.city)}.` : ''} ${where}</p>
       <button class="btn big" id="go">Arrancar la carrera</button>
@@ -386,7 +412,7 @@ function advance() {
 
 // ---------- Resumen de temporada ----------
 
-const NT_CALL = `<p class="nt-title">${flag('Guatemala', 'mini-flag')}¡Te han llamado a la Selección!</p>`;
+const ntCall = () => `<p class="nt-title">${flag(career!.home.name, 'mini-flag')}¡Te han llamado a la Selección!</p>`;
 
 function trophy(icon: TrophyIcon, label: string, detail: string) {
   return `<li class="trophy${icon === 'copa' ? '' : ' award'}"><svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg><span><b>${label}</b><small>${esc(detail)}</small></span></li>`;
@@ -395,14 +421,14 @@ function trophy(icon: TrophyIcon, label: string, detail: string) {
 function matchRow(m: NtMatch) {
   const [cls, tag, word] = m.gf > m.ga ? ['win', 'G', 'Victoria'] : m.gf < m.ga ? ['loss', 'P', 'Derrota'] : ['draw', 'E', 'Empate'];
   return `<li><span class="res ${cls}"><span aria-hidden="true">${tag}</span><span class="sr">${word}</span></span>
-    <span>Guatemala ${m.gf}-${m.ga} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
+    <span>${esc(career!.home.name)} ${m.gf}-${m.ga} ${flag(m.rival)}${esc(m.rival)}</span>${m.goals ? `<span class="chip up">${m.goals} ${m.goals > 1 ? 'goles' : 'gol'}</span>` : ''}</li>`;
 }
 
-/** Tabla final del grupo de Guatemala; G, E y P se esconden en pantallas angostas. */
+/** Tabla final del grupo de la Selección del jugador; G, E y P se esconden en pantallas angostas. */
 function groupTable(g: NtGroup) {
   const rows = g.table.map((r, i) => {
     const dg = r.gf - r.ga;
-    const cls = [r.team === 'Guatemala' ? 'gt' : '', i < g.advance ? 'up' : ''].filter(Boolean).join(' ');
+    const cls = [r.team === career!.home.name ? 'gt' : '', i < g.advance ? 'up' : ''].filter(Boolean).join(' ');
     return `<tr${cls ? ` class="${cls}"` : ''}><td>${i + 1}</td><td><span class="team">${flag(r.team)}<span>${esc(r.team)}</span></span></td>
       <td>${r.pj}</td><td class="wide">${r.g}</td><td class="wide">${r.e}</td><td class="wide">${r.p}</td><td>${dg > 0 ? '+' : ''}${dg}</td><td><b>${r.pts}</b></td></tr>`;
   });
@@ -416,10 +442,11 @@ function groupTable(g: NtGroup) {
 }
 
 function ntBlock(nt: NonNullable<SeasonRecord['nt']>) {
+  const home = career!.home;
   const groups = nt.groups ?? [];
   const comps = [...new Set([...groups.map((g) => g.comp), ...nt.matches.map((m) => m.comp)])];
   return `<div class="nt-call${nt.debut ? ' debut' : ''}">
-    ${nt.debut ? `${NT_CALL}<p>Guatemala te convocó por primera vez. Vas a vestir la azul y blanco.</p>` : `<p class="nt-title">${flag('Guatemala', 'mini-flag')}Convocado a la Selección</p>`}
+    ${nt.debut ? `${ntCall()}<p>${esc(home.name)} te convocó por primera vez. Vas a vestir la ${home.code === 'GT' ? 'azul y blanco' : `camiseta ${esc(de(home.ntName))}`}.</p>` : `<p class="nt-title">${flag(home.name, 'mini-flag')}Convocado a la Selección</p>`}
     ${comps.map((c) => {
       const g = groups.find((x) => x.comp === c);
       const mine = nt.matches.filter((m) => m.comp === c);
@@ -429,8 +456,8 @@ function ntBlock(nt: NonNullable<SeasonRecord['nt']>) {
 }
 
 function seasonCard(r: SeasonRecord) {
-  const club = clubById(r.clubId);
-  const league = club.abroad ? club.league : LEAGUE_NAME[r.tier];
+  const club = seasonClub(r.clubId);
+  const league = club.league;
   const stats: [string, number][] = [
     ['Partidos', r.apps],
     r.cleanSheets === undefined ? ['Goles', r.goals] : ['Vallas invictas', r.cleanSheets],
@@ -464,7 +491,7 @@ function playerHead() {
     <div class="avatar">${avatarSVG(p.setup.avatar, club.colors, p.setup.number, 72)}</div>
     <div class="who">
       <h2>${esc(fullName())}</h2>
-      <p class="meta">${POSITION_NAMES[p.setup.position]} · ${p.age} años${nt}</p>
+      <p class="meta">${POSITION_NAMES[p.setup.position]} · ${p.age} años · ${esc(career!.home.name)}${nt}</p>
       <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
       ${club.stadium ? `<p class="meta">${esc(club.stadium)} · ${esc(club.city)}</p>` : ''}
     </div>
@@ -486,8 +513,9 @@ function statsBar() {
 }
 
 function seasonRow(r: SeasonRecord, fresh: boolean) {
-  const club = clubById(r.clubId);
-  const tier = club.abroad ? '' : r.tier === 1 ? '' : r.tier === 2 ? '1ra Div.' : '2da Div.';
+  const club = seasonClub(r.clubId);
+  // Afuera, el país; en casa, la división (las de ascenso: "1ra Div." y "2da Div." en Guatemala, "2da Div." en el resto).
+  const tier = club.abroad ? countryOf(club.country).name : ((career!.home.short ?? ['', '2da Div.'])[r.tier - 1] ?? '');
   const chips = [
     ...r.titles.map((t) => `<span class="chip gold">${esc(t)}</span>`),
     ...r.awards.map((a) => `<span class="chip gold">${AWARD_LABEL[a.kind]}</span>`),
@@ -496,7 +524,7 @@ function seasonRow(r: SeasonRecord, fresh: boolean) {
   ].filter(Boolean);
   return `<div class="season${r.injured ? ' injured' : ''}${fresh ? ' fresh' : ''}">
     <span class="year">${r.label}</span>
-    <span class="club">${crest(club, true)}<span>${esc(club.abroad ? club.city : club.name)}${tier ? ` <small>${esc(tier)}</small>` : ''}</span></span>
+    <span class="club">${crest(club, true)}<span>${esc(club.name)}${tier ? ` <small>${esc(tier)}</small>` : ''}</span></span>
     <span>${r.apps}</span><span>${r.goals}</span><span>${r.assists}</span>
     ${chips.length ? `<div class="season-titles">${chips.join('')}</div>` : ''}
   </div>`;
@@ -514,7 +542,7 @@ function seasonLog() {
 }
 
 function chipClass(change: string) {
-  if (change.startsWith('+') || change.startsWith('Convocado') || change.startsWith('Guatemala') || change.startsWith('Más peso')) return 'up';
+  if (change.startsWith('+') || change.startsWith('Convocado') || change.endsWith('avanza en la eliminatoria') || change.startsWith('Más peso')) return 'up';
   if (change.startsWith('-') || change === 'Lesión') return 'down';
   return '';
 }
@@ -537,7 +565,7 @@ function gameScreen() {
   const p = career!.player;
   const eventHtml = res
     ? `<section class="panel event">
-        ${res.changes.includes('Convocado a la Selección') ? `<div class="nt-call debut">${NT_CALL}</div>` : ''}
+        ${res.changes.includes('Convocado a la Selección') ? `<div class="nt-call debut">${ntCall()}</div>` : ''}
         <p class="outcome">${esc(res.text)}</p>
         ${res.changes.length ? `<div class="chips">${res.changes.map((c) => `<span class="chip ${chipClass(c)}">${esc(c)}</span>`).join('')}</div>` : ''}
         <button class="btn big" id="next">${career!.isOver ? 'Ver mi carrera' : 'Seguir'}</button>
@@ -614,7 +642,7 @@ function finish() {
   const rankBox = document.getElementById('rankBox')!;
   const card: RankCard = {
     pos: p.setup.position, ovr: p.peakRating, club: p.seasons.at(-1)?.clubId ?? p.clubId, dept: p.setup.dept, foot: p.setup.foot,
-    apps: s.apps, goals: s.goals, assists: s.assists,
+    apps: s.apps, goals: s.goals, assists: s.assists, country: p.setup.country,
   };
   rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number), card })
     .then((rows) => {

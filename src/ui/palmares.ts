@@ -1,7 +1,8 @@
 // Palmarés y momento más destacado de una carrera, con sus imágenes en SVG. Lo usan los resúmenes y la tarjeta para compartir.
-import type { CareerSummary } from '../engine/engine';
+import { CLUB_CUPS, type CareerSummary } from '../engine/engine';
+import { countryOf } from '../engine/countries';
 import type { AwardKind, Avatar, Player } from '../engine/types';
-import { avatarSVG } from './avatar';
+import { NT_KIT, avatarSVG } from './avatar';
 
 export type TrophyIcon = AwardKind | 'copa';
 
@@ -28,12 +29,13 @@ export const AWARD_LABEL: Record<AwardKind, string> = {
 export interface PalmaresItem { icon: TrophyIcon; label: string; count: number }
 
 const AWARD_ORDER: AwardKind[] = ['mvp', 'goleador', 'portero', 'asistidor', 'joven', 'ideal'];
-const titleRank = (label: string) =>
-  /Concacaf/.test(label) ? 0 : /Copa Centroamericana/.test(label) ? 2 : /Liga Nacional/.test(label) ? 3
-    : /Primera División/.test(label) ? 4 : /Segunda División/.test(label) ? 5 : 1; // 1: liga del extranjero
+/** Copa continental, liga del extranjero, Copa Centroamericana y después las ligas del país, de primera hacia abajo. */
+const titleRank = (label: string, leagues: string[]) =>
+  CLUB_CUPS.includes(label) ? 0 : label === 'Copa Centroamericana' ? 2 : leagues.includes(label) ? 3 + leagues.indexOf(label) : 1;
 
 /** Títulos agrupados por competición (sin torneo ni año) y premios por tipo, de mayor a menor importancia. */
 export function palmares(p: Player): PalmaresItem[] {
+  const leagues = countryOf(p.setup.country).leagues;
   const items = new Map<string, PalmaresItem & { rank: number }>();
   const add = (icon: TrophyIcon, label: string, rank: number) => {
     const it = items.get(label) ?? { icon, label, count: 0, rank };
@@ -42,7 +44,7 @@ export function palmares(p: Player): PalmaresItem[] {
   };
   for (const t of p.titles) {
     const label = t.replace(/ · (Apertura|Clausura) \d{4}$/, '').replace(/ \d{4}$/, '');
-    add('copa', label, titleRank(label));
+    add('copa', label, titleRank(label, leagues));
   }
   for (const a of p.seasons.flatMap((r) => r.awards)) add(a.kind, AWARD_LABEL[a.kind], 10 + AWARD_ORDER.indexOf(a.kind));
   return [...items.values()].sort((a, b) => a.rank - b.rank || b.count - a.count).map(({ icon, label, count }) => ({ icon, label, count }));
@@ -51,9 +53,8 @@ export function palmares(p: Player): PalmaresItem[] {
 export type MomentKind = 'mundial' | 'gol' | 'titulo' | 'premio' | 'seleccion' | 'carrera';
 export interface Moment { kind: MomentKind; kicker: string; title: string; nt: boolean }
 
-/** Puntos extra según la liga que nombra el texto: lo mismo vale más en Liga Nacional o afuera que en Segunda. */
-const leagueBonus = (text: string) =>
-  /Liga Nacional/.test(text) ? 15 : /Primera División/.test(text) ? 5 : /Segunda División/.test(text) ? 0 : 20;
+/** Puntos extra según la división de esa temporada: lo mismo vale más en primera o afuera (0) que en las de ascenso. */
+const leagueBonus = (tier: number) => (tier === 0 ? 20 : [15, 5, 0][tier - 1]);
 const AWARD_BASE: Record<AwardKind, number> = { mvp: 40, goleador: 35, portero: 35, asistidor: 28, joven: 12, ideal: 12 };
 
 /** El momento más importante de la carrera: el de más puntos; si empatan, el más reciente. */
@@ -62,22 +63,25 @@ export function bestMoment(p: Player, s: CareerSummary): Moment {
   const add = (score: number, kind: MomentKind, kicker: string, title: string, nt = false) => {
     if (score >= best[0]) best = [score, { kind, kicker, title, nt }];
   };
+  const nt = `Con ${countryOf(p.setup.country).name}`;
   for (const m of p.milestones) {
-    if (/^Gol en el Mundial \d/.test(m)) add(100, 'gol', 'Con Guatemala', m, true);
-    else if (/^Jugó el Mundial \d/.test(m)) add(90, 'mundial', 'Con Guatemala', m.replace(/ con Guatemala$/, ''), true);
-    else if (/^Clasificó al Mundial \d/.test(m)) add(85, 'mundial', 'Con Guatemala', m, true);
-    else if (/^Héroe ante México/.test(m)) add(80, 'seleccion', 'Con Guatemala', m, true);
-    else if (/^(Clasificó a los Juegos Olímpicos|Semifinal de Copa Oro|Capitán de la Selección)/.test(m)) add(52, 'seleccion', 'Con Guatemala', m, true);
-    else if (/^(Jugó el Mundial Sub|Debut con la Selección|Primera convocatoria)/.test(m)) add(30, 'seleccion', 'Con Guatemala', m, true);
+    if (/^Gol en el Mundial \d/.test(m)) add(100, 'gol', nt, m, true);
+    else if (/^Jugó el Mundial \d/.test(m)) add(90, 'mundial', nt, m.replace(/ con .+$/, ''), true);
+    else if (/^Clasificó al Mundial \d/.test(m)) add(85, 'mundial', nt, m, true);
+    else if (/^Héroe ante /.test(m)) add(80, 'seleccion', nt, m, true);
+    else if (/^(Clasificó a los Juegos Olímpicos|Semifinal de |Capitán de la Selección)/.test(m)) add(52, 'seleccion', nt, m, true);
+    else if (/^(Jugó el Mundial Sub|Debut con la Selección|Primera convocatoria)/.test(m)) add(30, 'seleccion', nt, m, true);
   }
-  // Títulos: "Liga Nacional · Clausura 2038", "Primera División · Apertura 2027" (torneo local, con " · "),
-  // "MLS 2031" (liga del extranjero), "Copa Centroamericana 2030", "Concacaf Champions Cup 2032".
-  for (const t of p.titles) {
-    const score = t.startsWith('Concacaf') ? 75 : t.startsWith('Copa Centroamericana') ? 52 : t.includes(' · ') ? 20 + leagueBonus(t) * 2 : 58;
-    add(score, 'titulo', 'Campeón', t);
+  // Títulos: "Liga Nacional · Clausura 2038" o "LaLiga 2031" (liga del país), "MLS 2031" (liga del extranjero, tier 0),
+  // "Copa Centroamericana 2030", "Concacaf Champions Cup 2032" (copas continentales).
+  for (const r of p.seasons) {
+    for (const t of r.titles) {
+      const score = CLUB_CUPS.some((c) => t.startsWith(c)) ? 75 : t.startsWith('Copa Centroamericana') ? 52 : r.tier === 0 ? 58 : 20 + leagueBonus(r.tier) * 2;
+      add(score, 'titulo', 'Campeón', t);
+    }
   }
-  for (const a of p.seasons.flatMap((r) => r.awards)) {
-    add(AWARD_BASE[a.kind] + leagueBonus(a.name), a.kind === 'goleador' ? 'gol' : 'premio', 'Premio individual', a.name);
+  for (const r of p.seasons) {
+    for (const a of r.awards) add(AWARD_BASE[a.kind] + leagueBonus(r.tier), a.kind === 'goleador' ? 'gol' : 'premio', 'Premio individual', a.name);
   }
   return best[1];
 }
@@ -87,12 +91,13 @@ const STAR = 'M0-62l18 37 41 6-30 29 7 41-36-19-36 19 7-41-30-29 41-6z';
 const ball = (x: number, y: number, r: number) =>
   `<circle cx="${x}" cy="${y}" r="${r}" fill="#FFFFFF" stroke="#0D1B2A" stroke-width="${r / 10}"/>
    <path transform="translate(${x} ${y}) scale(${r / 20})" d="M0-8l7.6 5.5-2.9 9h-9.4l-2.9-9z" fill="#0D1B2A"/>`;
-const flag = (x: number, y: number) =>
+/** Bandera con los colores de la Selección (afuera y en medio). ponytail: no dibuja la bandera real de cada país. */
+const flag = (x: number, y: number, [c1, c2]: [string, string]) =>
   `<path d="M${x} ${y}v150" stroke="#C9DCEC" stroke-width="5"/>
-   <path d="M${x} ${y}c40-10 80 10 150 0v92c-70 10-110-10-150 0z" fill="#4997D0"/>
-   <path d="M${x + 50} ${y - 3}c17 2 33 4 50 3v92c-17 1-33-1-50-3z" fill="#FFFFFF"/>`;
+   <path d="M${x} ${y}c40-10 80 10 150 0v92c-70 10-110-10-150 0z" fill="${c1}"/>
+   <path d="M${x + 50} ${y - 3}c17 2 33 4 50 3v92c-17 1-33-1-50-3z" fill="${c2}"/>`;
 
-function hero(kind: MomentKind, rnd: () => number): string {
+function hero(kind: MomentKind, rnd: () => number, ntKit: [string, string]): string {
   switch (kind) {
     case 'titulo': {
       const confetti = Array.from({ length: 46 }, () => {
@@ -112,9 +117,9 @@ function hero(kind: MomentKind, rnd: () => number): string {
         <path d="M700 176V66h160v110" fill="none" stroke="#FFFFFF" stroke-width="8"/>${ball(806, 150, 20)}`;
     }
     case 'mundial':
-      return `${flag(700, 40)}${ball(820, 196, 28)}`;
+      return `${flag(700, 40, ntKit)}${ball(820, 196, 28)}`;
     case 'seleccion':
-      return flag(712, 46);
+      return flag(712, 46, ntKit);
     case 'premio':
       return `<path d="M752 150l-22 70 22-10 14 18 8-62zM798 150l22 70-22-10-14 18-8-62z" fill="#6CB4EE"/>
         <path transform="translate(775 104)" d="${STAR}" fill="#F0C14B" stroke="#9A6B12" stroke-width="4"/>`;
@@ -123,7 +128,7 @@ function hero(kind: MomentKind, rnd: () => number): string {
   }
 }
 
-export function momentSVG(m: Moment, avatar: Avatar, kit: [string, string], number: number): string {
+export function momentSVG(m: Moment, avatar: Avatar, kit: [string, string], number: number, ntKit: [string, string] = NT_KIT): string {
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
   const crowdColors = ['#4997D0', '#FFFFFF', '#2E5F8A', '#6CB4EE', '#4997D0', '#FFFFFF', '#F0C14B'];
@@ -142,7 +147,7 @@ export function momentSVG(m: Moment, avatar: Avatar, kit: [string, string], numb
     <rect y="168" width="880" height="72" fill="#1F6E3D"/>${stripes}
     <path d="M0 178h880" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="2"/>
     <ellipse cx="440" cy="240" rx="130" ry="34" fill="none" stroke="#FFFFFF" stroke-opacity=".45" stroke-width="2"/>
-    ${hero(m.kind, rnd)}
+    ${hero(m.kind, rnd, ntKit)}
     <circle cx="610" cy="150" r="76" fill="#FFFFFF"/>
     <clipPath id="moment-face"><circle cx="70" cy="70" r="70"/></clipPath>
     <g transform="translate(540 80)"><g clip-path="url(#moment-face)">${face}</g></g>

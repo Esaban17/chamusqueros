@@ -1,5 +1,6 @@
 import type { EventContext, EventTemplate, Player } from '../types';
-import { o, opt, has, rivalOf, lastSeasonLine } from '../helpers';
+import { o, opt, has, rivalOf, lastSeasonLine, de, a } from '../helpers';
+import { countryOf } from '../countries';
 
 // Banderas que usa este archivo:
 // - med_arbitro: criticaste al árbitro en público → med_multa (multa de la Comisión Disciplinaria)
@@ -350,18 +351,18 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
     title: 'Entrevista en otro idioma',
     text: (p, ctx) =>
       `Tras el partido con ${ctx.club.name}, la televisión local te pide unas palabras en su idioma. Tus clases van a medias.`,
-    when: (p, ctx) => ctx.abroad,
+    when: (p, ctx) => ctx.abroad && countryOf(ctx.club.country).lang !== ctx.country.lang,
     weight: (p, ctx) => swing(p, ctx) + 0.5,
     cooldown: 6,
-    options: () => [
+    options: (p, ctx) => [
       opt('Me lanzo en su idioma',
         o(0.55, 'Con acento y todo, te entendieron. La afición te aplaudió el esfuerzo.', { fame: 6, morale: 6, coach: 3 }),
         o(0.45, 'Confundiste dos palabras y dijiste algo raro. Ya sos meme allá.', { fame: 4, morale: -6 })),
       opt('Pido traductor',
         o(0.9, 'Respuesta clara y sin sustos.', { fame: 1 }),
         o(0.1, 'El traductor resumió todo en "está contento". Ni modo.', { morale: -2 })),
-      opt('Saludo en español a Guate',
-        o(0.7, 'En Guatemala lo compartieron por todos lados. La prensa chapina, feliz.', { fame: 5, morale: 4 }),
+      opt(`Saludo en ${ctx.country.lang} a ${ctx.country.code === 'GT' ? 'Guate' : ctx.country.name}`,
+        o(0.7, `En ${ctx.country.name} lo compartieron por todos lados. La prensa ${ctx.country.adj}, feliz.`, { fame: 5, morale: 4 }),
         o(0.3, 'Allá lo tomaron como que no querés adaptarte.', { fame: 3, coach: -4 })),
     ],
   },
@@ -369,7 +370,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
   {
     id: 'med_sele',
     category: 'medios',
-    title: '"¿Qué le falta a la Bicolor?"',
+    title: (p, ctx) => (ctx.country.code === 'GT' ? '"¿Qué le falta a la Bicolor?"' : `"¿Qué le falta ${a(ctx.country.ntName)}?"`),
     text: (p, ctx) =>
       ctx.qualifiers
         ? `En plena eliminatoria rumbo al Mundial ${ctx.worldCupYear}, te preguntan: "¿Qué le falta a la Selección para clasificar?"`
@@ -377,11 +378,11 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
     when: (p) => p.ntLevel > 0,
     weight: (p, ctx) => (ctx.qualifiers ? 2 : 1),
     cooldown: 6,
-    options: () => [
+    options: (p, ctx) => [
       opt('Unión y trabajar callados',
         o(0.85, 'Respuesta de grupo. El cuerpo técnico de la Selección la valoró.', { fame: 3, morale: 3 }),
         o(0.15, 'Te dijeron que era la misma respuesta de hace 20 años.', { fame: 1 })),
-      opt('Más apoyo de la FEDEFUT',
+      opt(`Más apoyo ${de(ctx.country.federation)}`,
         o(0.45, 'Muchos jugadores te respaldaron. Se abrió el debate en todos los medios.', { fame: 10, morale: 4 }),
         o(0.55, 'En la federación no cayó bien. En la siguiente lista no apareciste.', { fame: 7, morale: -8 })),
       opt('"Que me den la diez y ya"',
@@ -392,7 +393,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
   {
     id: 'med_resp_sele',
     category: 'medios',
-    title: 'El técnico de la Bicolor',
+    title: (p, ctx) => (ctx.country.code === 'GT' ? 'El técnico de la Bicolor' : `El técnico ${de(ctx.country.ntName)}`),
     text: () =>
       'En su conferencia, el técnico de la Selección contesta tu mensaje: "Lo estoy viendo. Pero a la Selección se llega jugando, no hablando."',
     when: (p) => has(p, 'med_msj_sele'),
@@ -435,7 +436,7 @@ export const MEDIOS_EVENTS: EventTemplate[] = [
     category: 'medios',
     title: 'Clásico con fuego',
     text: (p, ctx) =>
-      `Tus declaraciones calentaron todo. La afición de ${rivalOf(ctx) ?? 'el rival'} te silba desde el calentamiento y cada balón dividido va con todo.`,
+      `Tus declaraciones calentaron todo. La afición ${rivalOf(ctx) ? `de ${rivalOf(ctx)}` : 'rival'} te silba desde el calentamiento y cada balón dividido va con todo.`,
     when: (p) => has(p, 'med_picado'),
     weight: 4,
     options: (p) => [

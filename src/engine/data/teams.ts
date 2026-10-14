@@ -1,25 +1,29 @@
 // Equipos del fútbol guatemalteco — temporada 2026-27 (Torneo Apertura 2026).
 // Investigado el 2026-10-14. Ver SOURCES y las notas que acompañan cada lista.
 
-export interface TeamData { name: string; city: string; dept: string; nickname?: string; colors?: [string, string]; stadium?: string; }
+/** dept: departamento, estado, provincia o región del club. rival: nombre del rival de clásico en la misma liga. */
+export interface TeamData { name: string; city: string; dept: string; nickname?: string; colors?: [string, string]; stadium?: string; rival?: string; }
+
+/** Equipos de un país en la temporada en curso (./paises/<código>.ts): una liga por división, de primera hacia abajo. */
+export interface CountryTeams { leagues: { name: string; teams: TeamData[] }[]; sources: string[]; }
 
 // Liga Nacional (Liga Bantrab), Apertura 2026: 12 equipos.
 // stadium: estadio de local en el Apertura 2026 (solo los confirmados con fuente; ver SOURCES).
 // Ascendieron San Pedro y Suchitepéquez; descendieron Achuapa y Mictlán (Clausura 2026).
 export const LIGA_NACIONAL: TeamData[] = [
   { name: 'Suchitepéquez', city: 'Mazatenango', dept: 'Suchitepéquez', nickname: 'Los Venados', colors: ['#1F4E9E', '#FFFFFF'], stadium: 'Estadio Carlos Salazar Hijo' },
-  { name: 'Comunicaciones', city: 'Guatemala', dept: 'Guatemala', nickname: 'Los Cremas', colors: ['#FFFFFF', '#0B2A5B'], stadium: 'Estadio Cementos Progreso' },
-  { name: 'Malacateco', city: 'Malacatán', dept: 'San Marcos', nickname: 'Los Toros', colors: ['#C8102E', '#FFFFFF'], stadium: 'Estadio Santa Lucía' },
-  { name: 'Cobán Imperial', city: 'Cobán', dept: 'Alta Verapaz', nickname: 'Los Príncipes Azules', colors: ['#0047AB', '#FFFFFF'], stadium: 'Estadio José Ángel Rossi' },
+  { name: 'Comunicaciones', city: 'Guatemala', dept: 'Guatemala', nickname: 'Los Cremas', colors: ['#FFFFFF', '#0B2A5B'], stadium: 'Estadio Cementos Progreso', rival: 'Municipal' },
+  { name: 'Malacateco', city: 'Malacatán', dept: 'San Marcos', nickname: 'Los Toros', colors: ['#C8102E', '#FFFFFF'], stadium: 'Estadio Santa Lucía', rival: 'Marquense' },
+  { name: 'Cobán Imperial', city: 'Cobán', dept: 'Alta Verapaz', nickname: 'Los Príncipes Azules', colors: ['#0047AB', '#FFFFFF'], stadium: 'Estadio José Ángel Rossi', rival: 'Xelajú' },
   { name: 'Aurora', city: 'Guatemala', dept: 'Guatemala', nickname: 'Los Tigres Aurinegros', colors: ['#FFD100', '#000000'], stadium: 'Estadio Cementos Progreso' },
   { name: 'Guastatoya', city: 'Guastatoya', dept: 'El Progreso', nickname: 'Los Pecho Amarillo', colors: ['#FFD200', '#0B7A3B'], stadium: 'Estadio David Cordón Hichos' },
   // Colores de San Pedro no confirmados en ninguna fuente; valores provisionales.
   { name: 'San Pedro', city: 'San Pedro Sacatepéquez', dept: 'San Marcos', nickname: 'Los Gallos', colors: ['#C8102E', '#FFFFFF'], stadium: 'Estadio Municipal Sampedrano' },
-  { name: 'Xelajú', city: 'Quetzaltenango', dept: 'Quetzaltenango', nickname: 'Los Superchivos', colors: ['#D2001F', '#002F87'], stadium: 'Estadio Mario Camposeco' },
-  { name: 'Municipal', city: 'Guatemala', dept: 'Guatemala', nickname: 'Los Rojos', colors: ['#E30613', '#003DA5'], stadium: 'Estadio Manuel Felipe Carrera' },
+  { name: 'Xelajú', city: 'Quetzaltenango', dept: 'Quetzaltenango', nickname: 'Los Superchivos', colors: ['#D2001F', '#002F87'], stadium: 'Estadio Mario Camposeco', rival: 'Marquense' },
+  { name: 'Municipal', city: 'Guatemala', dept: 'Guatemala', nickname: 'Los Rojos', colors: ['#E30613', '#003DA5'], stadium: 'Estadio Manuel Felipe Carrera', rival: 'Comunicaciones' },
   { name: 'Mixco', city: 'Mixco', dept: 'Guatemala', nickname: 'Los Chicharroneros', colors: ['#0055A4', '#2E8B57'], stadium: 'Estadio Santo Domingo de Guzmán' },
-  { name: 'Antigua', city: 'Antigua Guatemala', dept: 'Sacatepéquez', nickname: 'Los Panzas Verdes', colors: ['#007A33', '#FFFFFF'], stadium: 'Estadio Pensativo' },
-  { name: 'Marquense', city: 'San Marcos', dept: 'San Marcos', nickname: 'Los Leones', colors: ['#FFD100', '#C8102E'], stadium: 'Estadio Marquesa de la Ensenada' },
+  { name: 'Antigua', city: 'Antigua Guatemala', dept: 'Sacatepéquez', nickname: 'Los Panzas Verdes', colors: ['#007A33', '#FFFFFF'], stadium: 'Estadio Pensativo', rival: 'Comunicaciones' },
+  { name: 'Marquense', city: 'San Marcos', dept: 'San Marcos', nickname: 'Los Leones', colors: ['#FFD100', '#C8102E'], stadium: 'Estadio Marquesa de la Ensenada', rival: 'Xelajú' },
 ];
 
 // Primera División, Apertura 2026: 20 equipos en 2 grupos (Prensa Libre, jornada 16; Guatefutbol 12/06/2026).

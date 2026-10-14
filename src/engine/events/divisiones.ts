@@ -1,4 +1,5 @@
 import type { EventContext, EventTemplate, Player } from '../types';
+import { money } from '../countries';
 import { o, opt, has } from '../helpers';
 
 // Banderas que usa este archivo:
@@ -8,8 +9,8 @@ import { o, opt, has } from '../helpers';
 // - div_estudia: estudiás en la U además de jugar → div_examenes (choque de exámenes y partido)
 
 const isLower = (ctx: EventContext) => !ctx.abroad && (ctx.tier === 2 || ctx.tier === 3);
-const divName = (ctx: EventContext) => (ctx.tier === 3 ? 'Segunda División' : 'Primera División');
-const upName = (ctx: EventContext) => (ctx.tier === 3 ? 'Primera División' : 'Liga Nacional');
+const divName = (ctx: EventContext) => ctx.club.league;
+const upName = (ctx: EventContext) => ctx.country.leagues[ctx.tier - 2];
 const goodSeason = (p: Player, ctx: EventContext) =>
   !!ctx.last && (ctx.last.titles.length > 0 || ctx.last.goals >= 10 || (ctx.last.apps >= 25 && ctx.last.rating >= p.rating));
 
@@ -96,7 +97,7 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
     category: 'divisiones',
     title: 'Tres meses sin pago',
     text: (p, ctx) =>
-      `El sueldo en ${ctx.club.name} es de Q1,500 al mes… cuando pagan. Ya van tres meses atrasados y el dueño dice "la otra semana".`,
+      `El sueldo en ${ctx.club.name} es de ${money(ctx.country, 1500)} al mes… cuando pagan. Ya van tres meses atrasados y el dueño dice "la otra semana".`,
     when: (p, ctx) => isLower(ctx),
     cooldown: 6,
     options: () => [
@@ -228,7 +229,7 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
     category: 'divisiones',
     title: 'Visores en la gradería',
     text: (p, ctx) =>
-      `Corre el rumor: hoy hay visores de ${ctx.tier === 2 ? 'un club de Liga Nacional' : 'un equipo de Primera División'} en la gradería de ${ctx.club.city}, con libreta y todo.`,
+      `Corre el rumor: hoy hay visores de ${ctx.tier === 2 ? 'un club' : 'un equipo'} de ${upName(ctx)} en la gradería de ${ctx.club.city}, con libreta y todo.`,
     when: (p, ctx) => isLower(ctx) && p.rating >= (ctx.tier === 2 ? 58 : 50) && !has(p, 'div_visto'),
     weight: (p, ctx) => (goodSeason(p, ctx) ? 2.5 : 1.2),
     cooldown: 6,
@@ -339,7 +340,7 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
     category: 'divisiones',
     title: 'El veterano que bajó',
     text: (p, ctx) =>
-      `Llega a ${ctx.club.name} un exjugador de Liga Nacional de 36 años. Viene a cerrar su carrera cerca de casa y mira a los jóvenes con lupa.`,
+      `Llega a ${ctx.club.name} un exjugador de ${ctx.country.leagues[0]} de 36 años. Viene a cerrar su carrera cerca de casa y mira a los jóvenes con lupa.`,
     when: (p, ctx) => isLower(ctx) && p.age <= 24,
     once: true,
     options: () => [
@@ -355,8 +356,8 @@ export const DIVISIONES_EVENTS: EventTemplate[] = [
     id: 'div_calor_costa',
     category: 'divisiones',
     title: 'A las tres de la tarde',
-    text: () =>
-      'Les toca jugar en la Costa Sur a las 3 de la tarde, con 38 grados y sin sombra en la banca. El rival está acostumbrado.',
+    text: (p, ctx) =>
+      `Les toca jugar ${ctx.country.code === 'GT' ? 'en la Costa Sur' : 'de visita'} a las 3 de la tarde, con 38 grados y sin sombra en la banca. El rival está acostumbrado.`,
     when: (p, ctx) => isLower(ctx),
     cooldown: 7,
     options: (p) => [

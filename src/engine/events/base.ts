@@ -4,7 +4,9 @@ import type { Effects, EventContext, EventOption, EventTemplate, Outcome } from 
 const o = (p: number, text: string, effects: Effects = {}): Outcome => ({ p, text, effects });
 const opt = (label: string, ...outcomes: EventOption['outcomes']): EventOption => ({ label, outcomes });
 
+/** Juega en su país. */
 const inGT = (ctx: EventContext) => !ctx.abroad;
+const gt = (ctx: EventContext) => ctx.country.code === 'GT';
 const always = () => true;
 
 // Decisiones generales: formación, vida diaria, cancha y final de carrera.
@@ -29,7 +31,7 @@ export const BASE_EVENTS: EventTemplate[] = [
     category: 'vida',
     title: 'La nutricionista',
     text: () => 'La nutricionista del club te prohíbe los shucos de la esquina del estadio.',
-    when: always,
+    when: (p, ctx) => ctx.country.code === 'GT',
     options: () => [
       opt('Dieta estricta',
         o(0.65, 'Bajaste tres libras y te sentís volando en la cancha.', { rating: 2, fitness: 8 }),
@@ -107,7 +109,7 @@ export const BASE_EVENTS: EventTemplate[] = [
     category: 'vida',
     title: 'Noche Buena',
     text: () => 'Es 24 de diciembre y tu abuela hizo 80 tamales colorados. Arrancás pretemporada el 2 de enero.',
-    when: always,
+    when: (p, ctx) => ctx.country.code === 'GT',
     options: () => [
       opt('Me como seis, es Navidad',
         o(0.5, 'Valió la pena. Volviste con el ánimo recargado.', { morale: 14 }),
@@ -165,9 +167,9 @@ export const BASE_EVENTS: EventTemplate[] = [
     text: () => 'Una cadena de pollo frito te ofrece salir en su comercial para la semana del clásico.',
     when: (p, ctx) => p.fame >= 20,
     once: true,
-    options: () => [
+    options: (p, ctx) => [
       opt('Acepto, buen pisto',
-        o(0.7, 'Te reconocen hasta en el Trébol.', { fame: 10, morale: 6 }),
+        o(0.7, `Te reconocen hasta en ${gt(ctx) ? 'el Trébol' : 'el mercado'}.`, { fame: 10, morale: 6 }),
         o(0.3, 'El comercial salió tan malo que es meme nacional.', { fame: 6, morale: -8 })),
       opt('Rechazo',
         o(1, 'Te concentrás en lo tuyo.', {})),
@@ -191,10 +193,10 @@ export const BASE_EVENTS: EventTemplate[] = [
     id: 'vacaciones',
     category: 'vida',
     title: 'Vacaciones',
-    text: () => 'Tenés dos semanas libres. Tus primos organizan un viaje a Río Dulce.',
+    text: (p, ctx) => `Tenés dos semanas libres. Tus primos organizan un viaje a ${gt(ctx) ? 'Río Dulce' : 'la playa'}.`,
     when: always,
-    options: () => [
-      opt('Me voy a Río Dulce',
+    options: (p, ctx) => [
+      opt(gt(ctx) ? 'Me voy a Río Dulce' : 'Me voy con ellos',
         o(0.75, 'Lancha, sol y caldo de mariscos. Volviste nuevo.', { morale: 14, fitness: 4 }),
         o(0.25, 'Insolación nivel camarón. Llegaste pelado a la pretemporada.', { morale: 6, fitness: -8 })),
       opt('Me quedo entrenando solo',
@@ -219,8 +221,8 @@ export const BASE_EVENTS: EventTemplate[] = [
   {
     id: 'sat',
     category: 'vida',
-    title: 'Carta de la SAT',
-    text: () => 'Te llega una carta de la SAT por unos impuestos que tu antiguo representante "se olvidó" de pagar.',
+    title: (p, ctx) => (gt(ctx) ? 'Carta de la SAT' : 'Carta de Hacienda'),
+    text: (p, ctx) => `Te llega una carta ${gt(ctx) ? 'de la SAT' : 'de Hacienda'} por unos impuestos que tu antiguo representante "se olvidó" de pagar.`,
     when: (p, ctx) => p.age >= 21,
     once: true,
     options: () => [
@@ -234,8 +236,8 @@ export const BASE_EVENTS: EventTemplate[] = [
   {
     id: 'fiesta',
     category: 'vida',
-    title: 'Celebración en la Antigua',
-    text: () => 'El grupo quiere celebrar el fin del torneo con una noche en la Antigua.',
+    title: (p, ctx) => (gt(ctx) ? 'Celebración en la Antigua' : 'Celebración de fin de torneo'),
+    text: (p, ctx) => `El grupo quiere celebrar el fin del torneo con una noche ${gt(ctx) ? 'en la Antigua' : 'de fiesta'}.`,
     when: (p, ctx) => p.age >= 19,
     options: () => [
       opt('Voy a la fiesta',
@@ -249,7 +251,7 @@ export const BASE_EVENTS: EventTemplate[] = [
     id: 'bus',
     category: 'cancha',
     title: 'El bus se arruinó',
-    text: () => 'El bus del equipo se arruinó en la carretera a Cobán, a tres horas del partido.',
+    text: (p, ctx) => `El bus del equipo se arruinó en la carretera${gt(ctx) ? ' a Cobán' : ''}, a tres horas del partido.`,
     when: (p, ctx) => inGT(ctx),
     options: () => [
       opt('Me bajo a empujar con todos',

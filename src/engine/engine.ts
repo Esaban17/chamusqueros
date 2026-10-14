@@ -1,4 +1,5 @@
-import { ABROAD_CLUBS, GT_CLUBS, HOME_CLUBS_BY_DEPT, clubById, type Club } from './clubs';
+import { HOME_CLUBS_BY_DEPT, clubById, clubsOf, viewClub, ALL_CLUBS, type Club } from './clubs';
+import { CONFED_CUP, countryOf, type Confed, type Country } from './countries';
 import { ALL_EVENTS } from './events';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
 import {
@@ -28,9 +29,10 @@ const FIRST_WORLD_CUP = 2030;
 const MATCHES: Record<Tier, number> = { 0: 36, 1: 44, 2: 40, 3: 32 };
 const GOALS_PER_APP = { POR: 0, DEF: 0.045, MED: 0.14, DEL: 0.37 };
 const ASSISTS_PER_APP = { POR: 0.005, DEF: 0.06, MED: 0.19, DEL: 0.13 };
-export const LEAGUE_NAME: Record<Tier, string> = { 0: '', 1: 'Liga Nacional', 2: 'Primera División', 3: 'Segunda División' };
+const DEBUT_WEIGHT: Record<Tier, number> = { 0: 0, 1: 0.2, 2: 0.35, 3: 0.45 };
 
 // Rivales de la Selección con una fuerza aproximada (Guatemala ronda 64-70). Ficción: solo sirve para simular marcadores.
+// Cada lista se usa sin la selección del jugador (ver rivals()).
 type Rival = [name: string, strength: number];
 const CONCACAF: Rival[] = [
   ['México', 84], ['Estados Unidos', 83], ['Canadá', 80], ['Panamá', 74], ['Costa Rica', 73], ['Jamaica', 71], ['Honduras', 70],
@@ -49,8 +51,28 @@ const WORLD_CUP: Rival[] = [
   ['Croacia', 84], ['Uruguay', 84], ['Marruecos', 83], ['Japón', 82], ['Senegal', 79], ['Corea del Sur', 79], ['Australia', 76], ['Nigeria', 76],
   ['Egipto', 75], ['Ghana', 74],
 ];
+const CONMEBOL: Rival[] = [
+  ['Argentina', 93], ['Brasil', 90], ['Uruguay', 84], ['Colombia', 83], ['Ecuador', 80], ['Paraguay', 76], ['Perú', 75], ['Chile', 75],
+  ['Venezuela', 74], ['Bolivia', 66],
+];
+const UEFA: Rival[] = [
+  ['Francia', 92], ['España', 92], ['Inglaterra', 90], ['Portugal', 89], ['Países Bajos', 88], ['Alemania', 88], ['Italia', 87], ['Bélgica', 86],
+  ['Croacia', 84], ['Suiza', 82], ['Dinamarca', 82], ['Austria', 81], ['Noruega', 80], ['Turquía', 80], ['Serbia', 78], ['Polonia', 78],
+  ['Ucrania', 78], ['Suecia', 77], ['Chequia', 77], ['Escocia', 76], ['Hungría', 76], ['Gales', 75], ['Grecia', 75], ['Rumania', 74],
+  ['Georgia', 73], ['Irlanda', 73], ['Albania', 72], ['Islandia', 70], ['Finlandia', 69], ['Bulgaria', 68], ['Kazajistán', 62],
+  ['Luxemburgo', 62], ['Chipre', 60], ['Malta', 52], ['Andorra', 45], ['San Marino', 38],
+];
+const AFC: Rival[] = [
+  ['Japón', 82], ['Irán', 79], ['Corea del Sur', 79], ['Australia', 76], ['Arabia Saudita', 72], ['Uzbekistán', 72], ['Catar', 70],
+  ['Irak', 70], ['Jordania', 70], ['Emiratos Árabes Unidos', 69], ['Omán', 66], ['China', 64], ['Siria', 64], ['Baréin', 63],
+  ['Tailandia', 62], ['Palestina', 62], ['Vietnam', 61], ['India', 55],
+];
+const CAF: Rival[] = [
+  ['Marruecos', 83], ['Senegal', 79], ['Argelia', 77], ['Costa de Marfil', 77], ['Nigeria', 76], ['Egipto', 75], ['Túnez', 74],
+  ['Camerún', 74], ['Ghana', 74], ['Malí', 73], ['RD Congo', 72], ['Sudáfrica', 71], ['Burkina Faso', 71], ['Cabo Verde', 70],
+  ['Guinea', 69], ['Gabón', 68], ['Angola', 66], ['Zambia', 65], ['Benín', 64], ['Uganda', 63], ['Kenia', 60],
+];
 type Competition = [name: string, weight: number, rivals: Rival[]];
-const GT = 'Guatemala';
 /** Suma un partido a la fila de la tabla. */
 function tally(r: NtGroupRow, gf: number, ga: number) {
   r.pj++;
@@ -61,6 +83,39 @@ function tally(r: NtGroupRow, gf: number, ga: number) {
   else r.p++;
   r.pts = r.g * 3 + r.e;
 }
+/** Torneos de cada confederación: liga de naciones (si tiene), copa con sus años y eliminatoria mundialista. */
+// nations: [nombre, rivales, solo rivales de nivel parecido].
+const CONFEDS: Record<Confed, { nations?: [string, Rival[], boolean?]; cup: [string, (summer: number) => boolean, Rival[]]; quali: Rival[] }> = {
+  CONCACAF: { nations: ['Liga de Naciones', NATIONS_LEAGUE], cup: [CONFED_CUP.CONCACAF, (s) => s % 2 === 1, CONCACAF], quali: CONCACAF },
+  CONMEBOL: { cup: [CONFED_CUP.CONMEBOL, (s) => s % 4 === 0, [...CONMEBOL, ['México', 84], ['Estados Unidos', 83]]], quali: CONMEBOL },
+  UEFA: { nations: ['Liga de Naciones de la UEFA', UEFA, true], cup: [CONFED_CUP.UEFA, (s) => s % 4 === 0, UEFA.slice(0, 26)], quali: UEFA },
+  AFC: { cup: [CONFED_CUP.AFC, (s) => s % 4 === 3, AFC], quali: AFC },
+  CAF: { cup: [CONFED_CUP.CAF, (s) => s % 2 === 1, CAF], quali: CAF },
+};
+/**
+ * Ronda final de la eliminatoria fuera de Concacaf (Concacaf juega segunda ronda y ronda final, ver simulateNationalTeam):
+ * [equipos, vueltas, puestos que van al Mundial o al repechaje, texto].
+ */
+const QUALI: Record<Exclude<Confed, 'CONCACAF'>, [number, number, number, string]> = {
+  CONMEBOL: [10, 2, 7, 'Los seis primeros van al Mundial; el séptimo, al repechaje.'],
+  UEFA: [5, 2, 2, 'El primero va al Mundial; el segundo, al repechaje.'],
+  AFC: [6, 2, 2, 'Los dos primeros van al Mundial.'],
+  CAF: [6, 2, 2, 'El primero va al Mundial; el segundo, al repechaje.'],
+};
+/** Copa de la confederación y si se juega el verano que cierra la temporada. Lo usan también los eventos. */
+export const confedCup = (c: Country, summer: number) => {
+  const [name, when] = CONFEDS[c.conf].cup;
+  return { name, now: when(summer) };
+};
+/** Copas continentales de clubes: valen como título internacional. */
+export const CLUB_CUPS = ['Concacaf Champions Cup', 'Copa Libertadores', 'Champions League', 'Champions League de la AFC', 'Champions League de la CAF'];
+/** Centroamérica juega la Copa Centroamericana de clubes. */
+const centralAmerican = (c: Country) => c.conf === 'CONCACAF' && c.code !== 'MX' && c.code !== 'US';
+/** Título de liga: "Liga Nacional · Apertura 2026" (torneos cortos) o "LaLiga 2027". */
+export const isLeagueTitle = (title: string, league: string) => {
+  const rest = title.slice(league.length);
+  return title.startsWith(league) && (rest.startsWith(' · ') || /^ \d{4}$/.test(rest));
+};
 
 /**
  * Puntos de ranking por premio. Solo suman los que existían cuando se abrió el ranking (goleador y mejor jugador),
@@ -76,6 +131,11 @@ const nextWorldCup = (year: number) => FIRST_WORLD_CUP + Math.max(0, Math.ceil((
 export class Career {
   readonly rng: Rng;
   readonly player: Player;
+  /** Nacionalidad: liga del debut, Selección y textos. */
+  readonly home: Country;
+  /** Clubes del país del jugador y primeras divisiones del resto del mundo, ya vistas desde su nacionalidad. */
+  private readonly homeClubs: Club[];
+  private readonly abroadClubs: Club[];
   private usedOnce = new Set<string>();
   private lastSeen = new Map<string, number>();
   private recentCategories: EventCategory[] = [];
@@ -86,9 +146,12 @@ export class Career {
   constructor(setup: PlayerSetup, seed = Date.now()) {
     this.rng = createRng(seed);
     const rng = this.rng;
+    this.home = countryOf(setup.country);
+    this.homeClubs = clubsOf(this.home.code);
+    this.abroadClubs = ALL_CLUBS.filter((c) => c.country !== this.home.code && c.tier === 1).map((c) => viewClub(c, this.home));
     const potential = Math.round(clamp(56 + ((rng() + rng() + rng()) / 3) * 36 + randRange(rng, -4, 4), 54, 94));
     this.player = {
-      setup: { ...setup, avatar: { ...setup.avatar } },
+      setup: { ...setup, country: this.home.code, avatar: { ...setup.avatar } },
       age: 16,
       year: START_YEAR,
       rating: randInt(rng, 42, 50),
@@ -116,7 +179,7 @@ export class Career {
   }
 
   get club(): Club {
-    return clubById(this.player.clubId);
+    return viewClub(clubById(this.player.clubId), this.home);
   }
 
   get pendingEvent(): GameEvent | null {
@@ -130,12 +193,17 @@ export class Career {
   /** El debut es en un club del departamento si existe; casi siempre en divisiones de ascenso. */
   private debutClub(dept: string): Club {
     const rng = this.rng;
-    const tier = weightedPick(rng, [3, 2, 1] as Tier[], (t) => ({ 3: 0.45, 2: 0.35, 1: 0.2 })[t as 1 | 2 | 3]);
-    const local = (HOME_CLUBS_BY_DEPT[dept] ?? []).map(clubById);
+    const tiers = ([3, 2, 1] as Tier[]).filter((t) => t <= this.home.leagues.length);
+    const tier = weightedPick(rng, tiers, (t) => DEBUT_WEIGHT[t]);
+    const local = this.regionClubs(dept);
     const localTier = local.filter((c) => c.tier === tier);
     if (localTier.length) return pick(rng, localTier);
     if (local.length && chance(rng, 0.6)) return pick(rng, local);
-    return pick(rng, GT_CLUBS.filter((c) => c.tier === tier));
+    return pick(rng, this.homeClubs.filter((c) => c.tier === tier));
+  }
+
+  private regionClubs(dept: string): Club[] {
+    return (HOME_CLUBS_BY_DEPT[this.home.code]?.[dept] ?? []).map(clubById);
   }
 
   // ---------- Temporadas ----------
@@ -182,22 +250,27 @@ export class Career {
     // Títulos
     const titles: string[] = [];
     const contribution = (apps / MATCHES[tier]) * clamp((p.rating - club.prestige + 12) / 20, 0, 1);
-    const tournaments = club.abroad ? [`${club.league} ${p.year + 1}`] : [`Apertura ${p.year}`, `Clausura ${p.year + 1}`];
+    // Torneos cortos (Apertura y Clausura) en casa si el país los juega; afuera y en ligas largas, un título por temporada.
+    const single = club.abroad || !this.home.split;
+    const tournaments = single ? [`${club.league} ${p.year + 1}`] : [`${club.league} · Apertura ${p.year}`, `${club.league} · Clausura ${p.year + 1}`];
+    // Las chances de campeonar dependen del nivel del club en su propia liga (afuera también).
+    const own = clubById(club.id);
     for (const t of tournaments) {
-      const base = club.abroad ? 0.1 : tier === 1 ? clamp(0.1 * Math.exp((club.prestige - 68) / 6), 0.03, 0.42) : 0.09;
-      if (apps >= 5 && chance(rng, base * (0.8 + 0.5 * contribution))) {
-        titles.push(club.abroad ? t : `${LEAGUE_NAME[tier]} · ${t}`);
-      }
+      let base = own.tier === 1 ? clamp(0.1 * Math.exp((own.prestige - 68) / 6), 0.03, 0.42) : 0.09;
+      if (single && !club.abroad) base = Math.min(0.6, base * 1.8); // ponytail: compensa jugar un torneo por temporada en vez de dos
+      if (apps >= 5 && chance(rng, base * (0.8 + 0.5 * contribution))) titles.push(t);
     }
     if (apps >= 10) {
-      if (tier === 1 && titles.length > 0 && chance(rng, 0.14)) titles.push(`Copa Centroamericana ${p.year}`);
-      if (['mx', 'mls'].includes(club.id) && chance(rng, 0.05)) titles.push(`Concacaf Champions Cup ${p.year + 1}`);
+      if (tier === 1 && centralAmerican(this.home) && titles.length > 0 && chance(rng, 0.14)) titles.push(`Copa Centroamericana ${p.year}`);
+      // Copa continental: sus grandes la ganan más seguido.
+      const cup = countryOf(own.country).cup;
+      if (cup && own.tier === 1 && chance(rng, cup[1] * clamp(Math.exp((own.prestige - 72) / 4), 0.2, 2))) titles.push(`${cup[0]} ${p.year + 1}`);
     }
     p.titles.push(...titles);
     if ((tier === 2 || tier === 3) && titles.length) p.flags.ascenso = 1;
 
     // Premios individuales
-    const leagueName = club.abroad ? club.league : LEAGUE_NAME[tier];
+    const leagueName = club.league;
     const share = apps / MATCHES[tier];
     const cleanSheets = pos === 'POR' ? Math.round(apps * clamp(0.3 + diff / 40, 0.12, 0.5) * randRange(rng, 0.8, 1.2)) : undefined;
     const awards: SeasonAward[] = [];
@@ -245,14 +318,17 @@ export class Career {
     const groups: NtGroup[] = [];
     const summer = p.year + 1;
     const wcYear = summer >= FIRST_WORLD_CUP && (summer - FIRST_WORLD_CUP) % 4 === 0;
+    const h = this.home;
+    const conf = CONFEDS[h.conf];
+    const bar = h.callup - 71; // los umbrales de Guatemala, corridos según lo difícil que es entrar a cada Selección
 
     // Convocatorias y bajas automáticas (los eventos de Selección aceleran este camino).
-    if (p.ntLevel > 0 && (p.rating < 60 || p.age >= 36 || p.flags.sel_retirado)) {
+    if (p.ntLevel > 0 && (p.rating < 60 + bar || p.age >= 36 || p.flags.sel_retirado)) {
       p.ntLevel = 0;
     } else if (p.age >= 19 && visible && apps >= 10) {
-      if (p.ntLevel === 0 && p.rating >= 71 && chance(rng, 0.3)) this.setNtLevel(1);
-      else if (p.ntLevel === 1 && p.rating >= 72 && chance(rng, 0.3)) this.setNtLevel(2);
-      else if (p.ntLevel === 2 && p.rating >= 77 && chance(rng, 0.2)) this.setNtLevel(3);
+      if (p.ntLevel === 0 && p.rating >= 71 + bar && chance(rng, 0.3)) this.setNtLevel(1);
+      else if (p.ntLevel === 1 && p.rating >= 72 + bar && chance(rng, 0.3)) this.setNtLevel(2);
+      else if (p.ntLevel === 2 && p.rating >= 77 + bar && chance(rng, 0.2)) this.setNtLevel(3);
     }
 
     // El Mundial se decide antes de armar la ronda final, para que la tabla cuadre con lo que pasó.
@@ -260,7 +336,7 @@ export class Career {
     let qualified = false;
     if (wcYear && p.ntLevel > 0) {
       const told = p.milestones.some((m) => m.startsWith(`Clasificó al Mundial ${summer}`));
-      const q = clamp(0.012 + p.wcProgress * 0.06 + (p.ntLevel - 1) * 0.015 + Math.max(0, p.rating - 74) * 0.004, 0.01, 0.35);
+      const q = clamp(h.wc + p.wcProgress * 0.06 + (p.ntLevel - 1) * 0.015 + Math.max(0, p.rating - 74 - bar) * 0.004, 0.01, Math.max(0.35, h.wc));
       qualified = told || (!p.flags.sel_elim_fuera && chance(rng, q));
     }
 
@@ -269,35 +345,43 @@ export class Career {
       const rate = { POR: 0, DEF: 0.04, MED: 0.1, DEL: 0.3 }[p.setup.position];
       const goals = Math.round(caps * rate * randRange(rng, 0.5, 1.5) * (clubGoals > 0 ? 1 : 0.6));
       const wc = nextWorldCup(summer);
-      const comps: Competition[] = [['Amistoso', 1, FRIENDLIES]];
+      const comps: Competition[] = [['Amistoso', 1, this.rivals(FRIENDLIES)]];
       const fixtures = new Map<string, NtMatch[]>();
       const group = (comp: string, weight: number, pool: Rival[], size: number, legs: number, note: string, advance: number, band?: [number, number]) => {
         const g = this.drawGroup(comp, pool, size, legs, band);
         groups.push({ comp, note, advance, table: g.table });
         fixtures.set(comp, g.fixtures);
         comps.push([comp, weight, pool]);
-        return g.table.findIndex((r) => r.team === GT);
+        return g.table.findIndex((r) => r.team === h.name);
       };
 
-      group('Liga de Naciones', 1.5, NATIONS_LEAGUE, 4, 2, 'El primero sube de liga.', 1);
-      // Eliminatoria: segunda ronda la temporada anterior al Mundial y ronda final la del año del Mundial.
-      // Si un evento ya contó cómo les fue en la segunda ronda, la tabla lo respeta.
-      const outEarly = p.flags.sel_elim_fuera && p.wcProgress === 0;
-      if (wc - summer === 1 && !p.flags.sel_elim_r2 && !(p.flags.sel_elim_fuera && p.wcProgress > 0)) {
-        const band: [number, number] | undefined = p.wcProgress > 0 ? [0, 0] : outEarly ? [2, 4] : undefined;
-        const pos = group(`Eliminatoria Mundial ${wc} · Segunda ronda`, 3, NATIONS_LEAGUE, 5, 1, 'Los dos primeros pasan a la ronda final.', 2, band);
-        p.flags.sel_elim_r2 = 1;
-        // Avanzar no suma wcProgress: eso queda para los eventos, así la tasa de Mundiales sigue como antes.
-        if (pos > 1) p.flags.sel_elim_fuera = 1;
-      } else if (wcYear && !outEarly) {
-        // ponytail: clasificado = 1.º o 2.º (repechaje ganado); no distingue si un evento contó el repechaje.
-        group(`Eliminatoria Mundial ${wc} · Ronda final`, 3, CONCACAF, 4, 2, 'El primero va al Mundial; el segundo, al repechaje.', 2, qualified ? [0, 1] : [2, 3]);
+      if (conf.nations) group(conf.nations[0], 1.5, this.rivals(conf.nations[1], conf.nations[2]), 4, 2, 'El primero sube de liga.', 1);
+      if (h.conf === 'CONCACAF') {
+        // Eliminatoria: segunda ronda la temporada anterior al Mundial y ronda final la del año del Mundial.
+        // Si un evento ya contó cómo les fue en la segunda ronda, la tabla lo respeta.
+        const outEarly = p.flags.sel_elim_fuera && p.wcProgress === 0;
+        if (wc - summer === 1 && !p.flags.sel_elim_r2 && !(p.flags.sel_elim_fuera && p.wcProgress > 0)) {
+          const band: [number, number] | undefined = p.wcProgress > 0 ? [0, 0] : outEarly ? [2, 4] : undefined;
+          const pos = group(`Eliminatoria Mundial ${wc} · Segunda ronda`, 3, this.rivals(NATIONS_LEAGUE), 5, 1, 'Los dos primeros pasan a la ronda final.', 2, band);
+          p.flags.sel_elim_r2 = 1;
+          // Avanzar no suma wcProgress: eso queda para los eventos, así la tasa de Mundiales sigue como antes.
+          if (pos > 1) p.flags.sel_elim_fuera = 1;
+        } else if (wcYear && !outEarly) {
+          // ponytail: clasificado = 1.º o 2.º (repechaje ganado); no distingue si un evento contó el repechaje.
+          group(`Eliminatoria Mundial ${wc} · Ronda final`, 3, this.rivals(CONCACAF), 4, 2, 'El primero va al Mundial; el segundo, al repechaje.', 2, qualified ? [0, 1] : [2, 3]);
+        }
+      } else if (wcYear) {
+        // El resto de confederaciones: un solo grupo, que cuadra con si la Selección va o no al Mundial.
+        const [size, legs, advance, note] = QUALI[h.conf];
+        group(`Eliminatoria Mundial ${wc} · Ronda final`, 3, this.rivals(conf.quali), size, legs, note, advance, qualified ? [0, advance - 1] : [advance, size - 1]);
       }
-      if (summer % 2 === 1) {
-        const semis = p.ntLevel >= 2 && chance(rng, 0.12 + Math.max(0, p.rating - 72) * 0.01);
-        group(`Copa Oro ${summer}`, 2, CONCACAF, 4, 1, 'Los dos primeros pasan a cuartos de final.', 2, semis ? [0, 1] : undefined);
+      const cup = confedCup(h, summer);
+      if (cup.now) {
+        const semis = p.ntLevel >= 2 && chance(rng, 0.12 + Math.max(0, p.rating - 72 - bar) * 0.01);
+        const note = h.conf === 'CONCACAF' || h.conf === 'CONMEBOL' ? 'Los dos primeros pasan a cuartos de final.' : 'Pasan los dos primeros y los mejores terceros.';
+        group(`${cup.name} ${summer}`, 2, this.rivals(conf.cup[2]), 4, 1, note, 2, semis ? [0, 1] : undefined);
         if (semis) {
-          p.milestones.push(`Semifinal de Copa Oro ${summer}`);
+          p.milestones.push(`Semifinal de ${cup.name} ${summer}`);
           p.fame += 8;
         }
       }
@@ -312,10 +396,10 @@ export class Career {
     if (wcYear) {
       if (qualified) {
         p.flags.mundial = (p.flags.mundial ?? 0) + 1;
-        p.milestones.push(`Jugó el Mundial ${summer} con Guatemala`);
+        p.milestones.push(`Jugó el Mundial ${summer} con ${h.name}`);
         p.fame += 30;
         // Fase de grupos: tres partidos, todos con el jugador en cancha.
-        const g = this.drawGroup(`Mundial ${summer}`, WORLD_CUP, 4, 1);
+        const g = this.drawGroup(`Mundial ${summer}`, this.rivals(WORLD_CUP), 4, 1);
         groups.push({ comp: `Mundial ${summer}`, note: 'Pasan los dos primeros y los mejores terceros.', advance: 2, table: g.table });
         p.caps += 3;
         matches.push(...g.fixtures);
@@ -336,21 +420,31 @@ export class Career {
     return matches.length ? { debut, matches, groups } : undefined;
   }
 
+  /** Fuerza de la Selección del jugador; en Guatemala, 64 + (nivel - 70) / 4 + su peso en el equipo. */
   private gtStrength() {
-    return 64 + (this.player.rating - 70) * 0.25 + this.player.ntLevel;
+    return this.home.strength - 2 + (this.player.rating - this.home.callup + 1) * 0.25 + this.player.ntLevel;
+  }
+
+  /** Rivales sin la propia Selección del jugador. near: solo los 7 de fuerza más parecida (ligas de naciones por nivel). */
+  private rivals(list: Rival[], near = false): Rival[] {
+    const others = list.filter(([name]) => name !== this.home.name);
+    if (!near) return others;
+    const s = this.home.strength;
+    return [...others].sort((a, b) => Math.abs(a[1] - s) - Math.abs(b[1] - s)).slice(0, 7);
   }
 
   /**
-   * Sortea el grupo de Guatemala y juega todos los partidos (también los de los rivales entre sí).
-   * Con band, repite el grupo empujando a Guatemala hasta que termine entre esos puestos (0 = primero),
+   * Sortea el grupo de la Selección del jugador y juega todos los partidos (también los de los rivales entre sí).
+   * Con band, repite el grupo empujando a la Selección hasta que termine entre esos puestos (0 = primero),
    * para que la tabla cuadre con un resultado ya decidido.
    */
   private drawGroup(comp: string, pool: Rival[], size: number, legs: number, band: [number, number] = [0, size - 1]) {
     const rng = this.rng;
+    const home = this.home.name;
     const left = [...pool];
     const rivals = Array.from({ length: size - 1 }, () => left.splice(Math.floor(rng() * left.length), 1)[0]);
     for (let bias = 0; ; bias += band[0] > 0 ? -2 : 2) {
-      const teams: Rival[] = [[GT, this.gtStrength() + bias], ...rivals];
+      const teams: Rival[] = [[home, this.gtStrength() + bias], ...rivals];
       const rows = teams.map(([team]): NtGroupRow => ({ team, pj: 0, g: 0, e: 0, p: 0, gf: 0, ga: 0, pts: 0 }));
       const fixtures: NtMatch[] = [];
       for (let leg = 0; leg < legs; leg++) {
@@ -365,14 +459,14 @@ export class Career {
         }
       }
       const table = rows.sort((x, y) => y.pts - x.pts || y.gf - y.ga - (x.gf - x.ga) || y.gf - x.gf);
-      const pos = table.findIndex((r) => r.team === GT);
+      const pos = table.findIndex((r) => r.team === home);
       if (pos >= band[0] && pos <= band[1]) return { table, fixtures };
     }
   }
 
   /**
    * Arma los partidos del jugador en la temporada: salen del calendario de cada grupo (sin inventar partidos que no estén
-   * en la tabla) o son amistosos. Los goles solo caen donde Guatemala anotó, salvo en amistosos.
+   * en la tabla) o son amistosos. Los goles solo caen donde su Selección anotó, salvo en amistosos.
    */
   private ntMatches(comps: Competition[], fixtures: Map<string, NtMatch[]>, n: number, goals: number) {
     const rng = this.rng;
@@ -442,14 +536,15 @@ export class Career {
     if (p.flags.banca < 2) return;
     p.flags.banca = 0;
     const current = this.club;
-    const fits = GT_CLUBS.filter((c) => c.id !== current.id && c.prestige < current.prestige && c.prestige <= p.rating + 3);
+    const fits = this.homeClubs.filter((c) => c.id !== current.id && c.prestige < current.prestige && c.prestige <= p.rating + 3);
+    const lowest = this.home.leagues.length;
     const dest = fits.length
       ? weightedPick(this.rng, fits, (c) => Math.exp((c.prestige - current.prestige) / 6))
-      : GT_CLUBS.filter((c) => c.tier === 3 && c.id !== current.id).sort((a, b) => a.prestige - b.prestige)[0];
+      : this.homeClubs.filter((c) => c.tier === lowest && c.id !== current.id).sort((a, b) => a.prestige - b.prestige)[0];
     if (!dest) return;
     p.clubId = dest.id;
     p.coach = 55;
-    const tierNote = dest.tier !== current.tier ? ` (${LEAGUE_NAME[dest.tier]})` : '';
+    const tierNote = dest.tier !== current.tier ? ` (${dest.league})` : '';
     record.note = `Sin minutos: pasó a ${dest.name}${tierNote}`;
   }
 
@@ -473,6 +568,7 @@ export class Career {
       club,
       tier: club.tier,
       abroad: club.abroad,
+      country: this.home,
       last: p.seasons.at(-1),
       qualifiers: wc - (p.year + 1) <= 2,
       worldCupYear: wc,
@@ -522,7 +618,7 @@ export class Career {
     return {
       id: template.id,
       category: template.category,
-      title: template.title,
+      title: typeof template.title === 'function' ? template.title(p, ctx) : template.title,
       text: template.text(p, ctx),
       options: template.options(p, ctx),
     };
@@ -543,7 +639,7 @@ export class Career {
     const p = this.player;
     const current = this.club;
     const jump =
-      target.abroad ? 'del extranjero' : target.tier < current.tier ? `de ${LEAGUE_NAME[target.tier]}` : 'de otro club';
+      target.abroad ? 'del extranjero' : target.tier < current.tier ? `de ${target.league}` : 'de otro club';
     const options: EventOption[] = [
       {
         label: `Me voy a ${target.name}`,
@@ -635,14 +731,14 @@ export class Career {
     }
     if (e.natGoals) {
       p.natGoals += e.natGoals;
-      changes.push(`+${e.natGoals} gol${e.natGoals > 1 ? 'es' : ''} con Guatemala`);
+      changes.push(`+${e.natGoals} gol${e.natGoals > 1 ? 'es' : ''} con ${this.home.name}`);
     }
     if (e.wcProgress) {
       p.wcProgress = clamp(p.wcProgress + e.wcProgress, 0, 3);
-      changes.push('Guatemala avanza en la eliminatoria');
+      changes.push(`${this.home.name} avanza en la eliminatoria`);
     }
     const dest = e.transferTo
-      ? clubById(e.transferTo)
+      ? viewClub(clubById(e.transferTo), this.home)
       : e.transfer === 'suitor'
         ? this.suitor
         : e.transfer
@@ -668,7 +764,7 @@ export class Career {
         return this.suitor;
       case 'up': {
         const abroadOk = p.age <= 30 && (p.rating >= 64 || current.abroad) && current.tier <= 1;
-        pool = others([...GT_CLUBS, ...(abroadOk ? ABROAD_CLUBS : [])]).filter(
+        pool = others([...this.homeClubs, ...(abroadOk ? this.abroadClubs : [])]).filter(
           (c) =>
             c.prestige > current.prestige + 1 &&
             c.prestige <= p.rating + 5 &&
@@ -678,28 +774,28 @@ export class Career {
       }
       case 'tierUp': {
         if (current.abroad || current.tier === 1) return this.findClub('up');
-        const target = (current.tier === 3 ? 2 : 1) as Tier;
-        pool = others(GT_CLUBS.filter((c) => c.tier === target && c.prestige <= p.rating + 6));
-        if (!pool.length) pool = GT_CLUBS.filter((c) => c.tier === target).sort((a, b) => a.prestige - b.prestige).slice(0, 2);
+        const target = (current.tier - 1) as Tier;
+        pool = others(this.homeClubs.filter((c) => c.tier === target && c.prestige <= p.rating + 6));
+        if (!pool.length) pool = this.homeClubs.filter((c) => c.tier === target).sort((a, b) => a.prestige - b.prestige).slice(0, 2);
         break;
       }
       case 'down':
-        pool = others(GT_CLUBS).filter((c) => c.prestige < current.prestige && c.prestige >= current.prestige - 14);
+        pool = others(this.homeClubs).filter((c) => c.prestige < current.prestige && c.prestige >= current.prestige - 14);
         break;
       case 'abroad':
-        pool = others(ABROAD_CLUBS).filter((c) => c.prestige <= Math.max(p.rating + 6, 64));
+        pool = others(this.abroadClubs).filter((c) => c.prestige <= Math.max(p.rating + 6, 64));
         break;
       case 'abroadUp':
-        pool = others(ABROAD_CLUBS).filter((c) => c.prestige > current.prestige && c.prestige <= p.rating + 6);
+        pool = others(this.abroadClubs).filter((c) => c.prestige > current.prestige && c.prestige <= p.rating + 6);
         break;
       case 'home': {
-        const home = (HOME_CLUBS_BY_DEPT[p.setup.dept] ?? []).map(clubById).filter((c) => c.tier === 1 || c.tier === 2);
+        const home = this.regionClubs(p.setup.dept).filter((c) => c.tier === 1 || c.tier === 2);
         pool = others(home);
-        if (!pool.length) pool = others(GT_CLUBS).filter((c) => c.tier === 1 && c.prestige <= p.rating + 4);
+        if (!pool.length) pool = others(this.homeClubs).filter((c) => c.tier === 1 && c.prestige <= p.rating + 4);
         break;
       }
       case 'any': {
-        const list = current.abroad ? ABROAD_CLUBS : GT_CLUBS;
+        const list = current.abroad ? this.abroadClubs : this.homeClubs;
         pool = others(list).filter(
           (c) => Math.abs(c.prestige - current.prestige) <= 8 && c.prestige <= Math.max(current.prestige, p.rating + 4),
         );
@@ -707,8 +803,9 @@ export class Career {
       }
     }
     if (!pool.length) return null;
-    // Preferir el club de mayor nivel posible, con algo de azar.
-    return weightedPick(rng, pool, (c) => Math.exp((c.prestige - current.prestige) / 8));
+    // Preferir el club de mayor nivel posible, con algo de azar; afuera, los de su confederación pesan el doble.
+    const near = (c: Club) => (c.abroad && countryOf(c.country).conf === this.home.conf ? 2 : 1);
+    return weightedPick(rng, pool, (c) => Math.exp((c.prestige - current.prestige) / 8) * near(c));
   }
 }
 
@@ -725,6 +822,7 @@ export interface CareerSummary {
 }
 
 export function summarize(p: Player): CareerSummary {
+  const home = countryOf(p.setup.country);
   const apps = p.seasons.reduce((s, r) => s + r.apps, 0);
   const goals = p.seasons.reduce((s, r) => s + r.goals, 0);
   const assists = p.seasons.reduce((s, r) => s + r.assists, 0);
@@ -736,15 +834,17 @@ export function summarize(p: Player): CareerSummary {
       last.apps += r.apps;
       last.goals += r.goals;
     } else {
-      clubs.push({ club: clubById(r.clubId), from: r.label, to: r.label, apps: r.apps, goals: r.goals });
+      clubs.push({ club: viewClub(clubById(r.clubId), home), from: r.label, to: r.label, apps: r.apps, goals: r.goals });
     }
   }
-  const count = (prefix: string) => p.titles.filter((t) => t.startsWith(prefix)).length;
-  const ln = count('Liga Nacional');
-  const lower = count('Primera División') + count('Segunda División');
+  // Ligas del país del jugador: la primera vale como Liga Nacional y las de ascenso como Primera y Segunda.
+  const count = (league: string) => p.titles.filter((t) => isLeagueTitle(t, league)).length;
+  const ln = count(home.leagues[0]);
+  const lower = home.leagues.slice(1).reduce((t, l) => t + count(l), 0);
   const other = p.titles.length - ln - lower;
   const mundial = p.flags.mundial ?? 0;
-  const abroadTop = clubs.some((c) => ['mx', 'esp2', 'eur'].includes(c.club.id));
+  // Un club top del extranjero, medido igual para todas las nacionalidades (como se vería desde Guatemala).
+  const abroadTop = clubs.some((c) => c.club.abroad && clubById(c.club.id).prestige + countryOf(c.club.country).level >= 82);
   const firstDivApps = p.seasons.filter((s) => s.tier <= 1).reduce((s, r) => s + r.apps, 0);
   const awardPoints = p.seasons.flatMap((s) => s.awards).reduce((t, a) => t + AWARD_POINTS[a.kind], 0);
   // Entero: es lo que se muestra y lo que ordena el ranking.
@@ -753,14 +853,14 @@ export function summarize(p: Player): CareerSummary {
     (abroadTop ? 15 : 0) + p.fame * 0.15 + (p.peakRating - 60) * 1.2 + firstDivApps * 0.05,
   );
 
-  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score), score };
+  return { apps, goals, assists, clubs, titles: p.titles, verdict: verdictFor(score, home.adj), score };
 }
 
 // Cada veredicto trae su carta, de la más rara a la más común.
 export type CardTier = 'icono' | 'heroe' | 'salon' | 'oro' | 'plata' | 'bronce';
 
 const VERDICTS: [number, string, string, CardTier][] = [
-  [230, 'Leyenda chapina', 'Tu nombre se canta en los estadios de todo el país.', 'icono'],
+  [230, 'Leyenda', 'Tu nombre se canta en los estadios de todo el país.', 'icono'],
   [170, 'Ídolo nacional', 'Los patojos piden tu camisola en el mercado.', 'heroe'],
   [120, 'Referente de la Liga', 'Una carrera que se recuerda con respeto.', 'salon'],
   [70, 'Jugador de culto', 'Tu afición te recuerda con cariño.', 'oro'],
@@ -768,7 +868,8 @@ const VERDICTS: [number, string, string, CardTier][] = [
   [-999, 'Promesa que no fue', 'El fútbol a veces no devuelve lo que uno le da.', 'bronce'],
 ];
 
-export function verdictFor(score: number) {
-  const [, title, line, tier] = VERDICTS.find(([min]) => score >= min)!;
-  return { title, line, tier };
+/** adj: gentilicio para la leyenda ("Leyenda chapina"). Sin él (el ranking mezcla países) queda "Leyenda". */
+export function verdictFor(score: number, adj?: string) {
+  const [min, title, line, tier] = VERDICTS.find(([min]) => score >= min)!;
+  return { title: adj && min === VERDICTS[0][0] ? `${title} ${adj}` : title, line, tier };
 }

@@ -1,0 +1,73 @@
+// Uruguay — temporada 2026 (Torneo Clausura 2026, fecha 10; Segunda División, fase regular). Investigado el 2026-10-14.
+// Orden: de más fuerte a más débil (tabla actual, presupuesto e historia).
+// Ascendieron Albion, Central Español y Deportivo Maldonado; descendieron Plaza Colonia, River Plate y Miramar Misiones (2025).
+import type { CountryTeams } from '../teams';
+
+export default {
+  leagues: [
+    {
+      name: 'Primera División de Uruguay',
+      teams: [
+        { name: 'Peñarol', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Carboneros', colors: ['#FFD100', '#000000'], stadium: 'Estadio Campeón del Siglo', rival: 'Nacional' },
+        { name: 'Nacional', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Tricolores', colors: ['#FFFFFF', '#0033A0'], stadium: 'Gran Parque Central', rival: 'Peñarol' },
+        { name: 'Racing', city: 'Montevideo', dept: 'Montevideo', nickname: 'La Escuelita', colors: ['#00843D', '#FFFFFF'], stadium: 'Parque Osvaldo Roberto' },
+        { name: 'Liverpool', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Negriazules', colors: ['#000000', '#0033A0'] },
+        { name: 'Montevideo City Torque', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Ciudadanos', colors: ['#6CACE4', '#000000'] },
+        { name: 'Deportivo Maldonado', city: 'Maldonado', dept: 'Maldonado', nickname: 'El Depo', colors: ['#E30613', '#009A44'], stadium: 'Estadio Domingo Burgueño Miguel' },
+        { name: 'Montevideo Wanderers', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Bohemios', colors: ['#000000', '#FFFFFF'], stadium: 'Parque Alfredo Víctor Viera' },
+        { name: 'Defensor Sporting', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Violetas', colors: ['#5B2C83', '#FFFFFF'], stadium: 'Estadio Luis Franzini' },
+        { name: 'Cerro', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Villeros', colors: ['#6CACE4', '#FFFFFF'], stadium: 'Estadio Luis Tróccoli' },
+        { name: 'Juventud', city: 'Las Piedras', dept: 'Canelones', nickname: 'Los Pedrenses', colors: ['#0033A0', '#FFFFFF'], stadium: 'Parque Artigas' },
+        { name: 'Danubio', city: 'Montevideo', dept: 'Montevideo', nickname: 'La Franja', colors: ['#FFFFFF', '#000000'], stadium: 'Jardines del Hipódromo' },
+        { name: 'Boston River', city: 'Montevideo', dept: 'Montevideo', nickname: 'El Sastre', colors: ['#E30613', '#009A44'], stadium: 'Estadio Campeones Olímpicos' },
+        { name: 'Progreso', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Gauchos del Pantanoso', colors: ['#FFD100', '#E30613'], stadium: 'Parque Abraham Paladino' },
+        { name: 'Central Español', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Palermitanos', colors: ['#E30613', '#0033A0'], stadium: 'Parque Palermo' },
+        { name: 'Cerro Largo', city: 'Melo', dept: 'Cerro Largo', nickname: 'Los Arachanes', colors: ['#FFFFFF', '#0033A0'], stadium: 'Estadio Arquitecto Antonio Eleuterio Ubilla' },
+        { name: 'Albion', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Leones', colors: ['#E30613', '#0033A0'] },
+      ],
+    },
+    {
+      name: 'Segunda División de Uruguay',
+      teams: [
+        { name: 'Plaza Colonia', city: 'Colonia del Sacramento', dept: 'Colonia', nickname: 'Los Patas Blancas', colors: ['#FFFFFF', '#009A44'] },
+        { name: 'Atenas', city: 'San Carlos', dept: 'Maldonado', nickname: 'Los Atenienses', colors: ['#0033A0', '#E30613'], stadium: 'Estadio Ateniense' },
+        { name: 'Oriental', city: 'La Paz', dept: 'Canelones', nickname: 'El Celeste de La Paz', colors: ['#6CACE4', '#000000'] },
+        { name: 'Rentistas', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Bichos Colorados', colors: ['#E30613', '#FFFFFF'], stadium: 'Complejo Rentistas' },
+        { name: 'Fénix', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Albivioletas', colors: ['#5B2C83', '#FFFFFF'], stadium: 'Parque Capurro' },
+        { name: 'River Plate', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Darseneros', colors: ['#E30613', '#FFFFFF'], stadium: 'Parque Federico Omar Saroldi' },
+        { name: 'Colón', city: 'Montevideo', dept: 'Montevideo', nickname: 'El Verde', colors: ['#E30613', '#009A44'] },
+        { name: 'Cerrito', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Auriverdes', colors: ['#FFD100', '#009A44'], stadium: 'Parque Maracaná' },
+        { name: 'Miramar Misiones', city: 'Montevideo', dept: 'Montevideo', nickname: 'Las Cebritas', colors: ['#FFFFFF', '#000000'] },
+        { name: 'Huracán', city: 'Montevideo', dept: 'Montevideo', nickname: 'El Hura', colors: ['#0033A0', '#FFFFFF'], stadium: 'Parque Palermo' },
+        { name: 'La Luz', city: 'Montevideo', dept: 'Montevideo', nickname: 'Los Merengues', colors: ['#FFFFFF', '#009A44'], stadium: 'Parque Palermo' },
+        { name: 'Paysandú', city: 'Paysandú', dept: 'Paysandú', nickname: 'El Paysa', colors: ['#FFFFFF', '#0033A0'], stadium: 'Estadio Artigas' },
+        { name: 'Tacuarembó', city: 'Tacuarembó', dept: 'Tacuarembó', nickname: 'El Tacua', colors: ['#E30613', '#FFFFFF'], stadium: 'Estadio Raúl Goyenola' },
+        { name: 'Uruguay Montevideo', city: 'Montevideo', dept: 'Montevideo', nickname: 'La Celestina', colors: ['#6CACE4', '#000000'], stadium: 'Parque ANCAP' },
+      ],
+    },
+  ],
+  sources: [
+    'https://es.wikipedia.org/wiki/Campeonato_Uruguayo_de_Primera_División_2026',
+    'https://es.wikipedia.org/wiki/Campeonato_Uruguayo_de_Segunda_División_2026',
+    'https://es.wikipedia.org/wiki/Club_Deportivo_Maldonado',
+    'https://es.wikipedia.org/wiki/Club_Atlético_Juventud_de_Las_Piedras',
+    'https://es.wikipedia.org/wiki/Club_Atlético_Boston_River',
+    'https://es.wikipedia.org/wiki/Central_Español_Fútbol_Club',
+    'https://es.wikipedia.org/wiki/Cerro_Largo_Fútbol_Club',
+    'https://es.wikipedia.org/wiki/Albion_Football_Club',
+    'https://es.wikipedia.org/wiki/Racing_Club_de_Montevideo',
+    'https://en.wikipedia.org/wiki/Montevideo_City_Torque',
+    'https://es.wikipedia.org/wiki/Club_Atlético_Atenas_(San_Carlos)',
+    'https://es.wikipedia.org/wiki/Club_Oriental_de_Football',
+    'https://es.wikipedia.org/wiki/Club_Atlético_River_Plate_(Uruguay)',
+    'https://es.wikipedia.org/wiki/Colón_Fútbol_Club',
+    'https://es.wikipedia.org/wiki/Club_Sportivo_Cerrito',
+    'https://en.wikipedia.org/wiki/Miramar_Misiones',
+    'https://es.wikipedia.org/wiki/Huracán_Football_Club',
+    'https://es.wikipedia.org/wiki/La_Luz_Fútbol_Club',
+    'https://es.wikipedia.org/wiki/Paysandú_Fútbol_Club',
+    'https://es.wikipedia.org/wiki/Tacuarembó_Fútbol_Club',
+    'https://es.wikipedia.org/wiki/Uruguay_Montevideo_Football_Club',
+    'https://es.wikipedia.org/wiki/Club_Plaza_Colonia_de_Deportes',
+  ],
+} satisfies CountryTeams;
