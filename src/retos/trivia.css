@@ -1,0 +1,63 @@
+/* Retos Fútbol, modo preguntas (prefijo rq-). Usa las variables de style.css; los dos temas salen de ahí. Sin animaciones salvo la barra, y esa solo sin "reducir movimiento". */
+.rq { outline: none; }
+.rq-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.rq-zona { display: flex; flex-direction: column; min-height: 31rem; }
+.rq-pantalla { display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 0; }
+.rq-pantalla :is(h2, p) { overflow-wrap: anywhere; }
+.rq h2:focus { outline: none; }
+.rq h2:focus-visible { outline: 3px solid var(--celeste); outline-offset: 4px; border-radius: 4px; }
+
+/* Relevo */
+.rq-relevo { justify-content: center; gap: 16px; }
+.rq-eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.rq-titulo { font-size: clamp(34px, 11vw, 52px); font-weight: 900; text-transform: uppercase; letter-spacing: -0.01em; }
+.rq-detalle { font-size: 18px; max-width: 34ch; }
+.rq-nota { color: var(--muted); font-size: 15px; }
+.rq-listo, .rq-sig { min-height: 56px; width: 100%; touch-action: manipulation; }
+
+/* Pregunta: nombre y número, reloj, texto, opciones y espacio reservado para el aviso (así no salta la altura al responder) */
+.rq-cab { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.rq-reloj { display: flex; align-items: center; gap: 12px; }
+.rq-tiempo { font: 900 40px/1 var(--display); min-width: 3.2ch; font-variant-numeric: tabular-nums; }
+.rq-unidad { font-size: 18px; color: var(--muted); }
+.rq-barra { flex: 1; height: 8px; border-radius: 4px; background: var(--celeste-soft); overflow: hidden; }
+.rq-barra i { display: block; height: 100%; width: 100%; background: var(--celeste); }
+@media (prefers-reduced-motion: no-preference) { .rq-barra i { transition: width 0.25s linear; } }
+.rq-pregunta { font: 700 21px/1.25 var(--body); text-wrap: balance; }
+.rq-ops { display: flex; flex-direction: column; gap: 8px; }
+.rq-op {
+  display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 12px;
+  min-height: 56px; padding: 8px 12px; text-align: left; cursor: pointer; touch-action: manipulation;
+  background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); border-radius: 12px; font: 600 17px/1.2 var(--body);
+}
+.rq-op:hover:not(:disabled) { border-color: var(--celeste); }
+.rq-op:disabled { cursor: default; opacity: 1; color: var(--ink); }
+.rq-n { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--celeste-soft); color: var(--ink); font: 800 14px/1 var(--body); }
+.rq-t { min-width: 0; overflow-wrap: anywhere; }
+.rq-marca { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.rq-op.rq-ok { border-color: var(--good); border-width: 2.5px; background: var(--surface-2); }
+.rq-op.rq-ok .rq-marca { color: var(--good); }
+.rq-op.rq-mal { border-color: var(--bad); border-width: 2.5px; background: var(--surface-2); }
+.rq-op.rq-mal .rq-marca { color: var(--bad); }
+.rq-pie { display: flex; flex-direction: column; gap: 8px; min-height: 128px; }
+.rq-fb { border: 2px solid var(--line); border-radius: 12px; padding: 8px 14px; background: var(--surface); }
+.rq-fb.rq-ok { border-color: var(--good); }
+.rq-fb.rq-mal { border-color: var(--bad); }
+.rq-fb-t { font-weight: 800; font-size: 17px; }
+.rq-fb.rq-ok .rq-fb-t { color: var(--good); }
+.rq-fb.rq-mal .rq-fb-t { color: var(--bad); }
+.rq-fb-d { font-size: 15px; }
+
+/* Celular horizontal o con el teclado abierto: todo más compacto y sin altura mínima */
+@media (max-height: 420px) {
+  .rq-zona { min-height: 0; }
+  .rq-pantalla { gap: 8px; }
+  .rq-relevo { justify-content: flex-start; }
+  .rq-titulo { font-size: 30px; }
+  .rq-pregunta { font-size: 17px; }
+  .rq-tiempo { font-size: 28px; }
+  .rq-op { min-height: 48px; padding-block: 4px; }
+  .rq-pie { min-height: 0; }
+  .rq-listo, .rq-sig { min-height: 48px; }
+}
+@media (min-width: 560px) { .rq-pregunta { font-size: 24px; } }
