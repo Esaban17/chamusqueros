@@ -10,6 +10,7 @@ import { o, opt, has } from '../helpers';
 // - amor_ya_casado: se casó una vez en la carrera (permanente; impide un segundo compromiso o una segunda boda)
 // - amor_famosa: la pareja es famosa (siempre junto a una pareja)
 // - amor_hija → amor_hija_2 → fin: la hija del técnico (amor_hija_publica cambia el texto y las chances del paso 3)
+// - amor_club_<id del club>: el club donde arrancó esa ruta. Los pasos 2 y 3 solo salen en ese club; si el jugador se va, amor_hija_fin la cierra.
 // - amor_traicion → amor_companero_2: la pareja de un compañero
 // Toda ruptura borra FIN. Ninguna lista de `flag` repite una bandera de su `unflag`.
 
@@ -23,6 +24,10 @@ export const FIN = [...PAREJA, 'amor_famosa'];
 
 /** Peso de un evento que no es paso de ruta. ponytail: el motor trata todo peso numérico >= 3 como ruta, así que el tope es 2,9. */
 const peso = (w: number) => Math.min(w * PESO, 2.9);
+
+/** Bandera con el club donde arrancó la ruta de la hija. ponytail: el nombre lleva el id porque las banderas solo valen 1. */
+const clubDeRuta = (id: string) => `amor_club_${id}`;
+const rutaHija = (p: Player) => has(p, 'amor_hija') || has(p, 'amor_hija_2');
 
 const algun = (p: Player, banderas: string[]) => banderas.some((b) => has(p, b));
 export const conPareja = (p: Player) => algun(p, PAREJA);
@@ -110,9 +115,9 @@ export const AMOR_EVENTS: EventTemplate[] = [
     when: (p) => adulto(p) && soltero(p) && p.age >= 19 && p.age <= 31,
     weight: peso(0.8),
     once: true,
-    options: () => [
+    options: (p, ctx) => [
       opt('Invitarla a salir',
-        o(0.85, 'Lo pensó un segundo, sonrió y dijo que sí, con una condición: "mi papá todavía no se entera". Desde entonces las miradas en el entreno son de cómplices.', { morale: 6, flag: 'amor_hija' }),
+        o(0.85, 'Lo pensó un segundo, sonrió y dijo que sí, con una condición: "mi papá todavía no se entera". Desde entonces las miradas en el entreno son de cómplices.', { morale: 6, flag: ['amor_hija', clubDeRuta(ctx.club.id)] }),
         o(0.15, 'Te contestó con amabilidad que prefería no mezclar el trabajo con su vida personal. Lo respetaste y quedaron en buenos términos.', { morale: -3 })),
       opt('Mantener la distancia profesional',
         o(1, 'Decidiste que el vestuario y la familia del técnico no se mezclan. El profe notó tu seriedad y te lo agradeció en silencio.', { coach: 4, morale: 1 })),
@@ -124,16 +129,16 @@ export const AMOR_EVENTS: EventTemplate[] = [
     title: 'Salidas con testigos',
     text: () =>
       'Llevan unas semanas saliendo y la cosa va en serio. Ella te dice: "No quiero esconderme para siempre". Mientras tanto, el técnico te mira raro en los entrenos, como si ya sospechara algo.',
-    when: (p) => adulto(p) && has(p, 'amor_hija'),
+    when: (p, ctx) => adulto(p) && has(p, 'amor_hija') && has(p, clubDeRuta(ctx.club.id)),
     weight: 3,
     once: true,
-    options: () => [
+    options: (p, ctx) => [
       opt('Seguir viéndonos a escondidas',
         o(1, 'Siguieron viéndose en cafés lejos del estadio. Te sentís protagonista de una serie de espías, y te encanta. Solo falta saber cuánto dura el secreto.', { morale: 3, flag: 'amor_hija_2', unflag: 'amor_hija' })),
       opt('Hacerlo público',
         o(1, 'Subieron una foto juntos y el vestuario enloqueció. Ahora lo sabe todo el club, incluido el técnico, que todavía no dice nada.', { morale: 4, fame: 2, flag: ['amor_hija_2', 'amor_hija_publica'], unflag: 'amor_hija' })),
       opt('Terminarlo antes de que se complique',
-        o(1, 'Lo hablaron con sinceridad: no valía el riesgo. Quedaron en buenos términos y nadie salió herido.', { morale: -4, unflag: 'amor_hija' })),
+        o(1, 'Lo hablaron con sinceridad: no valía el riesgo. Quedaron en buenos términos y nadie salió herido.', { morale: -4, unflag: ['amor_hija', clubDeRuta(ctx.club.id)] })),
     ],
   },
   {
@@ -144,12 +149,12 @@ export const AMOR_EVENTS: EventTemplate[] = [
       has(p, 'amor_hija_publica')
         ? 'Con la relación a la vista de todos, el técnico te llama a su oficina. Cierra la puerta, se sienta frente a vos y te mira en silencio durante un buen rato.'
         : 'Alguien del club los vio juntos y fue con el cuento al técnico. Te llama a su oficina, cierra la puerta, se sienta frente a vos y te mira en silencio durante un buen rato.',
-    when: (p) => adulto(p) && has(p, 'amor_hija_2'),
+    when: (p, ctx) => adulto(p) && has(p, 'amor_hija_2') && has(p, clubDeRuta(ctx.club.id)),
     weight: 3,
     once: true,
-    options: (p) => {
+    options: (p, ctx) => {
       const publica = has(p, 'amor_hija_publica');
-      const fin = ['amor_hija_2', 'amor_hija_publica'];
+      const fin = ['amor_hija_2', 'amor_hija_publica', clubDeRuta(ctx.club.id)];
       return [
         opt('Dar la cara y hablarle con respeto',
           o(publica ? 0.7 : 0.55, 'El técnico respiró hondo y dijo: "Lo que más me importa es que ella esté bien. Cuidala". Terminó invitándote a comer a su casa.', { coach: 10, morale: 8, flag: 'amor_novia', unflag: fin }),
@@ -160,6 +165,27 @@ export const AMOR_EVENTS: EventTemplate[] = [
         opt('Dejar que ella hable con su papá',
           o(0.4, 'Ella habló con él con la calma de una persona adulta que decide con quién sale. Gracias a ella, el técnico te dio una oportunidad.', { coach: 8, morale: 6, flag: 'amor_novia', unflag: fin }),
           o(0.6, 'Su papá respetó la decisión de ella, pero dijo que "las cosas se dicen de frente" y no por intermediarios. Ella y vos decidieron dejarlo ahí.', { coach: -12, morale: -6, unflag: fin })),
+      ];
+    },
+  },
+
+  {
+    id: 'amor_hija_fin',
+    category: 'amor',
+    title: 'Cada quien por su lado',
+    text: () =>
+      'Con el cambio de club, lo tuyo con la hija de tu ex técnico se fue enfriando. Ella tiene su trabajo y su propia vida, los mensajes se espaciaron y las visitas, también.',
+    // La ruta sigue abierta pero el jugador ya no está en el club donde empezó (RF-16).
+    when: (p, ctx) => adulto(p) && rutaHija(p) && !has(p, clubDeRuta(ctx.club.id)),
+    weight: 3,
+    once: true,
+    options: (p) => {
+      const fin = ['amor_hija', 'amor_hija_2', 'amor_hija_publica', ...Object.keys(p.flags).filter((f) => f.startsWith('amor_club_'))];
+      return [
+        opt('Escribirle con cariño y cerrar el capítulo',
+          o(1, 'Le escribiste con sinceridad y ella te contestó con una sonrisa y buenos deseos. Quedó un recuerdo bonito y ningún rencor.', { morale: -2, unflag: fin })),
+        opt('Dejar que el tiempo haga lo suyo',
+          o(1, 'No hubo drama ni despedidas: un día dejaron de escribirse y quedó el buen recuerdo.', { morale: -1, unflag: fin })),
       ];
     },
   },

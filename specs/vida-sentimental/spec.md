@@ -69,6 +69,7 @@ Las historias en curso (hija del entrenador, novia de un compañero) son pasos p
 ### Hitos y consistencia con lo existente
 - **RF-11** Compromiso y boda dejan hito con el año (formato del motor: "Se casó (2031)"). Ninguna otra situación deja hito. Los hitos no cambian el "momento destacado" de la carrera.
 - **RF-12** Las historias no quedan colgadas: cada paso de una ruta tiene desenlaces que avanzan al siguiente paso o la cierran, y la condición de cada paso depende solo del estado, no de la edad ni del club. Una ruta solo queda abierta al terminar la carrera si el retiro llegó antes del siguiente paso.
+- **RF-16 La hija del técnico sigue al técnico.** Los pasos 2 y 3 solo salen si el jugador sigue en el club donde arrancó la ruta. Si cambia de club con la ruta abierta, sale un evento de cierre ("Cada quien por su lado", ruta de peso alto) que la termina sin consecuencias malas: solo un ánimo suave de -1 o -2.
 - **RF-13** El evento `farandula` ("tu nueva relación") no aparece con un jugador comprometido o casado.
 - **RF-14** Ningún texto de amor asume Guatemala ni rompe las contracciones ("del", "al") para otras nacionalidades.
 - **RF-15** La frecuencia cumple D-05 sin quitarles turnos de forma notable a las demás categorías (CA-7).
@@ -96,6 +97,7 @@ Reglas de tono (D-01) como requisitos que se verifican leyendo los textos (títu
 - **CA-10** Dado un jugador comprometido o casado, entonces `farandula` no aparece en ninguna carrera simulada. (RF-13)
 - **CA-11** Dados los textos emitidos de la categoría `amor`, entonces la búsqueda de términos de RS-01 a RS-04 no encuentra nada, y la lectura completa del revisor marca RS-01 a RS-06 como cumplidos. (RS-01 a RS-07)
 - **CA-12** Dado un evento de amor cualquiera, entonces tiene 2 o más opciones y cada opción suma probabilidad 1. (RF-04)
+- **CA-14** Dadas 5.000 carreras, entonces ningún paso 2 o 3 de la hija del técnico se juega en un club distinto del que tenía el jugador en el paso 1, y las rutas abiertas al terminar siguen por debajo de 2 %. (RF-16, RF-12)
 - **CA-13** Dado el puntaje máximo de `simulate`, entonces sigue por debajo de 1.000. (los límites que acepta el servidor)
 
 ## Aclaraciones resueltas
@@ -103,4 +105,4 @@ Medido con `npm run simulate -- 5000` (todas las nacionalidades), `PESO` 1,7:
 1. **Frecuencia.** Se mantiene el tope de 15 % de las decisiones, pero el límite que manda es el otro de CA-7: con amor en 9,0 % de las decisiones, medios baja 2,4 puntos (18,9 a 16,5), es decir, ya está en el techo de 2,5. Resultado: intensa 1,99 eventos por carrera (81 % de las carreras ve uno, máximo 8), normal 0,99 (55 %, máximo 5), exprés 0,62 (42 %, máximo 5). Llegar a 1,0 en exprés pide más de 12 % de las decisiones y rompería ese techo. CA-7 se ajustó en consecuencia; el 70 % de carreras con alguno queda como meta solo de intensa (no se cumple en normal ni exprés).
 2. **Estado sentimental.** No se ve fuera de la pantalla de decisiones. Solo dejan hito el compromiso y la boda.
 3. **Archivos compartidos.** Se aceptan `'amor'` en `EventCategory` y "Vida sentimental" en `CATEGORY_LABEL`.
-4. **Historia del técnico.** Los pasos 2 y 3 dicen "el técnico" sin club. `simulate` cuenta el cambio de club entre los pasos 1 y 3: 17,6 % (36 de 205), por encima del 5 %. No se tocó `applyEffects` (otra rama lo cambia): queda como incoherencia conocida, a resolver al integrar (borrar las banderas de la hija cuando cambia el club).
+4. **Historia del técnico.** Los pasos 2 y 3 dicen "el técnico" sin club. Al medirlo, el 17,6 % de las rutas (36 de 205) cambiaba de club entre los pasos 1 y 3. Se corrigió dentro de `amor.ts`, sin tocar `applyEffects` (RF-16): el paso 1 deja una bandera `amor_club_<id del club>`, los pasos 2 y 3 exigen estar en ese club y un evento de cierre, `amor_hija_fin`, termina la ruta si el jugador se fue. Medido con 5.000 carreras: 0 pasos en otro club (0 de 469), 55 cierres, rutas abiertas al terminar 1,12 %. La pareja de un compañero (paso 2 en otro club: 62 de 403) no se corrige: la pareja es de un compañero, no del técnico, y el texto no nombra club.

@@ -49,7 +49,7 @@ const amorProhibido = new Set<string>();
 const amorErrors = new Set<string>();
 const amorByMode: Record<string, { n: number[]; decisions: number }> = {};
 const amorTexts = new Set<string>();
-let amorOpen = 0, hijaPairs = 0, hijaMoved = 0, compStep = 0, compMoved = 0, boda = 0;
+let compOtro = 0, amorOpen = 0, hijaPairs = 0, hijaMoved = 0, compStep = 0, compMoved = 0, boda = 0;
 let maxTitles = 0, years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -74,6 +74,7 @@ for (let i = 0; i < N; i++) {
   let decisions = 0;
   let amorN = 0; // eventos de amor de esta carrera
   let hijaClub = ''; // club al abrir la ruta de la hija del técnico
+  let compClub = ''; // club al abrir la ruta de la pareja del compañero
   const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
   career.start();
   while (!career.isOver && guard++ < 100) {
@@ -155,7 +156,9 @@ for (let i = 0; i < N; i++) {
           if (m) amorProhibido.add(`${ev.id} "${m[0]}": ${t}`);
         }
         if (ev.id === 'amor_hija_1') hijaClub = pl.clubId;
-        if (ev.id === 'amor_hija_3' && hijaClub) { hijaPairs++; if (pl.clubId !== hijaClub) hijaMoved++; }
+        if ((ev.id === 'amor_hija_2' || ev.id === 'amor_hija_3') && hijaClub) { hijaPairs++; if (pl.clubId !== hijaClub) hijaMoved++; }
+        if (ev.id === 'amor_companero_1') compClub = pl.clubId;
+        if (ev.id === 'amor_companero_2' && pl.clubId !== compClub) compOtro++;
       }
       if (ev.id === 'farandula' && (tiene('amor_comprometido') || tiene('amor_casado'))) amorErrors.add('farandula con comprometido o casado (RF-13)');
       const clubAntes = pl.clubId;
@@ -258,7 +261,9 @@ console.log(`Amor total: ${((100 * amorTotal) / totalEvents).toFixed(1)}% de las
 if (amorTotal / totalEvents > 0.15) amorErrors.add('la categoría amor pasa del 15% de las decisiones (CA-7)');
 console.log(`Amor: rutas abiertas al terminar ${(100 * amorOpen / N).toFixed(2)}% de las carreras (tope 2%) · bodas ${boda}`);
 if (amorOpen / N >= 0.02) amorErrors.add('2% o más de las carreras terminan con una ruta abierta (CA-3)');
-console.log(`Amor, hija del técnico: ${hijaMoved} de ${hijaPairs} cambiaron de club entre los pasos 1 y 3 (${hijaPairs ? ((100 * hijaMoved) / hijaPairs).toFixed(1) : '0'}%; si pasa de 5% se reporta, no se toca applyEffects)`);
+console.log(`Amor, hija del técnico: ${hijaMoved} de ${hijaPairs} pasos 2 o 3 jugados en otro club que el del paso 1 (RF-16, debe ser 0) · cierres por cambio de club: ${eventCount.amor_hija_fin ?? 0}`);
+if (hijaMoved > 0) amorErrors.add(`${hijaMoved} pasos de la hija del técnico en otro club (RF-16)`);
+console.log(`Amor, pareja de un compañero: ${compOtro} de ${eventCount.amor_companero_2 ?? 0} paso 2 en otro club que el del paso 1 (no se corrige: la pareja es de un compañero, no del técnico)`);
 console.log(`Amor, pareja de un compañero: ${compMoved} de ${compStep} cambiaron de club en el paso 2 (${compStep ? ((100 * compMoved) / compStep).toFixed(1) : '0'}%; esperado entre 20% y 40%)`);
 if (compStep >= 50 && (compMoved / compStep < 0.2 || compMoved / compStep > 0.4)) amorErrors.add('la salida del club en amor_companero_2 queda fuera de 20%-40% (CA-5)');
 console.log(`Amor: ${amorTexts.size} textos emitidos revisados con la lista de términos prohibidos.`);
