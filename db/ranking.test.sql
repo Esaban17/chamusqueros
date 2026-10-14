@@ -3,10 +3,10 @@
 -- El upsert es copia del de api/ranking.ts: si cambia allá, cambiarlo aquí.
 BEGIN;
 CREATE TEMP TABLE t (LIKE ranking INCLUDING ALL);
-CREATE FUNCTION pg_temp.up(id uuid, n text, s int, ti int, c int, av smallint[] DEFAULT NULL) RETURNS void AS $$
-  INSERT INTO t (player_id, name, score, titles, caps, avatar) VALUES (id, n, s, ti, c, av)
+CREATE FUNCTION pg_temp.up(id uuid, n text, s int, ti int, c int, av smallint[] DEFAULT NULL, ca jsonb DEFAULT NULL) RETURNS void AS $$
+  INSERT INTO t (player_id, name, score, titles, caps, avatar, card) VALUES (id, n, s, ti, c, av, ca)
   ON CONFLICT (player_id) DO UPDATE
-    SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, avatar = EXCLUDED.avatar, achieved_at = clock_timestamp()
+    SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, avatar = EXCLUDED.avatar, card = EXCLUDED.card, achieved_at = clock_timestamp()
     WHERE (EXCLUDED.score, EXCLUDED.titles, EXCLUDED.caps) > (t.score, t.titles, t.caps);
   UPDATE t SET avatar = av WHERE player_id = id AND avatar IS NULL AND av IS NOT NULL;
 $$ LANGUAGE sql;
@@ -26,6 +26,9 @@ SELECT pg_temp.up('00000000-0000-0000-0000-00000000000a', 'A4', 182, 7, 0, '{3,3
 DO $$ BEGIN ASSERT (SELECT name = 'A4' AND titles = 7 AND avatar = '{3,3,3,3,3,9}' FROM t WHERE player_id = '00000000-0000-0000-0000-00000000000a'), 'mejor por desempate reemplaza, con su avatar'; END $$;
 SELECT pg_temp.up('00000000-0000-0000-0000-00000000000f', 'F', 50, 0, 0, '{0,2,1,0,0,23}');
 DO $$ BEGIN ASSERT (SELECT avatar = '{0,2,1,0,0,23}' FROM t WHERE player_id = '00000000-0000-0000-0000-00000000000f'), 'jugador nuevo guarda su avatar'; END $$;
+SELECT pg_temp.up('00000000-0000-0000-0000-00000000000f', 'F', 60, 0, 0, NULL, '{"ovr": 70}');
+SELECT pg_temp.up('00000000-0000-0000-0000-00000000000f', 'F', 40, 0, 0, NULL, '{"ovr": 50}');
+DO $$ BEGIN ASSERT (SELECT card->>'ovr' = '70' FROM t WHERE player_id = '00000000-0000-0000-0000-00000000000f'), 'la carta solo cambia con una carrera mejor'; END $$;
 DO $$ BEGIN
   INSERT INTO t (player_id, name, score, titles, caps, avatar) VALUES ('00000000-0000-0000-0000-000000000010', 'G', 1, 0, 0, '{1,2}');
   RAISE EXCEPTION 'un avatar incompleto debía rechazarse';

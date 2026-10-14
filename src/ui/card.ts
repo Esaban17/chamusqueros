@@ -23,7 +23,7 @@ interface TierStyle {
   shards?: boolean; // vidrio quebrado del salón de la fama
 }
 
-const TIERS: Record<CardTier, TierStyle> = {
+export const TIERS: Record<CardTier, TierStyle> = {
   icono: {
     label: 'ÍCONO', bg: ['#FFFDF6', '#EFE7D3', '#FBF6EA'], streaks: ['rgba(201,162,74,0.55)', 'rgba(255,255,255,0.9)'],
     border: '#C9A24A', ink: '#2A2214', muted: '#5E4F31', accent: '#8A6510', glow: '#C9A24A',

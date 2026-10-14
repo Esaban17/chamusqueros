@@ -13,15 +13,23 @@ const isInt = (v: unknown, min: number, max: number): v is number => Number.isIn
 const isAvatar = (v: unknown): v is number[] =>
   Array.isArray(v) && v.length === AVATAR_MAX.length && v.every((x, i) => isInt(x, AVATAR_MIN[i], AVATAR_MAX[i]));
 
+/** Carta estilo FIFA armada solo con campos validados; null si algo no cuadra (la carrera se guarda igual). */
+function toCard(c: any) {
+  const ok = c && ['POR', 'DEF', 'MED', 'DEL'].includes(c.pos) && ['Derecho', 'Zurdo', 'Ambidiestro'].includes(c.foot)
+    && isInt(c.ovr, 1, 99) && typeof c.club === 'string' && /^[a-z0-9-]{1,60}$/.test(c.club) && typeof c.dept === 'string' && c.dept.length <= 40
+    && isInt(c.apps, 0, 2000) && isInt(c.goals, 0, 2000) && isInt(c.assists, 0, 2000);
+  return ok ? { pos: c.pos, ovr: c.ovr, club: c.club, dept: c.dept, foot: c.foot, apps: c.apps, goals: c.goals, assists: c.assists } : null;
+}
+
 /** Los TOP mejores más la fila del jugador si quedó afuera. Nunca devuelve player_id. */
 async function ranking(playerId: string | null) {
   const rows = await sql`
     WITH r AS (
-      SELECT player_id, name, score, titles, caps, avatar,
+      SELECT player_id, name, score, titles, caps, avatar, card,
         row_number() OVER (ORDER BY score DESC, titles DESC, caps DESC, achieved_at) AS pos
       FROM ranking
     )
-    SELECT pos::int, name, score, titles, caps, avatar, coalesce(player_id = ${playerId}::uuid, false) AS me
+    SELECT pos::int, name, score, titles, caps, avatar, card, coalesce(player_id = ${playerId}::uuid, false) AS me
     FROM r WHERE pos <= ${TOP} OR player_id = ${playerId}::uuid
     ORDER BY pos`;
   return Response.json(rows, { headers: { 'cache-control': 'no-store' } });
@@ -47,13 +55,14 @@ export async function POST(req: Request) {
   const name = [...String(b.name ?? '').replace(/\s+/g, ' ').trim()].slice(0, 40).join('') || 'Anónimo';
   // Un avatar mal formado (o de una versión vieja del juego, que no lo manda) no tumba la carrera: se guarda sin avatar.
   const avatar = isAvatar(b.avatar) ? b.avatar : null;
+  const card = toCard(b.card);
   // Solo reemplaza si la carrera nueva es mejor según el mismo orden del ranking; si empata, conserva la fecha vieja.
   // Copia en db/ranking.test.sql: si cambia aquí, cambiarlo allá.
   await sql`
-    INSERT INTO ranking (player_id, name, score, titles, caps, avatar)
-    VALUES (${b.id}, ${name}, ${b.score}, ${b.titles}, ${b.caps}, ${avatar}::smallint[])
+    INSERT INTO ranking (player_id, name, score, titles, caps, avatar, card)
+    VALUES (${b.id}, ${name}, ${b.score}, ${b.titles}, ${b.caps}, ${avatar}::smallint[], ${card && JSON.stringify(card)}::jsonb)
     ON CONFLICT (player_id) DO UPDATE
-      SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, avatar = EXCLUDED.avatar, achieved_at = now()
+      SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, avatar = EXCLUDED.avatar, card = EXCLUDED.card, achieved_at = now()
       WHERE (EXCLUDED.score, EXCLUDED.titles, EXCLUDED.caps) > (ranking.score, ranking.titles, ranking.caps)`;
   // Las filas guardadas antes de que existiera el avatar lo reciben en la siguiente carrera, aunque no sea mejor.
   if (avatar) await sql`UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${b.id} AND avatar IS NULL`;

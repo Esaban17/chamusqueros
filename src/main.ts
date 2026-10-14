@@ -1,6 +1,6 @@
 import './style.css';
 import { Career, LEAGUE_NAME, summarize, verdictFor, type CareerSummary } from './engine/engine';
-import { DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
+import { ALL_CLUBS, DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
 import {
   POSITION_NAMES,
   type Avatar,
@@ -15,7 +15,7 @@ import {
 } from './engine/types';
 import { adSlot, fillAds, initAds } from './ui/ads';
 import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
-import { drawCareerCard } from './ui/card';
+import { TIERS, drawCareerCard } from './ui/card';
 import { flag } from './ui/flags';
 import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
 
@@ -52,7 +52,9 @@ function save(key: string, value: unknown) {
 // ---------- Ranking global (api/ranking.ts) ----------
 
 /** avatar: [piel, pelo, color de pelo, barba, extra, dorsal], o null en carreras guardadas antes de que existiera. */
-interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; avatar: number[] | null; me: boolean }
+interface RankRow { pos: number; name: string; score: number; titles: number; caps: number; avatar: number[] | null; card: RankCard | null; me: boolean }
+/** Carta estilo FIFA de esa misma carrera; null en las guardadas antes de que existiera. ovr: la valoración más alta. */
+interface RankCard { pos: Position; ovr: number; club: string; dept: string; foot: Foot; apps: number; goals: number; assists: number }
 
 let pid = '';
 /** Id anónimo del dispositivo: cada usuario aparece una sola vez en el ranking, con su mejor carrera. */
@@ -92,13 +94,34 @@ function rankingTable(rows: RankRow[]) {
   return `<div class="log ranking">
     <div class="log-head"><span>#</span><span>JUGADOR</span><span>PTS</span><span>TÍT</span><span>SEL</span></div>
     ${rows.map((r, i) => `${i && r.pos > rows[i - 1].pos + 1 ? '<p class="season-empty">…</p>' : ''}
-      <div class="season${r.me ? ' me' : ''}">
+      <button class="season${r.me ? ' me' : ''}" data-i="${i}" aria-haspopup="dialog">
         <span class="year">${r.pos}</span>
         <span class="club">${rankAvatar(r)}<span class="rank-name"><span>${esc(r.name)}</span><small>${esc(verdictFor(r.score).title)}</small></span></span>
         <span>${r.score}</span><span>${r.titles}</span><span>${r.caps}</span>
-      </div>`).join('')}
+      </button>`).join('')}
   </div>
-  <p class="season-empty">Empates: gana quien tenga más títulos, después más partidos con la Selección y, si siguen iguales, quien llegó primero.</p>`;
+  <p class="season-empty">Tocá un jugador para ver su carta. Empates: gana quien tenga más títulos, después más partidos con la Selección y, si siguen iguales, quien llegó primero.</p>`;
+}
+
+/** Carta de FC de una fila del ranking, con el estilo de su veredicto (el mismo de la carta final, ui/card.ts).
+ * Lo que la fila no guardó (carreras de antes de la carta) sale como "—". */
+function futCard(r: RankRow) {
+  const c = r.card;
+  const club = ALL_CLUBS.find((k) => k.id === c?.club); // no clubById: el id viene de la base y clubById tira error si no existe
+  const [skin, hair, hairColor, beard, extra, number] = r.avatar ?? nameAvatar(r.name);
+  const v = verdictFor(r.score);
+  const t = TIERS[v.tier];
+  const stats: [string, number | string][] = [
+    ['PJ', c?.apps ?? '—'], ['GOL', c?.goals ?? '—'], ['AST', c?.assists ?? '—'], ['TÍT', r.titles], ['SEL', r.caps], ['PTS', r.score],
+  ];
+  return `<div class="fut" style="--fut-a:${t.bg[0]};--fut-b:${t.bg[1]};--fut-c:${t.bg[2]};--fut-ink:${t.ink};--fut-muted:${t.muted};--fut-accent:${t.accent};--fut-border:${t.border}">
+    <span class="fut-tier">${t.label}</span>
+    <div class="fut-side">${c ? `<b>${c.ovr}</b><span>${c.pos}</span>` : ''}<i class="fut-flag" title="Guatemala"></i>${club ? crest(club, true) : ''}</div>
+    <div class="fut-face">${avatarSVG({ skin, hair, hairColor, beard, extra }, club?.colors ?? NT_KIT, number, 160)}</div>
+    <h2 class="fut-name">${esc(r.name)}</h2>
+    <dl class="fut-stats">${stats.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+    <p class="fut-meta"><b>${esc(v.title)}</b>${c ? ` · ${esc(c.dept)} · Pie ${c.foot.toLowerCase()}` : ''}</p>
+  </div>`;
 }
 
 async function rankingScreen() {
@@ -106,13 +129,26 @@ async function rankingScreen() {
     <section class="hero"><span class="eyebrow">Ranking global</span><h1>Los mejores</h1></section>
     <section class="panel" id="rank"><p class="season-empty">Cargando…</p></section>
     <button class="btn big" id="back">Volver</button>
+    <dialog class="fut-dialog" id="fut" aria-label="Carta del jugador"></dialog>
     ${footer()}
   `);
   document.getElementById('back')!.onclick = home;
   const box = document.getElementById('rank')!;
+  const dialog = document.getElementById('fut') as HTMLDialogElement;
+  // Tocar afuera de la carta la cierra. Sin llaves, el false de && cancelaría el clic del botón Cerrar.
+  dialog.onclick = (e) => {
+    if (e.target === dialog) dialog.close();
+  };
   try {
     const rows = await rankingApi();
     box.innerHTML = rows.length ? rankingTable(rows) : '<p class="season-empty">Todavía no hay carreras en el ranking. ¡Sé el primero!</p>';
+    box.onclick = (e) => {
+      const row = (e.target as Element).closest<HTMLElement>('[data-i]');
+      if (!row) return;
+      dialog.innerHTML = `${futCard(rows[Number(row.dataset.i)])}<form method="dialog"><button class="btn">Cerrar</button></form>`;
+      bindCrests(dialog);
+      dialog.showModal();
+    };
   } catch {
     box.innerHTML = '<p class="season-empty">No pudimos cargar el ranking. Probá de nuevo en un rato.</p>';
   }
@@ -576,7 +612,11 @@ function finish() {
   `);
 
   const rankBox = document.getElementById('rankBox')!;
-  rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number) })
+  const card: RankCard = {
+    pos: p.setup.position, ovr: p.peakRating, club: p.seasons.at(-1)?.clubId ?? p.clubId, dept: p.setup.dept, foot: p.setup.foot,
+    apps: s.apps, goals: s.goals, assists: s.assists,
+  };
+  rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number), card })
     .then((rows) => {
       const me = rows.find((r) => r.me)!;
       rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>
