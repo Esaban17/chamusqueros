@@ -70,7 +70,7 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   ctx.fillStyle = '#7FC0F0';
   ctx.font = `700 34px ${BODY}`;
   ctx.textBaseline = 'alphabetic';
-  ctx.fillText('LEYENDA CHAPINA', 100, 132);
+  ctx.fillText('CHAMUSQUEROS', 100, 132);
 
   // Avatar con la camisola del último club
   const lastClub = clubById(p.seasons.at(-1)?.clubId ?? p.clubId);

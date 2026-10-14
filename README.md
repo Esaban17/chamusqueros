@@ -1,4 +1,4 @@
-# Leyenda Chapina
+# Chamusqueros
 
 Juego web de carrera futbolera ambientado en la Liga Nacional de Guatemala. Creás un jugador, tomás decisiones y al final obtenés una tarjeta para compartir.
 
