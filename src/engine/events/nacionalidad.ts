@@ -10,7 +10,7 @@ import { elegible, residencia } from '../nacionalidad';
 /**
  * Peso de las dos ofertas. ponytail: una función y no un número, porque un número >= 3 cuenta como "ruta" y gana prioridad sobre
  * las ofertas de fichaje y otras rutas. Es una oferta rara y corta (pocos jugadores cumplen la regla y la ventana dura un par
- * de bloques): con peso 2 solo la veía el 0,2 % de las carreras; con 100 casi siempre sale cuando está disponible (~2,5 %).
+ * de temporadas): con peso 2 solo la veía el 0,2 % de las carreras; con 100 casi siempre sale cuando está disponible (~2,5 %).
  */
 const PESO_OFERTA = () => 100;
 

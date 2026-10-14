@@ -371,10 +371,11 @@ function createForm() {
       <div class="field"><span class="label">Posición</span>${seg('position', [['POR', 'POR'], ['DEF', 'DEF'], ['MED', 'MED'], ['DEL', 'DEL']], last.position ?? 'DEL')}</div>
       <div class="field"><span class="label">Pierna hábil</span>${seg('foot', [['Derecho', 'Derecha'], ['Zurdo', 'Zurda'], ['Ambidiestro', 'Ambas']], last.foot ?? 'Derecho')}</div>
       <div class="field"><span class="label">Ritmo de la carrera</span>${seg('mode', [
-        ['intensa', 'Intensa', '1 decisión por año'],
-        ['normal', 'Normal', 'cada 2 años'],
-        ['expres', 'Exprés', 'cada 3 años'],
-      ], last.mode ?? 'intensa')}</div>
+        ['intensa', 'Intensa', '3 por temporada'],
+        ['normal', 'Normal', '2 o 3 por temporada'],
+        ['expres', 'Exprés', '2 por temporada'],
+      ], last.mode ?? 'intensa')}
+        <p class="meta">Decisiones por temporada. Cada temporada trae además un minijuego.</p></div>
       <p class="error" id="error" role="alert"></p>
       <button class="btn big" type="submit">Debutar</button>
     </form>
@@ -484,11 +485,13 @@ function debut() {
   };
 }
 
+/** Sigue la temporada: la siguiente decisión o, si ya no queda nada, simula la temporada y muestra su resumen (uno por temporada). */
 function advance() {
-  const played = career!.playBlock();
-  freshSeasons = played.length;
+  const r = career!.advance();
+  freshSeasons = r ? 1 : 0;
   lastResolution = null;
-  seasonSummary(played);
+  if (r) seasonSummary([r]);
+  else gameScreen();
 }
 
 // ---------- Resumen de temporada ----------
@@ -594,7 +597,7 @@ function seasonCard(r: SeasonRecord) {
   </section>`;
 }
 
-/** Lo que pasó en las temporadas recién jugadas (1 a 3 según el modo), antes de la siguiente decisión. */
+/** Lo que pasó en la temporada recién jugada (una por pantalla en los tres modos), antes de la siguiente decisión. */
 function seasonSummary(played: SeasonRecord[], first = true) {
   const over = career!.isOver;
   render(`${playerHead()}${played.map(seasonCard).join('')}
@@ -684,7 +687,7 @@ function seasonLog() {
     <span class="eyebrow">Temporadas</span>
     <div class="log">
       <div class="log-head"><span>AÑO</span><span>CLUB</span><span>PJ</span><span>G</span><span>A</span></div>
-      ${seasons.length ? seasons.map((r, i) => seasonRow(r, i < freshSeasons)).join('') : '<p class="season-empty">Tu primera temporada arranca después de esta decisión.</p>'}
+      ${seasons.length ? seasons.map((r, i) => seasonRow(r, i < freshSeasons)).join('') : '<p class="season-empty">Tu primera temporada arranca después de estas decisiones.</p>'}
     </div>
   </section>`;
 }
@@ -709,9 +712,17 @@ const CATEGORY_LABEL: Record<string, string> = {
   minijuego: 'Minijuego',
 };
 
+/** "Decisión 2 de 3 · Temporada 2031-32 · 17 años" o "Minijuego de la temporada · Temporada 2031-32" (el llamador lo escapa). */
+function progresoText(g: Career['progreso'], category: string, age: number) {
+  if (!g) return CATEGORY_LABEL[category] ?? '';
+  return g.minijuego ? `Minijuego de la temporada · Temporada ${g.temporada}` : `Decisión ${g.n} de ${g.de} · Temporada ${g.temporada} · ${age} años`;
+}
+
 function gameScreen() {
   const ev = career!.pendingEvent;
   const res = lastResolution;
+  // Una temporada sin ninguna decisión ni minijuego (no debería pasar): se simula y sigue.
+  if (!ev && !res && !career!.isOver) return advance();
   const p = career!.player;
   const eventHtml = res
     ? `<section class="panel event">
@@ -722,7 +733,7 @@ function gameScreen() {
       </section>`
     : ev
       ? `<section class="panel event cat-${ev.category}">
-          <span class="eyebrow">${CATEGORY_LABEL[ev.category] ?? ''} · ${p.year} · ${p.age} años</span>
+          <span class="eyebrow">${esc(progresoText(career!.progreso, ev.category, p.age))}</span>
           <h3>${esc(ev.title)}</h3>
           <p class="text">${esc(ev.text)}</p>
           ${ev.minigame ? '<div class="mg" id="mg"></div>' : `<div class="options">${ev.options.map((o, i) => `<button class="btn secondary" data-opt="${i}">${esc(o.label)}</button>`).join('')}</div>`}

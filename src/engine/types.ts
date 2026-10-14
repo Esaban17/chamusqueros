@@ -5,8 +5,6 @@ export type Position = 'POR' | 'DEF' | 'MED' | 'DEL';
 export type Foot = 'Derecho' | 'Zurdo' | 'Ambidiestro';
 export type Mode = 'intensa' | 'normal' | 'expres';
 
-export const MODE_SEASONS: Record<Mode, number> = { intensa: 1, normal: 2, expres: 3 };
-
 export const POSITION_NAMES: Record<Position, string> = {
   POR: 'Portero',
   DEF: 'Defensa',
@@ -244,6 +242,11 @@ export interface GameEvent {
   title: string;
   text: string;
   options: EventOption[];
+  /**
+   * Cómo cuenta para el ritmo de la temporada (specs/ritmo-por-temporada): 'ritmo' es de las que fija el modo y 'historia' no ocupa cupo
+   * (pasos y entradas de rutas, consecuencias, ofertas de otro país, traspaso y retiro). Los minijuegos no llevan clase.
+   */
+  clase?: 'ritmo' | 'historia';
   /** Solo la oferta de traspaso: un club por opción (las primeras), con lo que se mostró. La última opción es quedarse. */
   offers?: { clubId: string; salary: number; years: number }[];
   /** Solo un minijuego: el tipo y la dificultad (0,1 a 0,9) que calculó el motor. Ver engine/minigames.ts. */
@@ -259,7 +262,7 @@ export interface EventTemplate {
   /** Peso base 1. Puede depender del contexto: los eventos de una ruta activa deben pesar más (2-4). */
   weight?: number | ((p: Player, ctx: EventContext) => number);
   once?: boolean;
-  /** Bloques mínimos antes de repetirse (por defecto 4). */
+  /** Temporadas mínimas antes de repetirse (por defecto 4): se cuenta en temporadas jugadas, no en decisiones. */
   cooldown?: number;
   options: (p: Player, ctx: EventContext) => EventOption[];
   /** Solo un minijuego: el tipo y la importancia de la situación. Sus options llevan una opción con tres desenlaces [éxito, a medias, fallo]. */

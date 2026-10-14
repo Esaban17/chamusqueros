@@ -177,7 +177,7 @@ export const EXTRANJERO_EVENTS: EventTemplate[] = [
         o(0.5, 'Los papeles salieron con un error. La visa se atrasó y casi se cae todo.', { flag: 'ext_papeles', morale: -12, coach: -3 })),
       opt('Que lo resuelva mi agente',
         o(0.6, 'Tu agente conoce el proceso. Te pasan cita para la entrevista de visa.', { flag: 'ext_papeles', morale: 4 }),
-        o(0.4, 'Le negaron la visa al primer intento. Hay que esperar otro bloque.', { morale: -10 })),
+        o(0.4, 'Le negaron la visa al primer intento. Hay que esperar otra temporada.', { morale: -10 })),
     ],
   },
   {

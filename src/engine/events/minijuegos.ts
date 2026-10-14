@@ -1,21 +1,13 @@
-import { MODE_SEASONS, type Effects, type EventContext, type EventTemplate, type MinigameKind, type Player, type Position } from '../types';
+import type { Effects, EventContext, EventTemplate, MinigameKind, Player, Position } from '../types';
 import { o, opt, has, cap, de, rivalOf } from '../helpers';
 
 // Minijuegos (specs/minijuegos): 4 tipos, uno por posición, x 3 situaciones = 12 plantillas.
 // Cada una es una decisión de una sola opción ("jugarla") con tres desenlaces, en este orden fijo: [éxito, a medias, fallo].
 // El motor (choose) elige el desenlace con el resultado de la jugada; la interfaz (ui/minigames.ts) la pone a jugar.
-// Banderas: mj_<tipo>_<situación> guarda el año en que salió (el tope de 3 y el espaciado leen esos años).
+// Desde specs/ritmo-por-temporada hay un minijuego por temporada (el motor, sacarMinijuego, toma todas las plantillas de la categoría):
+// sin `once`, sin peso y sin banderas; el espaciado es el `cooldown` en temporadas (2 = no se repite en menos de 3).
 // Los desenlaces solo mueven nivel, fama y ánimo (y un gol y un hito de texto con la Selección): sin títulos, traspasos ni retiros.
 
-/** Perilla de frecuencia: multiplica el peso de las 12 plantillas (ver "Frecuencia" del plan). */
-export const PESO_MJ = 8; // ponytail: calibrado con 5.000 carreras (normal: 1,04 por carrera); más peso sube la media pero cada plantilla sale una sola vez, así que el techo es bajo
-/** Empuje suave hacia el primer minijuego: cada año sobre los 20 sin ninguno sube el peso en esta fracción. */
-const EMPUJE = 0.2;
-
-const hechos = (p: Player) => Object.keys(p.flags).filter((k) => k.startsWith('mj_'));
-const ultimoAnio = (p: Player) => Math.max(0, ...hechos(p).map((k) => p.flags[k]));
-/** Nunca más de 3 por carrera y nunca en dos decisiones seguidas, aunque cambie el ritmo (las decisiones van una por bloque). */
-const hayLugar = (p: Player) => hechos(p).length < 3 && p.year - ultimoAnio(p) > MODE_SEASONS[p.setup.mode];
 const mayor = (p: Player) => p.ntLevel >= 1 && !has(p, 'sel_retirado');
 
 type Situacion = 'liga' | 'clasico' | 'seleccion';
@@ -137,14 +129,11 @@ export const MINIJUEGOS_EVENTS: EventTemplate[] = DEFS.map((d) => ({
   category: 'minijuego',
   title: (p, c) => txt(d.title, p, c),
   text: (p, c) => txt(d.text, p, c),
-  once: true,
-  // Peso como función, nunca un número >= 3: el motor lo trataría como paso de una ruta (prioridad y x3).
-  weight: (p) => PESO_MJ * (hechos(p).length === 0 ? 1 + EMPUJE * Math.max(0, p.age - 20) : 1),
+  cooldown: 2,
   when: (p, c) =>
     p.age >= 18 &&
     p.seasons.length >= 2 &&
     p.setup.position === d.pos &&
-    hayLugar(p) &&
     (d.sit === 'clasico' ? rivalOf(c) !== null : d.sit === 'seleccion' ? mayor(p) : true),
   minigame: (p, c) => ({ kind: d.kind, importance: d.sit === 'liga' ? (c.tier === 1 || c.abroad ? 3 : 2) : d.sit === 'seleccion' ? (c.qualifiers ? 3 : 2) : 2 }),
   options: (p, c) => {

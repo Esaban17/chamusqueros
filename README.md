@@ -24,6 +24,7 @@ npm run simulate -- 2000 GT  # solo un país
 | `src/engine/events/` | Las 129 decisiones, por tema: `base`, `divisiones`, `extranjero`, `medios`, `seleccion` |
 | `src/engine/awards.ts` | Premios con nombre propio: el goleador según la liga (Pichichi, Capocannoniere...), Bota de Oro, Golden Boy y Balón de Oro, con sus umbrales |
 | `src/engine/engine.ts` | Simulación de temporadas, Selección, traspasos, elección de escenarios y veredicto final |
+| `src/engine/ritmo.ts` | El ritmo de cada temporada: cuántas decisiones trae según el modo (intensa 3, normal 3 y 2, exprés 2), la agenda de historia (pasos, entradas, ofertas) y las perillas de calibración (`AJUSTES`) |
 | `src/ui/avatar.ts` | Avatar personalizable (piel, pelo, barba, accesorios) dibujado en SVG |
 | `src/ui/card.ts` | Tarjeta final en imagen (1080x1350) |
 | `src/ui/flags.ts` | Banderas de las selecciones rivales (código de país para flagcdn.com) |
@@ -31,8 +32,9 @@ npm run simulate -- 2000 GT  # solo un país
 | `public/trofeos/` | Imágenes de los trofeos (WebP de Wikimedia Commons y tres ilustraciones propias), recortadas a 200 px |
 | `creditos.html` | Créditos de las imágenes: obra, autor, licencia y fuente de cada una |
 | `scripts/simulate.ts` | Simulación masiva para balancear |
+| `scripts/ritmo.ts` | Equidad entre modos, rutas, variedad y duración (`npx tsx scripts/ritmo.ts 5000`; `AJUSTES='{"ESCALA":0.4}'` mueve las perillas) |
 
-Para agregar una decisión nueva, copiá un bloque del archivo de su tema en `src/engine/events/`. Las probabilidades de cada opción deben sumar 1. Las rutas (Selección, salir al extranjero) se encadenan con banderas: un resultado pone `flag`, el paso siguiente la exige en `when` y tiene `weight` de 3 o más. El motor le da prioridad a los pasos de una ruta en curso y evita repetir el mismo tipo de escena seguida. Después corré `npm run simulate`: muestra el balance y qué eventos nunca salen.
+Para agregar una decisión nueva, copiá un bloque del archivo de su tema en `src/engine/events/`. Las probabilidades de cada opción deben sumar 1. Las rutas (Selección, salir al extranjero) se encadenan con banderas: un resultado pone `flag`, el paso siguiente la exige en `when` y tiene `weight` de 3 o más. El motor le da prioridad a los pasos de una ruta en curso y evita repetir el mismo tipo de escena seguida. Cada temporada trae su agenda (decisiones de ritmo, pasos y entradas de rutas, ofertas) y al final un minijuego: toda plantilla con categoría `minijuego` entra sola, con `cooldown` en temporadas. Después corré `npm run simulate`: muestra el balance y qué eventos nunca salen.
 
 Para actualizar los equipos cada torneo (ascensos y descensos), editá `src/engine/data/teams.ts` (Guatemala) o el archivo del país en `src/engine/data/paises/`. Los equipos de cada liga van del más fuerte al más débil: el orden decide su nivel. Para agregar un país, creá su archivo de equipos y agregá su fila en `src/engine/countries.ts` (los nombres de liga no se pueden repetir entre países). `npm run simulate` avisa si algún texto de Guatemala se cuela en la carrera de otra nacionalidad.
 
