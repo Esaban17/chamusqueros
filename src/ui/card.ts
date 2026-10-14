@@ -4,6 +4,7 @@ import { POSITION_NAMES, type Player } from '../engine/types';
 import type { CardTier, CareerSummary } from '../engine/engine';
 import { clubById, type Club } from '../engine/clubs';
 import { countryOf } from '../engine/countries';
+import { seleccionDe } from '../engine/nacionalidad';
 import { avatarSVG } from './avatar';
 import { ICON, bestMoment, momentSVG, palmares, type TrophyIcon } from './palmares';
 
@@ -185,7 +186,8 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   canvas.height = H;
   const ctx = canvas.getContext('2d')!;
   const t = TIERS[s.verdict.tier];
-  const home = countryOf(p.setup.country);
+  const home = seleccionDe(p); // colores y escena: la Selección actual
+  const origin = countryOf(p.setup.country); // la línea de origen sigue con la nacionalidad
   drawBackground(ctx, t);
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
@@ -242,8 +244,8 @@ export async function drawCareerCard(canvas: HTMLCanvasElement, p: Player, s: Ca
   const first = s.clubs[0]?.from.slice(0, 4) ?? '';
   const last = s.clubs.at(-1)?.to ?? '';
   // Guatemala muestra el departamento; el resto, el país (no cabe todo en una línea).
-  const origin = home.code === 'GT' ? p.setup.dept : home.name;
-  ctx.fillText(`${POSITION_NAMES[p.setup.position]} · ${origin} · ${first}–20${last.slice(-2)}`, W / 2, 462);
+  const place = origin.code === 'GT' ? p.setup.dept : origin.name;
+  ctx.fillText(`${POSITION_NAMES[p.setup.position]} · ${place} · ${first}–20${last.slice(-2)}`, W / 2, 462);
 
   // Veredicto
   ctx.fillStyle = t.accent;

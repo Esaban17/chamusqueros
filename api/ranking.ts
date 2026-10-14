@@ -9,6 +9,12 @@ const TOP = 50;
 const AVATAR_MIN = [0, 0, 0, 0, 0, 1];
 const AVATAR_MAX = [5, 7, 5, 4, 3, 99];
 
+// Los 27 países jugables (src/engine/countries.ts). Se escribe aquí y no se importa: countries.ts arrastra todos los equipos.
+// ponytail: copia a mano; scripts/simulate.ts comprueba que coincida con COUNTRIES.
+const COUNTRY_CODES = new Set([
+  'GT', 'MX', 'US', 'CR', 'HN', 'SV', 'PA', 'AR', 'BR', 'CO', 'UY', 'CL', 'PE', 'EC', 'PY', 'BO', 'VE', 'ES', 'EN', 'IT', 'DE', 'FR', 'PT', 'NL', 'JP', 'SA', 'MA',
+]);
+
 const isInt = (v: unknown, min: number, max: number): v is number => Number.isInteger(v) && (v as number) >= min && (v as number) <= max;
 const isAvatar = (v: unknown): v is number[] =>
   Array.isArray(v) && v.length === AVATAR_MAX.length && v.every((x, i) => isInt(x, AVATAR_MIN[i], AVATAR_MAX[i]));
@@ -18,8 +24,9 @@ function toCard(c: any) {
   const ok = c && ['POR', 'DEF', 'MED', 'DEL'].includes(c.pos) && ['Derecho', 'Zurdo', 'Ambidiestro'].includes(c.foot)
     && isInt(c.ovr, 1, 99) && typeof c.club === 'string' && /^[a-z0-9-]{1,60}$/.test(c.club) && typeof c.dept === 'string' && c.dept.length <= 40
     && isInt(c.apps, 0, 2000) && isInt(c.goals, 0, 2000) && isInt(c.assists, 0, 2000);
-  // Nacionalidad: código de 2 letras; si falta o no cuadra, la carta se guarda sin ella (se muestra como Guatemala).
-  const country = typeof c?.country === 'string' && /^[A-Z]{2}$/.test(c.country) ? c.country : undefined;
+  // País de la Selección que representa (el de origen si nunca cambió): uno de los 27 códigos; si falta o no está en la lista,
+  // la carta se guarda sin él (se muestra como Guatemala) y la carrera no se pierde.
+  const country = typeof c?.country === 'string' && COUNTRY_CODES.has(c.country) ? c.country : undefined;
   return ok ? { pos: c.pos, ovr: c.ovr, club: c.club, dept: c.dept, foot: c.foot, apps: c.apps, goals: c.goals, assists: c.assists, country } : null;
 }
 
