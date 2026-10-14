@@ -475,6 +475,36 @@ button.season:hover { background: var(--surface-2); }
 .mg-res-half .mg-label { color: var(--gold); }
 @keyframes mg-pop { from { transform: scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }
 
+/* Tienda de estilo de vida: una columna, botones de 44 px o más, montos y nombres que se parten en vez de desbordar */
+.tienda { display: flex; flex-direction: column; gap: 20px; }
+.t-banner { min-height: 0; margin: 0; padding: 0; font-weight: 600; overflow-wrap: anywhere; }
+.t-banner:not(.t-vacio) { padding: 12px 14px; border-radius: 12px; background: var(--celeste-soft); }
+.t-banner:focus { outline: none; }
+.t-cat > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; list-style-position: inside; }
+.t-lista, .t-tengo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.t-item { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+.t-item.t-tiene { opacity: 0.8; }
+.t-confirm { border: 2px solid var(--celeste); }
+.t-fila, .t-tengo li { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.t-tengo li { align-items: center; flex-wrap: wrap; }
+.t-ico { flex: none; width: 28px; height: 28px; fill: none; stroke: var(--celeste); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.t-info { flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.t-info small { color: var(--muted); font-size: 14px; }
+.t-nombre { font-weight: 700; }
+.t-stars { color: var(--gold); letter-spacing: 0.08em; font-size: 15px; }
+.t-precio { flex: none; max-width: 40%; text-align: right; font: 900 20px/1.1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.t-motivo, .t-dato { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.t-dato b { color: var(--gold); }
+.t-aviso { font-size: 14px; font-weight: 600; color: var(--bad); overflow-wrap: anywhere; }
+.t-btn, .t-item .btn, .t-tengo .btn, .tienda > .btn, .t-cat .btn { min-height: 44px; }
+.t-btn { padding: 10px 14px; font-size: 16px; }
+.t-btn:disabled { opacity: 0.6; cursor: default; }
+.t-confirm .row > .btn { min-height: 44px; flex: 1 1 120px; }
+.t-totales b { font-size: 26px; overflow-wrap: anywhere; }
+.t-totales b.saldo { color: var(--gold); }
+.t-totales span { overflow-wrap: anywhere; }
+.t-totales { grid-template-columns: repeat(3, 1fr); }
+
 /* Imágenes de trofeos (specs/trofeos-reales): la caja de 48 x 48 es la misma del ícono de trazo, así que nada se mueve al cargar ni al fallar. */
 .trophy-img { flex: none; width: 48px; height: 48px; box-sizing: border-box; padding: 4px; border-radius: 12px; background: #fff; object-fit: contain; }
 .party-banner img, .party-banner svg { flex: none; width: 96px; height: 96px; box-sizing: border-box; border-radius: 16px; background: #fff; padding: 6px; object-fit: contain; }

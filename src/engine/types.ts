@@ -52,6 +52,8 @@ export interface SeasonRecord {
   nt?: { debut: boolean; matches: NtMatch[]; groups?: NtGroup[]; team?: string; cambio?: boolean };
   /** Salario de la temporada, en quetzales: el del contrato con el que se jugó. */
   salary: number;
+  /** Lo que se cobró de personal al cierre de la temporada y los despidos por falta de saldo. Solo si había personal contratado. */
+  gastos?: { personal: number; despidos: string[] };
 }
 
 /** Grupo de Guatemala en un torneo de la temporada, con la tabla final ya ordenada. */
@@ -129,6 +131,24 @@ export interface Player {
   herencia?: { country: string; side: 'madre' | 'padre' };
   /** Contrato vigente con p.clubId. Siempre existe: lo firma el debut y cada cambio de club. */
   contract: Contract;
+  /** Compras pagadas (tienda). El saldo no se guarda: se deriva de lo ganado menos esto y las tarifas de personal. Ver engine/tienda.ts. */
+  compras: Compra[];
+  /** Personal contratado hoy (uno por rol). */
+  personal: Contratado[];
+}
+
+/** Una compra pagada: año en que se hizo, precio pagado y fama que dio (ya acotada por el tope de la tienda). */
+export interface Compra {
+  id: string;
+  year: number;
+  precio: number;
+  fama: number;
+}
+
+/** Un contratado: el id del ítem (rol y estrellas) y el año en que empezó. */
+export interface Contratado {
+  id: string;
+  desde: number;
 }
 
 /** salary: quetzales por temporada. until: año de inicio de la última temporada cubierta (años que quedan = until - year + 1). */
