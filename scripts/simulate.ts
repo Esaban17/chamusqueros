@@ -4,6 +4,7 @@ import { Career, summarize } from '../src/engine/engine';
 import { DEPARTAMENTOS } from '../src/engine/clubs';
 import { ALL_EVENTS } from '../src/engine/events';
 import type { Mode, Position } from '../src/engine/types';
+import { bestMoment, palmares } from '../src/ui/palmares';
 
 const N = Number(process.argv[2] ?? 5000);
 const positions: Position[] = ['POR', 'DEF', 'MED', 'DEL'];
@@ -20,6 +21,9 @@ const keeperGoals = new Set<string>();
 // Los partidos con la Selección de cada temporada deben cuadrar con los partidos y goles que suma el jugador.
 const ntErrors = new Set<string>();
 const awardCount: Record<string, number> = {};
+// El palmarés agrupa sin perder ni inventar trofeos, y siempre hay un momento destacado con texto.
+const summaryErrors = new Set<string>();
+const momentCount: Record<string, number> = {};
 let years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -64,6 +68,12 @@ for (let i = 0; i < N; i++) {
   const p = career.player;
   const s = summarize(p);
   if (position === 'POR') for (const m of p.milestones) if (KEEPER_GOAL.test(m)) keeperGoals.add(`hito: ${m}`);
+  const trophies = palmares(p).reduce((t, it) => t + it.count, 0);
+  const won = p.titles.length + p.seasons.flatMap((r) => r.awards).length;
+  if (trophies !== won) summaryErrors.add(`palmarés: ${trophies} trofeos agrupados, ${won} ganados`);
+  const moment = bestMoment(p, s);
+  if (!moment.title.trim()) summaryErrors.add(`momento ${moment.kind} sin texto`);
+  momentCount[moment.kind] = (momentCount[moment.kind] ?? 0) + 1;
   for (const a of p.seasons.flatMap((r) => r.awards)) awardCount[`${a.kind} ${position}`] = (awardCount[`${a.kind} ${position}`] ?? 0) + 1;
   scores.push(s.score);
   verdicts[s.verdict.title] = (verdicts[s.verdict.title] ?? 0) + 1;
@@ -99,6 +109,11 @@ console.log('Más frecuentes:', sorted.slice(0, 8).map(([k, v]) => `${k} ${((100
 const never = ALL_EVENTS.filter((e) => !eventCount[e.id]).map((e) => e.id);
 console.log(`Eventos distintos vistos: ${sorted.length} de ${ALL_EVENTS.length}. Nunca salieron: ${never.join(', ') || 'ninguno'}`);
 console.log('Premios por carrera:', Object.entries(awardCount).sort().map(([k, v]) => `${k} ${(v / (N / 4)).toFixed(2)}`).join(' · '));
+console.log('Momento destacado:', Object.entries(momentCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${pct(v)}`).join(' · '));
+if (summaryErrors.size) {
+  console.error(`Resumen de carrera con errores:\n  ${[...summaryErrors].join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Resumen: el palmarés cuadra con títulos y premios, y todo momento tiene texto.');
 if (ntErrors.size) {
   console.error(`Partidos con la Selección que no cuadran:\n  ${[...ntErrors].join('\n  ')}`);
   process.exitCode = 1;

@@ -14,7 +14,10 @@ export const HAIR_STYLES = ['Rapado', 'Corto', 'Peinado de lado', 'Cresta', 'Riz
 export const BEARD_STYLES = ['Sin barba', 'Bigote', 'Candado', 'Barba completa', 'Barba de tres días'];
 export const EXTRAS = ['Nada', 'Cintillo', 'Arete', 'Vincha y arete'];
 
-export const DEFAULT_AVATAR: Avatar = { skin: 2, hair: 1, hairColor: 0, beard: 0, extra: 0 };
+/** Camisola de la Selección: azul bandera con detalles blancos. */
+export const NT_KIT: [string, string] = ['#4997D0', '#FFFFFF'];
+
+export const DEFAULT_AVATAR: Avatar ={ skin: 2, hair: 1, hairColor: 0, beard: 0, extra: 0 };
 
 export function randomAvatar(): Avatar {
   const r = (n: number) => Math.floor(Math.random() * n);

@@ -4,7 +4,6 @@ import { DEPARTAMENTOS, clubById, type Club } from './engine/clubs';
 import {
   POSITION_NAMES,
   type Avatar,
-  type AwardKind,
   type NtMatch,
   type Foot,
   type Mode,
@@ -14,15 +13,15 @@ import {
   type SeasonRecord,
 } from './engine/types';
 import { adSlot, fillAds, initAds } from './ui/ads';
-import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
+import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
 import { drawCareerCard } from './ui/card';
+import { AWARD_LABEL, ICON, palmares, type TrophyIcon } from './ui/palmares';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
 const BEST_KEY = 'chamusqueros:mejores';
 const LAST_SETUP_KEY = 'chamusqueros:ultimo';
 const PLAYER_KEY = 'chamusqueros:id';
-const NT_KIT: [string, string] = ['#4997D0', '#FFFFFF'];
 const NT_LABEL = ['', 'Convocado a la Selección', 'Fijo en la Selección', 'Titular en la Selección'];
 
 let career: Career | null = null;
@@ -349,26 +348,9 @@ function advance() {
 
 // ---------- Resumen de temporada ----------
 
-const ICON: Record<AwardKind | 'copa', string> = {
-  copa: '<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>',
-  goleador: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5l4 2.9-1.5 4.6h-5L8 10.4z"/>',
-  asistidor: '<path d="M4 19c3-7 8-10 15-10"/><path d="M15 5l4 4-4 4"/>',
-  portero: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v4m0-5.5a1.5 1.5 0 0 1 3 0V10m0-4a1.5 1.5 0 0 1 3 0v5m0-2a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1.5A6.5 6.5 0 0 1 4 15.5V13a1.5 1.5 0 0 1 3-.5"/>',
-  joven: '<path d="M12 21v-9M12 12c0-4-3-7-8-7 0 4 3 7 8 7zM12 14c0-3 2.5-6 7-6 0 3.5-2.5 6-7 6z"/>',
-  mvp: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>',
-  ideal: '<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6l7-3z"/><path d="M10 9.5l1.5-1V15M14 8.5V15"/>',
-};
-const AWARD_LABEL: Record<AwardKind, string> = {
-  goleador: 'Goleador',
-  asistidor: 'Máximo asistidor',
-  portero: 'Guardameta menos vencido',
-  joven: 'Jugador joven del año',
-  mvp: 'Mejor jugador',
-  ideal: 'Once ideal',
-};
 const NT_CALL = '<p class="nt-title"><i class="mini-flag" aria-hidden="true"></i>¡Te han llamado a la Selección!</p>';
 
-function trophy(icon: AwardKind | 'copa', label: string, detail: string) {
+function trophy(icon: TrophyIcon, label: string, detail: string) {
   return `<li class="trophy${icon === 'copa' ? '' : ' award'}"><svg aria-hidden="true" viewBox="0 0 24 24">${ICON[icon]}</svg><span><b>${label}</b><small>${esc(detail)}</small></span></li>`;
 }
 
@@ -536,7 +518,8 @@ function finish() {
   best.sort((a, b) => b.score - a.score);
   save(BEST_KEY, best.slice(0, 5));
 
-  const highlights = [...p.milestones, ...p.awards];
+  const highlights = p.milestones; // los premios ya están en el palmarés
+  const trophies = palmares(p);
   render(`
     <section class="verdict">
       <span class="eyebrow">${esc(fullName())} · retirado a los ${p.age} años</span>
@@ -559,7 +542,9 @@ function finish() {
         <div><b>${p.natGoals}</b><span>Goles Sel.</span></div>
       </div>
     </section>
-    ${s.titles.length ? `<section class="panel"><span class="eyebrow">Títulos (${s.titles.length})</span><div class="chips">${s.titles.map((t) => `<span class="chip gold">${esc(t)}</span>`).join('')}</div></section>` : ''}
+    ${trophies.length ? `<section class="panel"><span class="eyebrow">Palmarés</span><ul class="trophies">${trophies
+      .map((t) => trophy(t.icon, t.label, `${t.icon === 'copa' ? 'Campeón ' : ''}${t.count === 1 ? '1 vez' : `${t.count} veces`}`))
+      .join('')}</ul></section>` : ''}
     ${highlights.length ? `<section class="panel"><span class="eyebrow">Momentos</span><ul class="list">${highlights.map((h) => `<li>${esc(h)}</li>`).join('')}</ul></section>` : ''}
     ${seasonLog()}
     <button class="btn big" id="again">Jugar otra carrera</button>
