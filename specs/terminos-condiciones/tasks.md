@@ -1,13 +1,13 @@
 # Tareas: términos y condiciones y política de privacidad
 
-Cada tarea es un commit. "Cubre" lista RF, RNF y CA del spec. Antes de fusionar a main, revisar la compuerta de `plan.md`.
+Por instrucción del orquestador, toda la implementación va en un solo commit; el orden y la cobertura de abajo siguen valiendo. "Cubre" lista RF, RNF y CA del spec. Antes de fusionar a main, revisar la compuerta de `plan.md`.
 
 ## Orden y paralelismo
 
 - T1 y T5 van en paralelo: archivos distintos.
 - T2 y T3 van en paralelo, después de T1.
 - T4 va después de T3.
-- T6 espera el correo de contacto y el nombre de la plataforma de donación.
+- T6 ya tiene el correo y la plataforma de donación (ver `spec.md`, Aclaraciones resueltas).
 - T7 y T8 van al final.
 
 ## Tareas
@@ -32,13 +32,13 @@ Cada tarea es un commit. "Cubre" lista RF, RNF y CA del spec. Antes de fusionar 
 - Cubre: RF-01.
 - Prueba: CA-02 en las cuatro pantallas.
 
-**T5. Corregir la política de privacidad.** Reescribir `privacidad.html`: lista de datos (RF-12), para qué y quién lo ve (RF-13, RF-14), datos locales y borrado en el navegador (RF-15), cómo pedir el borrado por correo con el nombre publicado (RF-16), sin anuncios (RF-17), servicios externos (RF-18), donación en plataforma externa con nombre genérico (RF-19, parcial) y fecha de última actualización (RF-09).
+**T5. Corregir la política de privacidad.** Reescribir `privacidad.html`: lista de datos (RF-12), para qué y quién lo ve (RF-13, RF-14), datos locales y borrado en el navegador (RF-15), cómo pedir el borrado por correo con el nombre publicado (RF-16), sin anuncios (RF-17), servicios externos (RF-18), donación en Ko-fi, plataforma externa (RF-19) y fecha de última actualización (RF-09).
 - Depende de: ninguna. En paralelo con T1.
-- Cubre: RF-09, RF-12, RF-13, RF-14, RF-15, RF-16, RF-17, RF-18 y RF-19 (parcial).
+- Cubre: RF-09, RF-12, RF-13, RF-14, RF-15, RF-16, RF-17, RF-18 y RF-19.
 - Prueba: CA-07 (sin AdSense), CA-08, CA-09, CA-10 y CA-12.
 
 **T6. Datos pendientes en ambas páginas.** Agregar el correo de contacto (RF-11) y el nombre de la plataforma de donación (RF-19). Cada dato se agrega solo cuando su aclaración está resuelta.
-- Depende de: aclaraciones externas; T2 y T5.
+- Depende de: T2 y T5. Las aclaraciones ya están resueltas (ver `spec.md`).
 - Cubre: RF-11 y el nombre de la plataforma de RF-19.
 - Prueba: CA-07 completo: `grep -i "adsense\|CORREO_DE_CONTACTO" privacidad.html terminos.html` sin resultados, y el mismo correo en ambas páginas.
 

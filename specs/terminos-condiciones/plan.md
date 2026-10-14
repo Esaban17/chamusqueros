@@ -41,7 +41,7 @@ Sin cambios. Estado actual de la tabla `ranking` (`db/ranking.sql`): `player_id`
 - `terminos.html` (nuevo): estructura y estilo de `privacidad.html`, con el contenido de RF-02 a RF-10.
 - `privacidad.html` (reescrito en el mismo archivo): RF-12 a RF-19, sin AdSense.
 - `vite.config.ts`: una entrada `terminos` junto a `privacidad`.
-- `src/main.ts`, `footer()` (líneas 220 a 224): un enlace más, con la misma base de URL que el de privacidad. Esa función se llama en cuatro pantallas (líneas 137, 214, 397 y 639), así que un cambio cubre todas.
+- `src/main.ts`, `footer()` (líneas 273 a 279): un enlace más en su propio `<p>`, con la misma base de URL que el de privacidad. Esa función se llama en cuatro pantallas (líneas 138, 268, 450 y 703), así que un cambio cubre todas.
 - Sin cambios: `api/`, `db/`, la lógica del juego y `src/ui/ads.ts`.
 
 ## Pruebas
@@ -87,4 +87,4 @@ No existe `.gq/constitution.md`. Se verifica contra el estándar base de gq:prac
 
 ## Compuerta de publicación
 
-Antes de fusionar a main deben estar resueltos: el correo de contacto (RF-11), el nombre de la plataforma de donación (RF-19), que la variable de anuncios esté vacía en producción (RF-17) y la revisión humana del texto.
+Resueltos: el correo de contacto (RF-11) y la plataforma de donación, Ko-fi (RF-19). Antes de fusionar a main siguen pendientes: que la variable de anuncios esté vacía en producción (RF-17) y la revisión humana del texto, con los cuatro puntos de `spec.md`, Aclaraciones resueltas.

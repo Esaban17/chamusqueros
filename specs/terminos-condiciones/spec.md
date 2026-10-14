@@ -39,7 +39,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - RF-08: El servicio se ofrece "tal cual", sin garantías, con limitación de responsabilidad.
 - RF-09: Los términos pueden cambiar. Ambas páginas muestran la fecha de última actualización con día, mes y año.
 - RF-10: La ley aplicable es la de Guatemala.
-- RF-11: Ambas páginas muestran el mismo correo de contacto. [NECESITA ACLARACIÓN: correo de contacto]
+- RF-11: Ambas páginas muestran el mismo correo de contacto: `estuardo1314@gmail.com` (ver Aclaraciones resueltas).
 
 ### Política de privacidad (corrección)
 
@@ -50,7 +50,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - RF-16: Explica cómo pedir el borrado de la fila del ranking: escribir al correo de contacto con el nombre publicado.
 - RF-17: Dice que el sitio no muestra anuncios. No menciona AdSense ni cookies de anuncios.
 - RF-18: Nombra los servicios externos que el juego contacta: el servicio de tipografías de Google y el servicio de banderas. Dice que reciben la dirección IP del navegador. Declara que el juego no crea cookies propias.
-- RF-19: Nombra la plataforma externa de donación y su política de privacidad, y dice que el sitio no guarda datos de pago. [NECESITA ACLARACIÓN: Ko-fi o Buy Me a Coffee]
+- RF-19: Nombra la plataforma externa de donación, Ko-fi, y su política de privacidad, y dice que el sitio no guarda datos de pago (ver Aclaraciones resueltas).
 
 ### No funcionales
 
@@ -88,7 +88,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - Sin casilla de aceptación.
 - Sin anuncios, por decisión del usuario.
 - Borrado por correo, con el nombre publicado. No se agrega ninguna función nueva para eso. El riesgo que implica está en `plan.md`.
-- Donaciones en plataforma externa. Mientras no se decida cuál, el texto dice "plataforma externa".
+- Donaciones en Ko-fi, una plataforma externa con sus propios términos y política de privacidad (ver Aclaraciones resueltas).
 - La regla de nombres se publica tal como la decidió el orquestador, aunque el servidor todavía no la haga cumplir. El hallazgo queda registrado en Conflictos.
 - Nombres de archivo en español, como `privacidad.html`, por convención del repo.
 
@@ -99,7 +99,15 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 - Nombres: los términos declaran la regla de RF-05, pero `api/ranking.ts` (línea 57) solo recorta espacios y deja 40 caracteres. No hay filtro de contenido ni de suplantación.
 - Puntaje: se calcula en el navegador y el servidor solo valida rangos (`api/ranking.ts`, líneas 52 y 53). Por eso RF-06 se reserva el derecho de borrar.
 
-## Aclaraciones abiertas (no bloquean el plan ni la implementación)
+## Aclaraciones resueltas
 
-- [NECESITA ACLARACIÓN: correo de contacto]. No bloquea. El coordinador lo entrega al implementador; va el mismo en ambas páginas.
-- [NECESITA ACLARACIÓN: Ko-fi o Buy Me a Coffee]. No bloquea. Hasta decidirlo, el texto dice "plataforma externa".
+Las resolvió el orquestador antes de implementar. Los textos quedaron en `terminos.html` y `privacidad.html`.
+
+1. **Correo de contacto:** `estuardo1314@gmail.com`. El usuario autorizó publicarlo. Va en ambas páginas (RF-11).
+2. **Plataforma de donación:** Ko-fi. Los textos dicen "Ko-fi, una plataforma externa con sus propios términos y política de privacidad". Su política de privacidad es `https://more.ko-fi.com/privacy` (RF-19). Se comprobó que responde 200 y que su título es "Privacy". `https://ko-fi.com/privacy` no sirve: es el perfil de un usuario llamado "Privacy".
+3. **Puntos de revisión humana.** Son textos razonables que hay que revisar antes de fusionar a main:
+   - Responsable: no se nombra a una persona; se dice "el creador de Chamusqueros".
+   - Plazo de respuesta a un borrado: "en un plazo razonable, normalmente dentro de 30 días".
+   - Conservación: las filas del ranking se guardan mientras exista el ranking o hasta que se pida borrarlas.
+   - Registros técnicos: el hosting (Vercel) y la base de datos (Neon) pueden guardar registros técnicos, como la dirección IP, según sus propias políticas.
+4. **Borrado por nombre publicado:** se acepta tal cual. El texto aclara que se puede pedir confirmación antes de borrar.

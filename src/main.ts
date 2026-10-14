@@ -280,6 +280,7 @@ function footer() {
   return `<footer>
     <p>Juego de ficción. Los partidos, resultados y situaciones son simulados.</p>
     <p><a href="${import.meta.env.BASE_URL}privacidad.html">Política de privacidad</a></p>
+    <p><a href="${import.meta.env.BASE_URL}terminos.html">Términos y condiciones</a></p>
     ${KOFI_URL ? `<p>${donateLink()}</p>` : ''}
   </footer>`;
 }
