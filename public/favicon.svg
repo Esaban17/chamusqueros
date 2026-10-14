@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Balón sobre el azul marino de la app, con la franja de la bandera arriba. favicon.ico se genera de este archivo:
+       magick -density 768 -background none public/favicon.svg -define icon:auto-resize=48,32,16 public/favicon.ico -->
+  <rect width="32" height="32" rx="7" fill="#0D1B2A"/>
+  <path d="M0.29 5A7 7 0 0 1 7 0H11V5z" fill="#4997D0"/>
+  <rect x="11" width="10" height="5" fill="#FFFFFF"/>
+  <path d="M21 0H25A7 7 0 0 1 31.71 5H21z" fill="#4997D0"/>
+  <circle cx="16" cy="19" r="9.5" fill="#FFFFFF"/>
+  <path d="M16 15.2l3.6 2.6-1.4 4.2h-4.4l-1.4-4.2z" fill="#0D1B2A"/>
+  <path d="M16 15.2V9.8M19.6 17.8l5-1.6M18.2 22l3 4.4M13.8 22l-3 4.4M12.4 17.8l-5-1.6" stroke="#0D1B2A" stroke-width="1.3"/>
+</svg>
