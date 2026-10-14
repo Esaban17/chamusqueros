@@ -121,20 +121,29 @@ function render(html: string) {
 interface BestCareer { name: string; verdict: string; score: number; goals: number; titles: number; position: Position }
 
 function home() {
-  const best = store<BestCareer[]>(BEST_KEY, []);
-  const sample = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {}).avatar ?? DEFAULT_AVATAR;
+  const top = store<BestCareer[]>(BEST_KEY, [])[0];
+  const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
+  const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
+  const number = last.number ?? 10;
   render(`
-    <section class="hero">
-      <span class="eyebrow">Fútbol de Guatemala</span>
-      <h1>Chamus<span>queros</span></h1>
-      <p>Arrancá en Segunda División, subí a la Liga Nacional, salí al extranjero y peleá un lugar en la Bicolor. Una carrera entera en dos minutos.</p>
+    <div class="brand">Chamus<span>queros</span></div>
+    <div class="sticker" aria-hidden="true">
+      ${avatarSVG(last.avatar ?? DEFAULT_AVATAR, NT_KIT, number, 234)}
+      <div class="sticker-band"><div><small>Selección · Dorsal ${number}</small><b>${esc(name)}</b></div><i></i></div>
+      <span class="seal"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z" fill="currentColor"/></svg>Leyenda</span>
+    </div>
+    <section class="hero center">
+      <h1>Convertite <span>en leyenda</span></h1>
+      <p>Una carrera entera en dos minutos.</p>
     </section>
-    <div class="hero-avatar" aria-hidden="true">${avatarSVG(sample, NT_KIT, 10, 132)}</div>
     <button class="btn big" id="start">Crear mi jugador</button>
-    <button class="btn secondary" id="ranking">Ver ranking</button>
-    ${best.length ? `<section class="panel"><span class="eyebrow">Tus mejores carreras</span><div class="best">${best
-      .map((b) => `<div class="best-row"><b>${esc(b.name)}</b><span>${esc(b.verdict)} · ${b.position === 'POR' ? '' : `${b.goals} G · `}${b.titles} títulos</span></div>`)
-      .join('')}</div></section>` : ''}
+    ${top
+      ? `<div class="record">
+          <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg>
+          <div><small>Tu récord</small><b>${esc(top.name)} · ${esc(top.verdict)}</b></div>
+          <button class="link" id="ranking">Ranking ›</button>
+        </div>`
+      : '<button class="btn secondary" id="ranking">Ver ranking</button>'}
     ${adSlot('home')}
     ${footer()}
   `);

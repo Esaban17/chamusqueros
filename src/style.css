@@ -218,11 +218,38 @@ button, input, select { font: inherit; color: inherit; }
 .list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .toast { font-size: 14px; color: var(--muted); min-height: 1.5em; }
 
-/* Mejores carreras */
-.best { display: flex; flex-direction: column; gap: 8px; }
-.best-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-.best-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.best-row span { color: var(--muted); white-space: nowrap; font-size: 14px; }
+/* Portada: estampa de álbum */
+.brand { font-family: var(--display); font-weight: 900; font-size: 24px; line-height: 1; letter-spacing: 0.02em; text-transform: uppercase; text-align: center; padding-top: 10px; }
+.brand span { color: var(--celeste); }
+.sticker {
+  position: relative; align-self: center; width: 250px; margin-top: 8px; padding: 8px;
+  background: #f4f8fb; color: #0d1b2a; border-radius: 18px; transform: rotate(-3deg);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+.sticker > svg { display: block; width: 100%; height: auto; border-radius: 12px; }
+.sticker-band { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 6px 4px; }
+.sticker-band div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sticker-band small { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #1f5582; }
+.sticker-band b { font-family: var(--display); font-weight: 900; font-size: 30px; line-height: 0.95; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sticker-band i { flex: none; width: 24px; height: 40px; border-radius: 3px; background: linear-gradient(90deg, #4997d0 0 33.3%, #fff 33.3% 66.6%, #4997d0 66.6%); box-shadow: inset 0 0 0 1px #cfdce8; }
+.seal {
+  position: absolute; top: -18px; right: -14px; width: 76px; height: 76px; border-radius: 50%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  background: #f0c14b; color: #0d1b2a; box-shadow: 0 0 0 4px var(--bg); transform: rotate(14deg);
+  font-family: var(--display); font-weight: 900; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1;
+}
+.hero.center { align-items: center; text-align: center; padding-top: 12px; gap: 10px; }
+.hero.center h1 { font-size: clamp(56px, 18vw, 84px); line-height: 0.88; }
+.hero.center h1 span { display: block; }
+.record {
+  display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 6px 0 14px;
+  background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px;
+}
+.record > svg { flex: none; fill: none; stroke: var(--gold); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.record div { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
+.record small { font-size: 12px; font-weight: 600; color: var(--muted); }
+.record b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link { flex: none; min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--celeste); font-weight: 700; font-size: 15px; cursor: pointer; }
 
 /* Publicidad */
 .ad { display: flex; flex-direction: column; gap: 4px; min-height: 60px; }
@@ -243,9 +270,7 @@ footer a { color: var(--celeste); }
 }
 
 /* ---------- v2: avatar, técnico, divisiones ---------- */
-.hero-avatar { display: flex; }
-.hero-avatar svg, .avatar svg, .avatar-preview svg { display: block; border-radius: 50%; }
-.hero-avatar svg { box-shadow: 0 0 0 4px var(--surface), 0 0 0 6px var(--flag-blue); }
+.avatar svg, .avatar-preview svg { display: block; border-radius: 50%; }
 .avatar { flex: none; }
 .avatar svg { box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--line); }
 .player-head { align-items: flex-start; }
