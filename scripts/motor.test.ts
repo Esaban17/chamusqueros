@@ -34,15 +34,15 @@ const BANCO_F: Futbolista[] = Array.from({ length: 60 }, (_, i) => ({ q: `Q${100
 const doble: NonNullable<Entorno['dedonde']> = {
   puntosRonda: (acerto, tardo) => (!acerto || tardo === null || tardo > PLAZO ? 0 : 100 + Math.floor((50 * (PLAZO - tardo)) / PLAZO)),
   opcionesRonda: (f, azar) => {
-    const otras = SELS.filter((s) => s !== f.sel).sort(() => azar() - 0.5).slice(0, 3);
+    const otras = SELS.filter((s) => s !== f.sel).sort(() => (azar ?? Math.random)() - 0.5).slice(0, 3);
     const opciones = [...otras];
-    const correcta = Math.floor(azar() * 4);
+    const correcta = Math.floor((azar ?? Math.random)() * 4);
     opciones.splice(correcta, 0, f.sel);
     return { opciones, correcta };
   },
   elegirFutbolista: (banco, usados, azar) => {
     const libres = banco.filter((f) => !usados.has(f.q));
-    return libres[Math.floor(azar() * libres.length)];
+    return libres[Math.floor((azar ?? Math.random)() * libres.length)];
   },
   cerrarRonda: (m: Marcador, ganado) => {
     const puntos: [number, number] = [m.puntos[0] + ganado[0], m.puntos[1] + ganado[1]];
