@@ -94,7 +94,7 @@ Si no se hace: la política sigue siendo inexacta y no hay una forma documentada
 
 ## Conflictos con el código existente
 
-- Anuncios: `src/ui/ads.ts` carga AdSense si `VITE_ADSENSE_CLIENT` tiene valor. `README.md` (líneas 41 a 50), `.env.example` y `src/style.css` (línea 298) lo documentan. "Sin anuncios" depende de que esa variable esté vacía en producción. Esta rama no permite comprobarlo.
+- Anuncios (resuelto en main): la rama de donación (PR #7) quitó `src/ui/ads.ts`, la sección de AdSense de `README.md`, `.env.example`, `public/ads.txt` y `src/style.css`. Queda comprobar en el panel de Vercel que no hay variables `VITE_ADSENSE_*` (CA-13 de `specs/boton-donacion/spec.md`).
 - Privacidad actual: `privacidad.html` (línea 19) dice que los datos no se envían a servidores. Es inexacto desde que existe el ranking: los datos locales sí quedan en el navegador, pero la fila del ranking sí se envía al servidor.
 - Nombres: los términos declaran la regla de RF-05, pero `api/ranking.ts` (línea 57) solo recorta espacios y deja 40 caracteres. No hay filtro de contenido ni de suplantación.
 - Puntaje: se calcula en el navegador y el servidor solo valida rangos (`api/ranking.ts`, líneas 52 y 53). Por eso RF-06 se reserva el derecho de borrar.

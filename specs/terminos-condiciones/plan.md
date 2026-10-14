@@ -34,15 +34,15 @@ Sin cambios. Estado actual de la tabla `ranking` (`db/ranking.sql`): `player_id`
 | Carta | `toCard` en `api/ranking.ts` | La región y el país los elige el jugador en el formulario (`val('dept')`, `src/main.ts`) |
 | Fecha de la mejor carrera | `achieved_at` en `db/ranking.sql` | |
 | Datos locales | almacenamiento local en `src/main.ts` (`store` y `save`) | No hay `document.cookie` |
-| Servicios externos (RF-18) | `index.html` (tipografías de Google); `src/ui/flags.ts` y `src/main.ts` (banderas de flagcdn.com) | `src/ui/ads.ts` (AdSense) solo si la variable tiene valor |
+| Servicios externos (RF-18) | `index.html` (tipografías de Google); `src/ui/flags.ts` y `src/main.ts` (banderas de flagcdn.com) | AdSense ya no está en main: la rama de donación (PR #7) quitó `src/ui/ads.ts` |
 
 ## Componentes
 
 - `terminos.html` (nuevo): estructura y estilo de `privacidad.html`, con el contenido de RF-02 a RF-10.
 - `privacidad.html` (reescrito en el mismo archivo): RF-12 a RF-19, sin AdSense.
 - `vite.config.ts`: una entrada `terminos` junto a `privacidad`.
-- `src/main.ts`, `footer()` (líneas 273 a 279): un enlace más en su propio `<p>`, con la misma base de URL que el de privacidad. Esa función se llama en cuatro pantallas (líneas 138, 268, 450 y 703), así que un cambio cubre todas.
-- Sin cambios: `api/`, `db/`, la lógica del juego y `src/ui/ads.ts`.
+- `src/main.ts`, `footer()` (líneas 279 a 286): un enlace más en su propio `<p>`, con la misma base de URL que el de privacidad. Esa función se llama en cuatro pantallas (líneas 140, 269, 458 y 711), así que un cambio cubre todas.
+- Sin cambios: `api/`, `db/` y la lógica del juego.
 
 ## Pruebas
 

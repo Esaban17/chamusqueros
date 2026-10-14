@@ -59,7 +59,7 @@ Por instrucción del orquestador, toda la implementación va en un solo commit; 
 ## Compuertas que no son tareas de código
 
 - Revisión humana del texto de términos y privacidad antes de publicar, incluidos los puntos de `plan.md` (Riesgos).
-- Comprobar en producción que `VITE_ADSENSE_CLIENT` está vacía.
+- Comprobar en el panel de Vercel que no hay variables `VITE_ADSENSE_*` (CA-13 de `specs/boton-donacion/spec.md`).
 
 ## Cobertura
 
