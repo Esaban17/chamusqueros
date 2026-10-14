@@ -1,6 +1,7 @@
 // Ranking global (Vercel Function + Neon). Una fila por jugador con su mejor carrera; esquema en db/ranking.sql.
 // Orden: score ↓, títulos ↓, partidos con la Selección ↓, quien lo logró primero.
 import { neon } from '@neondatabase/serverless';
+import { esOfensivo } from './_nombres.js';
 
 const sql = neon(process.env.DATABASE_URL!);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -63,6 +64,8 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Datos inválidos' }, { status: 400 });
   }
   const name = [...String(b.name ?? '').replace(/\s+/g, ' ').trim()].slice(0, 40).join('') || 'Anónimo';
+  // El mismo filtro de ofensivos de los apodos de Retos (api/_nombres.ts): terminos.html promete nombres sin ofensas en el ranking.
+  if (esOfensivo(name)) return Response.json({ error: 'Nombre no permitido' }, { status: 400 });
   // Un avatar mal formado (o de una versión vieja del juego, que no lo manda) no tumba la carrera: se guarda sin avatar.
   const avatar = isAvatar(b.avatar) ? b.avatar : null;
   const card = toCard(b.card);
