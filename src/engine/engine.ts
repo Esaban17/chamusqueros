@@ -2,6 +2,7 @@ import { HOME_CLUBS_BY_DEPT, clubById, clubsOf, viewClub, ALL_CLUBS, type Club }
 import { salaryFor } from './contracts';
 import { CONFED_CUP, countryOf, moneyShort, type Confed, type Country } from './countries';
 import { ALL_EVENTS } from './events';
+import { difficultyFor, resultOf, simulatedScore } from './minigames';
 import { seleccionDe, sortearHerencia } from './nacionalidad';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
 import {
@@ -779,7 +780,12 @@ export class Career {
       title: typeof template.title === 'function' ? template.title(p, ctx) : template.title,
       text: template.text(p, ctx),
       options: template.options(p, ctx),
+      ...(template.minigame ? { minigame: this.minigameFor(template.minigame(p, ctx)) } : {}),
     };
+  }
+
+  private minigameFor({ kind, importance }: ReturnType<NonNullable<EventTemplate['minigame']>>) {
+    return { kind, difficulty: difficultyFor(this.player.rating, importance) };
   }
 
   private available(e: EventTemplate) {
@@ -868,10 +874,23 @@ export class Career {
     };
   }
 
-  choose(optionIndex: number): Resolution {
+  /**
+   * score: solo en un minijuego, el resultado de la jugada de 0 a 1 (viene de la interfaz; se acota en resultOf).
+   * Sin score, o con una decisión de texto, se resuelve como siempre: un minijuego, como "Simular".
+   */
+  choose(optionIndex: number, score?: number): Resolution {
     const event = this.pending;
     if (!event) throw new Error('No hay decisión pendiente');
     const option = event.options[optionIndex];
+    if (event.minigame) {
+      if (option.outcomes.length !== 3) throw new Error(`El minijuego ${event.id} no tiene tres desenlaces`);
+      const result = resultOf(score ?? simulatedScore(this.rng, event.minigame.difficulty));
+      const outcome = option.outcomes[{ ok: 0, half: 1, fail: 2 }[result]];
+      const changes = this.applyEffects(outcome.effects);
+      this.player.flags[event.id] = this.player.year; // el año alimenta el tope de 3 y el espaciado (events/minijuegos.ts)
+      this.pending = null;
+      return { text: outcome.text, changes, result };
+    }
     const outcome = weightedPick(this.rng, option.outcomes, (o) => o.p);
     const changes = this.applyEffects(outcome.effects);
     this.pending = null;

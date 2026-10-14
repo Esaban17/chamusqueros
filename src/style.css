@@ -437,3 +437,40 @@ button.season:hover { background: var(--surface-2); }
 /* Dinero y contrato */
 .meta.money b { color: var(--gold); font-weight: 800; }
 .money-total { font: 900 40px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* Minijuegos: la tarjeta mide lo mismo en listo, jugando y resultado (sin saltos de altura); todo cabe en una columna a 360 px */
+.mg { position: relative; }
+.mg-body { display: grid; grid-template-rows: 84px 124px 56px; gap: 12px; }
+.mg-help { margin: 0; font-size: 15px; line-height: 1.35; color: var(--muted); overflow: hidden; }
+.mg-stage { position: relative; height: 124px; display: flex; align-items: center; justify-content: center; border-radius: 14px; background: var(--surface-2); border: 1.5px solid var(--line); overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.mg-wait { margin: 0; color: var(--muted); font-weight: 600; }
+.mg-actions { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; }
+.mg-actions .btn { min-height: 56px; padding: 8px 12px; touch-action: manipulation; }
+.mg-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Detener el marcador: el botón ocupa toda el área; la zona lleva contorno y trama además del color */
+.mg-zona { appearance: none; border: 0; background: transparent; color: var(--ink); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 0 18px; cursor: pointer; touch-action: manipulation; }
+.mg-zona:focus-visible { outline: 3px solid var(--celeste); outline-offset: -5px; }
+.mg-track { position: relative; height: 40px; border-radius: 20px; background: var(--surface); border: 2px solid var(--line); }
+.mg-zone { position: absolute; top: -3px; bottom: -3px; border: 3px solid var(--good); border-radius: 8px; background: repeating-linear-gradient(45deg, var(--good) 0 2px, var(--celeste-soft) 2px 9px); }
+.mg-marker { position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%); font-style: normal; font-size: 28px; line-height: 1; }
+.mg-detener { text-align: center; font-size: 13px; font-weight: 700; color: var(--muted); }
+/* Elegir lado y modo por turnos */
+.mg-sides { flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; padding: 10px; }
+.mg-status { margin: 0; min-height: 20px; text-align: center; font-weight: 700; font-size: 15px; }
+.mg-lados, .mg-risks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.mg-risks { padding: 10px; align-items: stretch; }
+.mg-lado, .mg-risk { min-height: 56px; padding: 6px; font-size: 15px; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.mg-risk { display: flex; flex-direction: column; justify-content: center; gap: 2px; font-size: 14px; }
+.mg-risk small { font-size: 12px; font-weight: 600; color: var(--muted); }
+.mg-lado.mg-elegido { outline: 3px solid var(--celeste); background: var(--celeste-soft); }
+.mg-lado.mg-tiro { border: 3px solid var(--bad); }
+/* Resultado: texto grande y borde por resultado */
+.mg-res { flex-direction: column; border-width: 3px; }
+.mg-res-ok { border-color: var(--good); }
+.mg-res-half { border-color: var(--gold); }
+.mg-res-fail { border-color: var(--bad); }
+.mg-label { margin: 0; padding: 0 8px; text-align: center; font: 900 38px/1 var(--display); text-transform: uppercase; animation: mg-pop 0.25s ease-out; }
+.mg-res-ok .mg-label { color: var(--good); }
+.mg-res-fail .mg-label { color: var(--bad); }
+.mg-res-half .mg-label { color: var(--gold); }
+@keyframes mg-pop { from { transform: scale(0.7); opacity: 0; } to { transform: none; opacity: 1; } }

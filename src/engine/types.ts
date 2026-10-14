@@ -214,7 +214,8 @@ export type EventCategory =
   | 'extranjero'
   | 'divisiones'
   | 'amor'
-  | 'retiro';
+  | 'retiro'
+  | 'minijuego';
 
 export interface GameEvent {
   id: string;
@@ -224,6 +225,8 @@ export interface GameEvent {
   options: EventOption[];
   /** Solo la oferta de traspaso: un club por opción (las primeras), con lo que se mostró. La última opción es quedarse. */
   offers?: { clubId: string; salary: number; years: number }[];
+  /** Solo un minijuego: el tipo y la dificultad (0,1 a 0,9) que calculó el motor. Ver engine/minigames.ts. */
+  minigame?: { kind: MinigameKind; difficulty: number };
 }
 
 export interface EventTemplate {
@@ -238,9 +241,16 @@ export interface EventTemplate {
   /** Bloques mínimos antes de repetirse (por defecto 4). */
   cooldown?: number;
   options: (p: Player, ctx: EventContext) => EventOption[];
+  /** Solo un minijuego: el tipo y la importancia de la situación. Sus options llevan una opción con tres desenlaces [éxito, a medias, fallo]. */
+  minigame?: (p: Player, ctx: EventContext) => { kind: MinigameKind; importance: 1 | 2 | 3 };
 }
 
 export interface Resolution {
   text: string;
   changes: string[]; // resumen corto, por ejemplo "+2 Nivel"
+  /** Solo si la decisión era un minijuego: cómo salió la jugada. */
+  result?: MinigameResult;
 }
+
+export type MinigameKind = 'penal' | 'atajada' | 'pase' | 'cierre';
+export type MinigameResult = 'ok' | 'half' | 'fail';

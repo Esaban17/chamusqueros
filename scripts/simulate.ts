@@ -6,6 +6,7 @@
 //      OFERTA=uniforme npm run simulate -- 5000   (ante una oferta elige al azar entre todas las opciones, "me quedo" incluida;
 //        por defecto decide 50/50 entre quedarse o irse y después sortea el club; OFERTA=mejor: 50/50 y se va al club de mayor
 //        prestigio, que es lo más parecido a la política de antes, cuando había un solo club)
+// La sección final "Minijuegos" (specs/minijuegos) mide frecuencia, pisos de categoría, Simular, equidad y modo por turnos.
 import { readFileSync } from 'node:fs';
 import { Career, earned, summarize, yearsText } from '../src/engine/engine';
 import { COUNTRIES, countryOf, moneyShort } from '../src/engine/countries';
@@ -13,9 +14,13 @@ import { DIASPORA, elegible, residencia } from '../src/engine/nacionalidad';
 import { clubById, clubsOf, viewClub, ALL_CLUBS } from '../src/engine/clubs';
 import { salaryFor } from '../src/engine/contracts';
 import { ALL_EVENTS } from '../src/engine/events';
+import { MINIJUEGOS_EVENTS } from '../src/engine/events/minijuegos';
+import { difficultyFor, resultOf, simulatedScore } from '../src/engine/minigames';
+import { createRng } from '../src/engine/rng';
 import { PAREJA, RUTAS } from '../src/engine/events/amor';
-import type { Mode, Position } from '../src/engine/types';
+import type { EventContext, MinigameKind, MinigameResult, Mode, Position } from '../src/engine/types';
 import { bestMoment, palmares, porSeleccion } from '../src/ui/palmares';
+import { CENTER, LABELS, RISK_K, params, penalScore, riskScore, sideScore, stopScore, type Side } from '../src/ui/minigames';
 import { FLAG_CODE } from '../src/ui/flags';
 
 const N = Number(process.argv[2] ?? 5000);
@@ -61,6 +66,15 @@ const amorErrors = new Set<string>();
 const amorByMode: Record<string, { n: number[]; decisions: number }> = {};
 const amorTexts = new Set<string>();
 let compOtro = 0, amorOpen = 0, hijaPairs = 0, hijaMoved = 0, compStep = 0, compMoved = 0, boda = 0;
+// ---- Minijuegos (specs/minijuegos) ----
+const mjErrors = new Set<string>();
+const MJ_POS: Record<MinigameKind, Position> = { penal: 'DEL', atajada: 'POR', pase: 'MED', cierre: 'DEF' };
+const mjByMode: Record<string, { n: number[]; decisions: number }> = {};
+const mjSeen: Record<string, number> = {};
+const mjTexts = new Set<string>(); // todo texto de minijuego que salió, sin repetir
+const mjEffects = new Map<string, import('../src/engine/types').Effects[]>(); // los efectos de cada plantilla (no dependen del contexto)
+const mjResult: Record<string, Record<MinigameResult, number>> = { 'fácil (hasta 0,35)': { ok: 0, half: 0, fail: 0 }, 'media': { ok: 0, half: 0, fail: 0 }, 'difícil (desde 0,65)': { ok: 0, half: 0, fail: 0 } };
+let mjNtTrasCambio = 0;
 // ---------- Convocatoria de otro país (src/engine/nacionalidad.ts) ----------
 const NAC = process.env.NAC; // aceptar | rechazar | off | (vacío: al azar)
 if (NAC === 'off') ALL_EVENTS.splice(0, ALL_EVENTS.length, ...ALL_EVENTS.filter((e) => !e.id.startsWith('nac_')));
@@ -68,7 +82,7 @@ const nacErrors = new Set<string>();
 const nac = { herencia: 0, madre: 0, oferta: { nac_ascendencia: 0, nac_naturalizacion: 0, alguna: 0 }, disponible: { nac_ascendencia: 0, nac_naturalizacion: 0 }, sinVer: 0, cambio: 0, via: {} as Record<string, number>, mundialCambio: 0 };
 const nacByOrigin: Record<string, { n: number; herencia: number; oferta: number; cambio: number }> = {};
 // Un texto de Selección no puede nombrar (apodo, federación o estadio) a una Selección distinta de la actual.
-const NT_EVENTS = (e: { id: string; category: string }) => (e.category === 'seleccion' && !e.id.startsWith('nac_')) || e.id === 'med_sele' || e.id === 'med_resp_sele';
+const NT_EVENTS = (e: { id: string; category: string }) => (e.category === 'seleccion' && !e.id.startsWith('nac_')) || e.id === 'med_sele' || e.id === 'med_resp_sele' || (e.id.startsWith('mj_') && e.id.endsWith('_seleccion'));
 const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const otherNt = (nt: ReturnType<typeof countryOf>, text: string) => {
   const mine = [nt.ntName, nt.federation, nt.stadium];
@@ -152,6 +166,8 @@ for (let i = 0; i < N; i++) {
   let guard = 0;
   let decisions = 0;
   let amorN = 0; // eventos de amor de esta carrera
+  let mjN = 0; // minijuegos de esta carrera
+  let lastMj = -9; // índice de la decisión del último minijuego
   let hijaClub = ''; // club al abrir la ruta de la hija del técnico
   let compClub = ''; // club al abrir la ruta de la pareja del compañero
   const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
@@ -341,6 +357,28 @@ for (let i = 0; i < N; i++) {
         if (!ev.text.includes(moneyShort(career.home, c.salary)) || !ev.text.includes(yearsText(c.until - pb.year + 1))) marketErrors.add('el texto de la oferta no muestra el contrato actual');
       }
       const res = career.choose(pick);
+      if (ev.minigame) {
+        const mg = ev.minigame;
+        const only1 = ev.options.length === 1 && ev.options[0].outcomes.length === 3;
+        mjN++;
+        mjSeen[ev.id] = (mjSeen[ev.id] ?? 0) + 1;
+        if (!only1) mjErrors.add(`${ev.id}: no trae una opción con tres desenlaces`);
+        if (decisions - lastMj === 1) mjErrors.add(`${ev.id}: dos minijuegos en decisiones seguidas`);
+        lastMj = decisions;
+        if (MJ_POS[mg.kind] !== pb.setup.position) mjErrors.add(`${ev.id}: tipo ${mg.kind} para un ${pb.setup.position}`);
+        if (ev.id.endsWith('_clasico') && !ctx.club.rival) mjErrors.add(`${ev.id}: clásico sin rival`);
+        if (ev.id.endsWith('_seleccion')) {
+          if (!(pb.ntLevel >= 1) || (pb.flags.sel_retirado ?? 0) > 0) mjErrors.add(`${ev.id}: Selección sin convocatoria vigente`);
+          const nt = career.nt.ntName;
+          if (!ev.title.includes(nt) || !ev.text.includes(nt)) mjErrors.add(`${ev.id}: no nombra a ${nt} (la Selección que representa)`);
+          if (pb.cambioSel) mjNtTrasCambio++;
+        }
+        if (!(mg.difficulty >= 0.1 && mg.difficulty <= 0.9)) mjErrors.add(`${ev.id}: dificultad ${mg.difficulty}`);
+        if (res.result === undefined) mjErrors.add(`${ev.id}: la resolución no trae resultado`);
+        else mjResult[mg.difficulty <= 0.35 ? 'fácil (hasta 0,35)' : mg.difficulty >= 0.65 ? 'difícil (desde 0,65)' : 'media'][res.result]++;
+        for (const t of [ev.title, ev.text, ev.options[0].label, ...ev.options[0].outcomes.map((x) => x.text)]) mjTexts.add(`${ev.id}: ${t}`);
+        mjEffects.set(ev.id, ev.options[0].outcomes.map((x) => x.effects));
+      }
       for (const t of res.changes) leak(`${ev.id} (cambio)`, t);
       // CA-5 y CA-6: elegir un club firma lo mostrado; quedarse no toca el contrato; todo cambio de club trae contrato nuevo.
       if (ev.id === 'oferta') {
@@ -371,6 +409,9 @@ for (let i = 0; i < N; i++) {
     }
   }
   (decisionsByMode[mode] ??= []).push(decisions);
+  const mm = (mjByMode[mode] ??= { n: [], decisions: 0 });
+  mm.n.push(mjN);
+  mm.decisions += decisions;
   const p = career.player;
   // ---- Vida sentimental: al terminar la carrera ----
   const am = (amorByMode[mode] ??= { n: [], decisions: 0 });
@@ -644,3 +685,215 @@ if (marketErrors.size) {
   console.error(`Mercado y contratos con errores (${marketErrors.size}):\n  ${[...marketErrors].slice(0, 40).join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Mercado: ofertas, contratos, salarios y formatos de monto cuadran.');
+
+// ---------- Minijuegos (specs/minijuegos) ----------
+// Línea base: `simulate 5000` en main con las ramas de mercado, términos, doble nacionalidad y vida sentimental ya integradas
+// (el spec original se midió antes de amor y de las otras ramas). Cada categoría puede bajar hasta 2,5 puntos.
+const MJ_BASE: Record<string, number> = { contrato: 20.6, medios: 16.3, divisiones: 12.5, retiro: 10.8, cancha: 10.2, vida: 8.9, amor: 8.8, seleccion: 5.8, extranjero: 3.4, formacion: 2.8 };
+const MJ_VEREDICTOS: Record<string, number> = { 'Jugador de culto': 32.0, Cumplidor: 30.2, 'Referente de la Liga': 13.8, 'Promesa que no fue': 8.4, 'Ídolo nacional': 7.4, Leyenda: 8.2 };
+const big = N >= 5000 && !only; // los criterios porcentuales piden la muestra completa
+const f1 = (x: number) => x.toFixed(1);
+const f2 = (x: number) => x.toFixed(2);
+console.log('\n--- Minijuegos ---');
+
+// CA-1: cada situación sale al menos una vez; el resto se comprobó en cada decisión (posición, clásico, Selección, tres desenlaces).
+const mjIds = MINIJUEGOS_EVENTS.map((e) => e.id);
+console.log(`Situaciones vistas: ${mjIds.filter((id) => mjSeen[id]).length} de ${mjIds.length} · por plantilla: ${mjIds.map((id) => `${id.slice(3)} ${mjSeen[id] ?? 0}`).join(' · ')}`);
+if (big) for (const id of mjIds) if (!mjSeen[id]) mjErrors.add(`${id} nunca salió (CA-1)`);
+for (const e of MINIJUEGOS_EVENTS) if (typeof e.weight === 'number') mjErrors.add(`${e.id}: peso numérico (el motor lo trataría como paso de una ruta)`);
+console.log(`Minijuegos de Selección vistos después de cambiar de Selección: ${mjNtTrasCambio} (todos nombran la Selección nueva)`);
+// Selección que cambió: la plantilla nombra la nueva y no la de origen (prueba directa, sin depender de la suerte).
+{
+  const c = new Career({ firstName: 'T', lastName: 'T', country: 'GT', dept: 'Guatemala', position: 'DEL', foot: 'Derecho', number: 9, mode: 'normal', avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 } }, 1);
+  c.player.ntLevel = 1;
+  c.player.cambioSel = { to: 'MX', from: 'GT', caps: 0, goals: 0, year: 2030, via: 'madre' };
+  const ctx: EventContext = c.context();
+  for (const t of MINIJUEGOS_EVENTS.filter((e) => e.id.endsWith('_seleccion'))) {
+    const txt = [typeof t.title === 'function' ? t.title(c.player, ctx) : t.title, t.text(c.player, ctx), ...t.options(c.player, ctx)[0].outcomes.map((x) => x.text), ...t.options(c.player, ctx)[0].outcomes.map((x) => x.effects.milestone ?? '')].join(' | ');
+    if (!txt.includes('el Tri') || /Azul y Blanco|FEDEFUT|Bicolor|Guatemala/.test(txt)) mjErrors.add(`${t.id}: con la Selección cambiada a México no usa la nueva (${txt.slice(0, 90)})`);
+  }
+}
+
+// CA-2: frecuencia por ritmo y pisos de categoría.
+console.log('Frecuencia (media por carrera · carreras con al menos uno · % de las decisiones · máximo):');
+let mjTotal = 0;
+for (const m of modes) {
+  const a = mjByMode[m];
+  const total = a.n.reduce((x, y) => x + y, 0);
+  mjTotal += total;
+  const max = Math.max(...a.n);
+  console.log(`  ${m}: ${f2(total / a.n.length)} · ${f1((100 * a.n.filter((x) => x > 0).length) / a.n.length)}% · ${f1((100 * total) / a.decisions)}% · máx ${max}`);
+  if (max > 3) mjErrors.add(`${m}: una carrera con ${max} minijuegos (máximo 3)`);
+}
+{
+  const a = mjByMode.normal;
+  const mean = a.n.reduce((x, y) => x + y, 0) / a.n.length;
+  const con = (100 * a.n.filter((x) => x > 0).length) / a.n.length;
+  console.log(`  meta en ritmo normal: media entre 1,0 y 1,2 (${f2(mean)}) · al menos uno 70% o más (${f1(con)}%): ${mean >= 1 && mean <= 1.2 ? 'cumple' : 'fuera de la meta'} / ${con >= 70 ? 'cumple' : 'fuera de la meta'} (son metas reportadas: mandan los pisos de categoría)`);
+}
+console.log(`Categoría nueva, minijuego: ${f1((100 * (catCount.minijuego ?? 0)) / totalEvents)}% de las decisiones (${mjTotal} minijuegos en ${N} carreras)`);
+console.log('Categorías contra la línea base (piso = línea base - 2,5):');
+for (const [cat, base] of Object.entries(MJ_BASE)) {
+  const now = (100 * (catCount[cat] ?? 0)) / totalEvents;
+  const ok = now >= base - 2.5;
+  console.log(`  ${cat}: ${f1(now)}% (línea base ${f1(base)}, ${now - base >= 0 ? '+' : ''}${f1(now - base)}, piso ${f1(base - 2.5)}) ${ok ? 'ok' : 'POR DEBAJO DEL PISO'}`);
+  if (big && !ok) mjErrors.add(`${cat} cayó a ${f1(now)}% (piso ${f1(base - 2.5)}) (CA-2)`);
+}
+
+// CA-3: dificultad y parámetros.
+for (const imp of [1, 2, 3] as const) {
+  let prev = -1;
+  for (let r = 40; r <= 95; r++) {
+    const d = difficultyFor(r, imp);
+    if (!(d >= 0.1 && d <= 0.9)) mjErrors.add(`dificultad ${d} fuera de [0,1; 0,9] (nivel ${r}, importancia ${imp})`);
+    if (prev >= 0 && d > prev + 1e-12) mjErrors.add(`la dificultad sube con el nivel (${r}, importancia ${imp})`);
+    prev = d;
+  }
+}
+for (let r = 40; r <= 95; r++) for (const imp of [1, 2] as const) if (difficultyFor(r, imp + 1) < difficultyFor(r, imp) - 1e-12) mjErrors.add(`la dificultad baja con la importancia (nivel ${r})`);
+{
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+  const a = params(0.1), b = params(0.9), m = params(0.5);
+  if (!near(a.zone, 0.3) || !near(b.zone, 0.1) || !near(a.period, 2200) || !near(b.period, 1200) || !near(a.window, 700) || !near(b.window, 400)) mjErrors.add('params no da los extremos de RF-08');
+  if (!near(m.zone, 0.2) || !near(m.period, 1700) || !near(m.window, 550)) mjErrors.add('params no interpola linealmente');
+  console.log(`Parámetros: zona ${a.zone}/${m.zone}/${b.zone} · barrido ${a.period}/${m.period}/${b.period} ms · ventana ${a.window}/${m.window}/${b.window} ms (dificultad 0,1/0,5/0,9)`);
+}
+
+// CA-4: Simular, 10.000 resultados por dificultad, y la repetición con la misma semilla.
+const dist = (d: number, seed: number, n = 10000) => {
+  const rng = createRng(seed);
+  const c: Record<MinigameResult, number> = { ok: 0, half: 0, fail: 0 };
+  const seq: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const sc = simulatedScore(rng, d);
+    c[resultOf(sc)]++;
+    if (i < 50) seq.push(sc);
+  }
+  return { ok: (100 * c.ok) / n, half: (100 * c.half) / n, fail: (100 * c.fail) / n, seq };
+};
+const okAt: Record<number, number> = {};
+for (const d of [0.1, 0.5, 0.9]) {
+  const r = dist(d, 7);
+  okAt[d] = 0.4 - 0.5 * (d - 0.5);
+  console.log(`Simular con dificultad ${d}: éxito ${f1(r.ok)}% · a medias ${f1(r.half)}% · fallo ${f1(r.fail)}%`);
+  if (d === 0.5 && (Math.abs(r.ok - 40) > 3 || Math.abs(r.half - 35) > 3 || Math.abs(r.fail - 25) > 3)) mjErrors.add(`Simular con 0,5 dio ${f1(r.ok)}/${f1(r.half)}/${f1(r.fail)} (CA-4)`);
+  if (d === 0.1 && r.ok < 55) mjErrors.add(`Simular con 0,1: éxito ${f1(r.ok)}% (CA-4)`);
+  if (d === 0.9 && r.ok > 25) mjErrors.add(`Simular con 0,9: éxito ${f1(r.ok)}% (CA-4)`);
+  if (dist(d, 7).seq.join() !== r.seq.join()) mjErrors.add('la misma semilla no repite la secuencia (CA-4)');
+}
+const mjAll = Object.values(mjResult).reduce((t, r) => t + r.ok + r.half + r.fail, 0) || 1;
+console.log('Reparto éxito / a medias / fallo con "Simular" en las carreras simuladas:');
+for (const [k, r] of Object.entries(mjResult)) {
+  const t = r.ok + r.half + r.fail || 1;
+  console.log(`  dificultad ${k}: ${f1((100 * r.ok) / t)}% / ${f1((100 * r.half) / t)}% / ${f1((100 * r.fail) / t)}% (${t})`);
+}
+console.log(`  todas: ${f1((100 * Object.values(mjResult).reduce((t, r) => t + r.ok, 0)) / mjAll)}% / ${f1((100 * Object.values(mjResult).reduce((t, r) => t + r.half, 0)) / mjAll)}% / ${f1((100 * Object.values(mjResult).reduce((t, r) => t + r.fail, 0)) / mjAll)}%`);
+
+// CA-5: jugadores sintéticos con las mismas reglas de puntaje que usa la interfaz. Perfecto: acciones exactas (el portero rival
+// se lanza al azar). Al azar: lado y momento uniformes. Éxito = resultOf 'ok'.
+{
+  const rng = createRng(11);
+  const side = () => Math.floor(rng() * 3) as Side;
+  const N5 = 20000;
+  const rate = (play: () => number) => {
+    let ok = 0;
+    for (let i = 0; i < N5; i++) if (resultOf(play()) === 'ok') ok++;
+    return (100 * ok) / N5;
+  };
+  const center = () => CENTER[0] + rng() * (CENTER[1] - CENTER[0]);
+  for (const d of [0.1, 0.5, 0.9]) {
+    const pr = params(d);
+    const sim = 100 * okAt[d];
+    const perfect: Record<string, number> = {
+      pase: rate(() => { const c = center(); return stopScore(c, c, pr.zone); }),
+      cierre: rate(() => { const c = center(); return stopScore(c, c, pr.zone); }),
+      atajada: rate(() => { const k = side(); return sideScore(k, k, 0, pr.window); }),
+      penal: rate(() => { const c = center(); return penalScore(side(), side(), stopScore(c, c, pr.zone)); }),
+    };
+    const random: Record<string, number> = {
+      pase: rate(() => stopScore(rng(), center(), pr.zone)),
+      cierre: rate(() => stopScore(rng(), center(), pr.zone)),
+      // el pateador espera de 800 a 1.600 ms; el jugador actúa en un momento uniforme entre el inicio y la llegada de la pelota
+      atajada: rate(() => { const wait = 800 + rng() * 800; const at = rng() * (wait + pr.window); return sideScore(side(), side(), at - wait, pr.window); }),
+      penal: rate(() => penalScore(side(), side(), stopScore(rng(), center(), pr.zone))),
+    };
+    console.log(`Dificultad ${d} (Simular ${f1(sim)}%): perfecto ${Object.entries(perfect).map(([k, v]) => `${k} ${f1(v)}`).join(' · ')} | al azar ${Object.entries(random).map(([k, v]) => `${k} ${f1(v)}`).join(' · ')}`);
+    for (const [k, v] of Object.entries(perfect)) if (v < sim) mjErrors.add(`jugador perfecto de ${k} con ${f1(v)}% < Simular ${f1(sim)}% (dificultad ${d}, CA-5)`);
+    for (const [k, v] of Object.entries(random)) if (v > sim) mjErrors.add(`jugador al azar de ${k} con ${f1(v)}% > Simular ${f1(sim)}% (dificultad ${d}, CA-5)`);
+  }
+}
+
+// CA-6: el motor elige el desenlace con el resultado y se resuelve una sola vez.
+{
+  const mk = () => {
+    const c = new Career({ firstName: 'T', lastName: 'T', country: 'GT', dept: 'Guatemala', position: 'DEL', foot: 'Derecho', number: 9, mode: 'normal', avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 } }, 3);
+    (c as any).pending = {
+      id: 'mj_prueba', category: 'minijuego', title: 't', text: 't', minigame: { kind: 'penal', difficulty: 0.5 },
+      options: [{ label: 'x', outcomes: ['ok', 'half', 'fail'].map((r) => ({ p: 0, text: r, effects: {} })) }],
+    };
+    return c;
+  };
+  const casos: [number, string][] = [[0, 'fail'], [0.34, 'fail'], [0.35, 'half'], [0.69, 'half'], [0.7, 'ok'], [1, 'ok'], [NaN, 'fail'], [Infinity, 'fail'], [-1, 'fail'], [2, 'ok']];
+  for (const [score, want] of casos) {
+    const r = mk().choose(0, score);
+    if (r.text !== want || r.result !== want) mjErrors.add(`choose(0, ${score}) dio ${r.text}, esperado ${want} (CA-6)`);
+  }
+  const c = mk();
+  c.choose(0, 1);
+  let again = false;
+  try { c.choose(0, 1); } catch { again = true; }
+  if (!again) mjErrors.add('resolver dos veces la misma decisión no falló (CA-6)');
+  const sinScore = mk().choose(0);
+  if (!['ok', 'half', 'fail'].includes(sinScore.text)) mjErrors.add('resolver sin resultado no se comportó como Simular (CA-6)');
+}
+
+// CA-7: topes de efectos, palabras prohibidas y goles de portero sobre todo lo que salió.
+{
+  const PROHIBIDO = /campe[oó]n|t[ií]tulo|clasific|convocad/i;
+  for (const [id, list] of mjEffects) {
+    list.forEach((e, i) => {
+      if ((e.rating ?? 0) < -2 || (e.rating ?? 0) > 2) mjErrors.add(`${id}[${i}]: nivel ${e.rating} fuera de -2 a +2`);
+      if ((e.fame ?? 0) > 15) mjErrors.add(`${id}[${i}]: fama +${e.fame} sobre el tope de 15`);
+      for (const k of ['transfer', 'transferTo', 'retire', 'position', 'ntLevel', 'natTeam', 'contract', 'potential', 'injury'] as const) if (e[k] !== undefined) mjErrors.add(`${id}[${i}]: efecto prohibido ${k}`);
+      if (e.milestone) mjTexts.add(`${id}: ${e.milestone}`);
+    });
+  }
+  for (const t of mjTexts) {
+    if (PROHIBIDO.test(t)) mjErrors.add(`texto con palabra prohibida: ${t}`);
+    if (t.startsWith('mj_atajada') && KEEPER_GOAL.test(t)) mjErrors.add(`portero que anota: ${t}`);
+  }
+  console.log(`Minijuegos: ${mjTexts.size} textos distintos revisados (efectos dentro de los topes, sin títulos, clasificaciones ni convocatorias, sin goles de portero).`);
+}
+
+// CA-8: el puntaje medio y los veredictos casi no cambian.
+{
+  const mean = scores.reduce((t, x) => t + x, 0) / scores.length;
+  console.log(`Puntaje medio ${f1(mean)} (línea base 107.6, banda 104.4 a 110.8)`);
+  if (big && (mean < 104.4 || mean > 110.8)) mjErrors.add(`puntaje medio ${f1(mean)} fuera de 104,4 a 110,8 (CA-8)`);
+  const grouped: Record<string, number> = {};
+  for (const [k, v] of Object.entries(verdicts)) grouped[k.startsWith('Leyenda ') ? 'Leyenda' : k] = (grouped[k.startsWith('Leyenda ') ? 'Leyenda' : k] ?? 0) + v;
+  console.log('Veredictos (cambio contra la línea base, tope 2 puntos):');
+  for (const [k, base] of Object.entries(MJ_VEREDICTOS)) {
+    const now = (100 * (grouped[k] ?? 0)) / N;
+    console.log(`  ${k}: ${f1(now)}% (línea base ${f1(base)}, ${now - base >= 0 ? '+' : ''}${f1(now - base)})`);
+    if (big && Math.abs(now - base) > 2) mjErrors.add(`veredicto ${k}: ${f1(now)}% contra ${f1(base)}% (CA-8)`);
+  }
+}
+
+// CA-9: el modo por turnos con dificultad 0,5.
+{
+  const rng = createRng(5);
+  const n9 = 10000;
+  const r: Record<string, number>[] = [0, 1, 2].map(() => ({ ok: 0, half: 0, fail: 0 }));
+  for (let i = 0; i < n9; i++) for (const o of [0, 1, 2] as const) r[o][resultOf(riskScore(o, simulatedScore(rng, 0.5)))]++;
+  const pc = (o: number, k: string) => (100 * r[o][k]) / n9;
+  console.log(`Por turnos (0,5): segura ${f1(pc(0, 'ok'))}/${f1(pc(0, 'half'))}/${f1(pc(0, 'fail'))} · equilibrada ${f1(pc(1, 'ok'))}/${f1(pc(1, 'half'))}/${f1(pc(1, 'fail'))} · arriesgada ${f1(pc(2, 'ok'))}/${f1(pc(2, 'half'))}/${f1(pc(2, 'fail'))} (éxito/a medias/fallo; k ${RISK_K.join(', ')})`);
+  if (Math.abs(pc(1, 'ok') - 40) > 3 || Math.abs(pc(1, 'half') - 35) > 3 || Math.abs(pc(1, 'fail') - 25) > 3) mjErrors.add('la equilibrada no da 40/35/25 (CA-9)');
+  if (!(pc(0, 'ok') < pc(1, 'ok') && pc(0, 'fail') < pc(1, 'fail'))) mjErrors.add('la segura no tiene menos éxitos y menos fallos que la equilibrada (CA-9)');
+  if (!(pc(2, 'ok') > pc(1, 'ok') && pc(2, 'fail') > pc(1, 'fail'))) mjErrors.add('la arriesgada no tiene más éxitos y más fallos que la equilibrada (CA-9)');
+}
+for (const k of Object.keys(LABELS) as MinigameKind[]) if (Object.keys(LABELS[k]).length !== 3) mjErrors.add(`etiquetas de ${k}`);
+if (mjErrors.size) {
+  console.error(`Minijuegos con errores (${mjErrors.size}):\n  ${[...mjErrors].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Minijuegos: situaciones, frecuencia, pisos de categoría, dificultad, Simular, equidad, resultados, textos, puntaje y modo por turnos cuadran.');
