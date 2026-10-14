@@ -12,6 +12,7 @@ export interface Club {
   short: string; // 3 letras para escudos genéricos
   city: string;
   dept?: string;
+  stadium?: string; // estadio de local; vacío si no se confirmó
   colors: [string, string];
   prestige: number;
   abroad: boolean;
@@ -68,6 +69,7 @@ function build(list: TeamData[], tier: 1 | 2 | 3): Club[] {
       short: shortName(t.name),
       city: t.city,
       dept: t.dept,
+      stadium: t.stadium,
       colors: t.colors ?? PALETTE[h % PALETTE.length],
       prestige,
       abroad: false,

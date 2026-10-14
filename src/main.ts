@@ -245,7 +245,7 @@ function debut() {
     <section class="panel event">
       <span class="eyebrow">${esc(LEAGUE_NAME[club.tier])} · ${c.player.year}</span>
       <h3>Firmaste con ${esc(club.name)}</h3>
-      <p class="text">Tenés 16 años y ${esc(club.city)} te abre las puertas. ${where}</p>
+      <p class="text">Tenés 16 años y ${esc(club.name)} te abre las puertas.${club.stadium ? ` Vas a jugar de local en el ${esc(club.stadium)}, en ${esc(club.city)}.` : ''} ${where}</p>
       <button class="btn big" id="go">Arrancar la carrera</button>
     </section>
     ${footer()}
@@ -275,6 +275,7 @@ function playerHead() {
       <h2>${esc(fullName())}</h2>
       <p class="meta">${POSITION_NAMES[p.setup.position]} · ${p.age} años${nt}</p>
       <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
+      ${club.stadium ? `<p class="meta">${esc(club.stadium)} · ${esc(club.city)}</p>` : ''}
     </div>
   </header>`;
 }
