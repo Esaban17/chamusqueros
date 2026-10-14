@@ -13,6 +13,7 @@ Valor: que un visitante nuevo entienda el juego en 10 segundos y empiece una car
 - **D6** El texto describe solo lo que el juego tiene hoy: 27 países con equipos reales, Selección con eliminatorias mundialistas, copas continentales, Liga de Naciones (solo Concacaf y UEFA) y Mundial con fase final y título, palmarés con títulos de club y de selección y premios individuales, carta de FC, ranking global. La fase final del Mundial ya está integrada (PR #5).
 - **D7** Los enlaces nuevos del footer (donación, términos) son de otras features; esta no toca `footer()`. Como sus enlaces van apilados en párrafos, hay lugar para más.
 - **D8** El material promocional (carta de ejemplo, `og.png`, textos) solo usa nombres ficticios; nunca el de una persona real, para no sugerir su respaldo ni suplantarla.
+- **D9** La landing no promete duración desde el ritmo por temporada: una carrera dura 17 a 21 minutos (`specs/ritmo-por-temporada`, A3), así que título, descripciones, hero y `og.png` dicen "decisión por decisión", no "en 2 minutos".
 
 ## Alcance
 Hero, "Cómo funciona", "Qué incluye", teaser de ranking/mejores carreras, cierre con segundo llamado y footer; etiquetas de título, descripción, Open Graph y Twitter; imagen OG.

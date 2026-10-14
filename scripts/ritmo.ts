@@ -268,9 +268,9 @@ export function medirRitmo(n: number, todos = true): string[] {
       };
       if (cuerpo(2) === cuerpo(3)) sinVariante.push(t.id);
     }
-    if (sinVariante.length) blandos.add(`pendiente de contenido (T6): ${sinVariante.length} de ${mjs.length} situaciones de minijuego sin 2 variantes de texto (${sinVariante.slice(0, 12).join(', ')}) (CA-02)`);
+    if (sinVariante.length) errores.add(`${sinVariante.length} de ${mjs.length} situaciones de minijuego sin 2 variantes de texto (${sinVariante.slice(0, 12).join(', ')}) (RF-11, CA-02)`);
   }
-  if (mjs.length < 24) blandos.add(`pendiente de contenido (T6): ${mjs.length} situaciones de minijuego (mínimo 24, CA-02)`);
+  if (mjs.length < 24) errores.add(`${mjs.length} situaciones de minijuego (mínimo 24, CA-02)`);
 
   // ---- CA-03, CA-04, CA-05: equidad ----
   console.log('Puntaje (media / p50 / p90 / máximo) por política y modo, y desvío de cada modo contra el promedio de los tres:');

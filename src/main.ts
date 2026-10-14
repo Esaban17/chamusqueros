@@ -210,7 +210,7 @@ function home() {
     <div class="brand">Chamus<span>queros</span></div>
     <section class="hero center">
       <h1>Convertite <span>en leyenda</span></h1>
-      <p>Creá a tu futbolista y viví su carrera entera en dos minutos.</p>
+      <p>Creá a tu futbolista y viví su carrera entera, decisión por decisión.</p>
     </section>
     ${go('start', 'Empezar mi carrera')}
     ${retos('btn secondary')}

@@ -216,7 +216,7 @@ Proporción de categorías contra hoy (sin traspaso, retiro ni minijuego): amor 
 
 Rutas (arranca / finalización, media de los tres modos; hoy): extranjero 30,8 % / 7,1 % (13,8 / 1); prelista → debut 8,7 / 59,3 % (5,4 / 40); eliminatoria 23,2 / 50,6 % (17,1 / 12); Sub-20 9,8 / 8,7 % (6,4 / 4); cita → compromiso 51,0 / 38,4 % (24,6 / 41); compromiso → boda 25,4 / 44,4 % (10,9 / 31); hija del técnico 30,9 / 25,0 % (13,9 / 19); pareja de un compañero 30,3 / 47,8 % (14,4 / 42). **Cita → compromiso en intensa queda en 37,0 %, a una décima del piso (90 % de 41 = 36,9 %)**, y compromiso → boda arranca en 24,5 a 26,0 % contra un tope de 27,3 %: subir amor para ganar margen en uno rompe el otro (riesgo 1).
 
-Pendiente de contenido (no son de la calibración): las 12 situaciones de `minijuegos.ts` todavía no traen 2 variantes de texto (RF-11); las 20 de `minijuegos-extra.ts` sí.
+Contenido (RF-11, cerrado): las 32 situaciones de minijuego traen 2 variantes de texto (12 de `minijuegos.ts` y 20 de `minijuegos-extra.ts`), con la misma paridad de temporadas. La sección Ritmo de `simulate` falla si alguna trae menos de 2 variantes o si hay menos de 24 situaciones; ya no son avisos.
 
 ## Cambios a specs anteriores
 - **minijuegos** (`specs/minijuegos`): RF-13 (máximo 3 por carrera, nunca en dos decisiones seguidas, media de 1,0 a 1,2 en normal) y CA-2 (frecuencia y pisos de categoría) quedan reemplazados por RF-09 a RF-13 de esta spec; "cada plantilla sale una sola vez por carrera" y el empuje por edad desaparecen; se agregan al menos 12 situaciones (el plan propone 20) y variantes de texto. CA-8 (puntaje medio entre 104,4 y 110,8; veredictos a 2 puntos) **sigue valiendo** y es el ancla de CA-05.
@@ -225,4 +225,5 @@ Pendiente de contenido (no son de la calibración): las 12 situaciones de `minij
 - **mercado-contratos**: las ofertas de traspaso son por temporada (RF-14); las ofertas por carrera se mantienen (1,68 ±10 %). CA-6 (contrato de 1 a 4 años en cada decisión, contrato nuevo tras cada cambio) no cambia.
 - **trofeos-reales**: CA-4 (puntaje medio 105,1 a 111,5, veredictos a 2 puntos, límite del servidor con 25 % de margen) no cambia de criterio; el máximo medido se vuelve a calcular. **CA-5 (la huella de las temporadas sin premios)** se rompe a propósito porque cambian las temporadas simuladas: se recalcula con el motor nuevo y se anota el valor nuevo; sigue valiendo que dos corridas de la misma semilla den los mismos premios.
 - **doble-nacionalidad**: "la ventana dura un par de bloques" pasa a "un par de temporadas"; la oferta se mide por temporada (A8). El criterio de "ascendencia 22-28 %" no cambia (no depende de las decisiones).
-- **retos-futbol, resultados-en-vivo, home-landing, términos, donación, eliminatorias-selecciones**: sin cambios.
+- **home-landing**: la landing deja de decir "en 2 minutos" (título y descripciones de `index.html`, hero de `home()` y `og.png`); ver D9 de `specs/home-landing/spec.md`. El título nuevo tiene 50 caracteres (tope 60).
+- **retos-futbol, resultados-en-vivo, términos, donación, eliminatorias-selecciones**: sin cambios.
