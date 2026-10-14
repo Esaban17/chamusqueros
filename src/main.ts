@@ -17,8 +17,8 @@ import { drawCareerCard } from './ui/card';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
-const BEST_KEY = 'leyenda-chapina:mejores';
-const LAST_SETUP_KEY = 'leyenda-chapina:ultimo';
+const BEST_KEY = 'chamusqueros:mejores';
+const LAST_SETUP_KEY = 'chamusqueros:ultimo';
 const NT_KIT: [string, string] = ['#4997D0', '#FFFFFF'];
 const NT_LABEL = ['', 'Convocado a la Selección', 'Fijo en la Selección', 'Titular en la Selección'];
 
@@ -76,7 +76,7 @@ function home() {
   render(`
     <section class="hero">
       <span class="eyebrow">Fútbol de Guatemala</span>
-      <h1>Leyenda <span>Chapina</span></h1>
+      <h1>Chamus<span>queros</span></h1>
       <p>Arrancá en Segunda División, subí a la Liga Nacional, salí al extranjero y peleá un lugar en la Bicolor. Una carrera entera en dos minutos.</p>
     </section>
     <div class="hero-avatar" aria-hidden="true">${avatarSVG(sample, NT_KIT, 10, 132)}</div>
@@ -368,7 +368,7 @@ function gameScreen() {
 function shareText(s: CareerSummary) {
   const p = career!.player;
   const stat = p.setup.position === 'POR' ? `${s.apps} partidos` : `${s.apps} partidos y ${s.goals} goles`;
-  return `${fullName()} terminó como "${s.verdict.title}" en Leyenda Chapina: ${stat}, ${s.titles.length} títulos y ${p.caps} partidos con la Selección. ¿Superás mi carrera?`;
+  return `${fullName()} terminó como "${s.verdict.title}" en Chamusqueros: ${stat}, ${s.titles.length} títulos y ${p.caps} partidos con la Selección. ¿Superás mi carrera?`;
 }
 
 function finish() {
@@ -414,7 +414,7 @@ function finish() {
     (document.getElementById('cardImg') as HTMLImageElement).src = canvas.toDataURL('image/png');
   });
   const blob = () => ready.then(() => new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png')));
-  const fileName = `leyenda-chapina-${p.setup.lastName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
+  const fileName = `chamusqueros-${p.setup.lastName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
 
   document.getElementById('share')!.onclick = async () => {
     const text = shareText(s);
