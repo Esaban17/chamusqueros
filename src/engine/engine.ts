@@ -762,13 +762,16 @@ export class Career {
    * ponytail: hasta 8 sorteos y sin reintentos después; si el mercado no da un segundo club, se queda en uno (como antes).
    */
   private offers(suitor: Club): Club[] {
+    const current = this.club;
     const list = [suitor];
     const want = randInt(this.rng, 2, 4);
+    // Nadie ofrece bajar de división dentro del país: "parecido" no es un club de una liga inferior.
+    const lower = (c: Club) => !c.abroad && !current.abroad && c.tier > current.tier;
     // Uno parecido, uno mejor (del extranjero si puede) y otro mejor; se repite en ese orden.
     const kinds: Effects['transfer'][] = ['any', this.abroadOk() ? 'abroadUp' : 'up', 'up'];
     for (let i = 0; i < 8 && list.length < want; i++) {
       const c = this.findClub(kinds[i % 3]!);
-      if (c && !list.some((x) => x.id === c.id)) list.push(c);
+      if (c && !lower(c) && !list.some((x) => x.id === c.id)) list.push(c);
     }
     return list.sort((a, b) => b.prestige - a.prestige);
   }
