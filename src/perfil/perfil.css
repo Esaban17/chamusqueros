@@ -1,0 +1,56 @@
+/* Mi perfil (prefijo pf-). Usa las variables de style.css; una columna de 560 px como máximo. */
+.pf { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pf-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; }
+.pf-top .brand { padding: 0; text-align: left; }
+.pf-volver { min-height: 48px; padding: 0 18px; }
+.pf-main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.pf h1 { font-size: clamp(32px, 9vw, 44px); font-weight: 900; text-transform: uppercase; overflow-wrap: anywhere; min-width: 0; }
+.pf h1:focus { outline: none; }
+.pf h1:focus-visible { outline: 3px solid var(--celeste); outline-offset: 4px; border-radius: 4px; }
+.pf h2 { font-size: 26px; font-weight: 900; text-transform: uppercase; }
+.pf-nota { color: var(--muted); font-size: 14px; }
+.pf-aviso { font-size: 14px; padding: 10px 12px; border-left: 4px solid var(--gold); border-radius: 8px; background: var(--gold-soft); color: var(--ink); }
+.pf-aviso a { color: var(--celeste); font-weight: 700; }
+.pf .field input, .pf .field select { min-height: 48px; }
+.pf .field [aria-invalid='true'] { border-color: var(--bad); }
+.pf .error { min-height: 1.4em; }
+.pf-estado { color: var(--good); font-weight: 700; min-height: 1.4em; }
+
+/* El editor de avatar es el de la carrera; aquí solo se agrandan las zonas de toque (48 px) */
+.pf .swatches { gap: 4px; }
+.pf .swatches label { width: 44px; height: 44px; }
+.pf .cycler { grid-template-columns: 48px 1fr 48px; }
+.pf .cy-btn { min-height: 48px; }
+.pf .btn.small { min-height: 48px; }
+
+/* Club favorito */
+.pf-club-actual { display: flex; align-items: center; gap: 10px; min-height: 48px; font-weight: 600; flex-wrap: wrap; }
+.pf-club-actual b { overflow-wrap: anywhere; }
+.pf-sub { color: var(--muted); font-size: 14px; font-weight: 500; }
+.pf-clubes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pf-opcion {
+  appearance: none; width: 100%; min-height: 52px; padding: 6px 10px; display: flex; align-items: center; gap: 10px; text-align: left;
+  border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface-2); cursor: pointer;
+}
+.pf-opcion[aria-pressed='true'] { border-color: var(--celeste); background: var(--celeste-soft); }
+.pf-opcion span:last-child { min-width: 0; overflow-wrap: anywhere; }
+.pf-opcion small { display: block; color: var(--muted); font-size: 13px; }
+.pf-sin { align-self: flex-start; }
+
+/* Selección favorita */
+.pf-sel { display: flex; align-items: center; gap: 10px; }
+.pf-sel select { flex: 1; min-width: 0; }
+.pf-sel span:empty { display: none; }
+.pf-sel .nation-flag { width: 30px; height: 20px; margin: 0; }
+
+/* Estadísticas */
+.pf-estadisticas { display: flex; flex-direction: column; gap: 10px; }
+.pf-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.pf-stat { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.pf-stat dt { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pf-stat dd { margin: 0; font: 800 26px/1 var(--display); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.pf-rachas { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 0; }
+.pf-rachas .pf-stat dd { font: 700 18px/1.2 var(--body); }
+
+@media (max-height: 420px) { .pf, .pf-main { gap: 8px; } }
+@media (prefers-reduced-motion: reduce) { .pf * { transition: none !important; animation: none !important; } }
