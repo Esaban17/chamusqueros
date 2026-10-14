@@ -6,10 +6,12 @@
 //      OFERTA=uniforme npm run simulate -- 5000   (ante una oferta elige al azar entre todas las opciones, "me quedo" incluida;
 //        por defecto decide 50/50 entre quedarse o irse y después sortea el club; OFERTA=mejor: 50/50 y se va al club de mayor
 //        prestigio, que es lo más parecido a la política de antes, cuando había un solo club)
+// La sección "Tienda" (specs/tienda) mide el balance con tres políticas de compra y revisa saldo, catálogo, topes y textos; TIENDA=off la omite.
 // La sección final "Minijuegos" (specs/minijuegos) mide frecuencia, pisos de categoría, Simular, equidad y modo por turnos.
 import { readFileSync } from 'node:fs';
-import { Career, earned, summarize, yearsText } from '../src/engine/engine';
+import { Career, MATCHES, earned, summarize, yearsText } from '../src/engine/engine';
 import { COUNTRIES, countryOf, moneyShort } from '../src/engine/countries';
+import { SCORER_NAME, majorAwards, scorerName, type SeasonFacts } from '../src/engine/awards';
 import { DIASPORA, elegible, residencia } from '../src/engine/nacionalidad';
 import { clubById, clubsOf, viewClub, ALL_CLUBS } from '../src/engine/clubs';
 import { salaryFor } from '../src/engine/contracts';
@@ -17,6 +19,8 @@ import { ALL_EVENTS } from '../src/engine/events';
 import { MINIJUEGOS_EVENTS } from '../src/engine/events/minijuegos';
 import { difficultyFor, resultOf, simulatedScore } from '../src/engine/minigames';
 import { createRng } from '../src/engine/rng';
+import { CATALOGO, CATEGORIAS, TOPE_ANIMO, TOPE_FAMA, TOPE_FISICO, animoBase, animoDe, contratadoDe, fisicoExtra, bonoEntrenador, itemById, poseidos, riesgoSocial, validar } from '../src/engine/tienda';
+import { comprasDestacadasHtml, estadoInicial, tiendaHtml } from '../src/ui/tienda';
 import { PAREJA, RUTAS } from '../src/engine/events/amor';
 import type { EventContext, MinigameKind, MinigameResult, Mode, Position } from '../src/engine/types';
 import { bestMoment, palmares, porSeleccion } from '../src/ui/palmares';
@@ -24,6 +28,8 @@ import { CENTER, LABELS, RISK_K, params, penalScore, riskScore, sideScore, stopS
 import { FLAG_CODE } from '../src/ui/flags';
 
 const N = Number(process.argv[2] ?? 5000);
+// Límite de puntaje que acepta api/ranking.ts (se lee de allí para que el reporte y el servidor no se desfasen).
+const SCORE_LIMIT = Number(/isInt\(b\.score, -100, (\d+)\)/.exec(readFileSync(new URL('../api/ranking.ts', import.meta.url), 'utf8'))?.[1]);
 const only = process.argv[3]?.toUpperCase();
 const countries = only ? [countryOf(only)] : COUNTRIES;
 // Un jugador de otro país no puede ver textos de Guatemala (ni "de el" / "a el" sin contraer). Sí puede ver clubes
@@ -524,7 +530,7 @@ for (const [k, v] of Object.entries(verdicts).sort((a, b) => b[1] - a[1])) conso
 scores.sort((a, b) => a - b);
 console.log(`Puntaje medio: ${avg(scores)}`);
 console.log('Puntaje p25/p50/p75/p90/p97:', [0.25, 0.5, 0.75, 0.9, 0.97].map((q) => scores[Math.floor(q * N)].toFixed(0)).join(' / '));
-console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, '(el servidor acepta hasta 1000 y 200)');
+console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, `(el servidor acepta hasta ${SCORE_LIMIT} y 200)`);
 console.log('Fase final (torneos jugados · campeón · finalista):');
 for (const [k, v] of Object.entries(koStats).sort()) console.log(`  ${k}: ${v.played} · ${((100 * v.champ) / v.played).toFixed(1)}% · ${((100 * v.final) / v.played).toFixed(1)}%`);
 const totalEvents = Object.values(eventCount).reduce((a, b) => a + b, 0);
@@ -594,7 +600,7 @@ if (!only && N >= 5000) {
   if (nac.madre / nac.herencia < 0.45 || nac.madre / nac.herencia > 0.55) nacErrors.add(`ascendencia por la madre ${pn(nac.madre, nac.herencia)} fuera de 45-55 %`);
 }
 // Límites que acepta el servidor (api/ranking.ts).
-if (scores.at(-1)! > 1000 || scores[0] < -100 || maxTitles > 200 || maxCaps > 500) nacErrors.add(`fuera de los límites del servidor: puntaje ${scores[0]}..${scores.at(-1)}, títulos ${maxTitles}, partidos ${maxCaps}`);
+if (scores.at(-1)! > SCORE_LIMIT || scores[0] < -100 || maxTitles > 200 || maxCaps > 500) nacErrors.add(`fuera de los límites del servidor: puntaje ${scores[0]}..${scores.at(-1)}, títulos ${maxTitles}, partidos ${maxCaps}`);
 // La lista de códigos de api/ranking.ts (copia a mano) coincide con COUNTRIES.
 {
   const api = readFileSync(new URL('../api/ranking.ts', import.meta.url), 'utf8');
@@ -618,7 +624,7 @@ if (amorErrors.size) {
   console.error(`Vida sentimental con errores:\n  ${[...amorErrors].join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Amor: estado coherente, sin menores, rutas cerradas, hitos en orden y opciones que suman 1.');
-if (Math.max(...scores) >= 1000) { console.error(`Puntaje máximo ${Math.max(...scores)}: el servidor acepta menos de 1000 (CA-13)`); process.exitCode = 1; }
+if (Math.max(...scores) >= SCORE_LIMIT) { console.error(`Puntaje máximo ${Math.max(...scores)}: el servidor acepta menos de ${SCORE_LIMIT} (CA-13)`); process.exitCode = 1; }
 
 // ---------- Mercado y contratos ----------
 const GT = countryOf('GT');
@@ -685,6 +691,477 @@ if (marketErrors.size) {
   console.error(`Mercado y contratos con errores (${marketErrors.size}):\n  ${[...marketErrors].slice(0, 40).join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Mercado: ofertas, contratos, salarios y formatos de monto cuadran.');
+
+// ---------- Tienda de estilo de vida (specs/tienda) ----------
+// TIENDA=off la omite. Cuatro pasadas de N carreras con las mismas semillas, posiciones y ritmos que el bucle principal:
+// sin tienda (debe dar lo mismo que el bucle principal), prudente, máximo (la cota superior del gasto) y abusivo (solo vida social, sin límite).
+console.log('\n--- Tienda ---');
+const tiendaErrors = new Set<string>();
+if (process.env.TIENDA === 'off') console.log('Tienda: omitida (TIENDA=off)');
+else {
+  const t1 = (x: number) => x.toFixed(1);
+  const GTM = (q: number) => moneyShort(countryOf('GT'), q);
+  const mk = (seed: number, code = 'GT', position: Position = 'DEL') =>
+    new Career({ firstName: 'T', lastName: 'T', country: code, dept: countryOf(code).regions[0], position, foot: 'Derecho', number: 9, mode: 'normal', avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 } }, seed);
+  /** Un jugador con saldo (una temporada falsa con ese salario): sirve para probar compras sin jugar una carrera. */
+  const conSaldo = (c: Career, q = 1e12) => {
+    c.player.seasons.push({ label: '2026-27', salary: q, clubId: c.player.clubId, tier: 3, apps: 0, goals: 0, assists: 0, titles: [], awards: [] } as any);
+    return c;
+  };
+  const tiendaTextos = new Set<string>(); // todo texto de la tienda que se vio, para RC-01 a RC-04
+  const textosPersonal = new Set<string>(); // los que hablan de personal, para RC-02
+
+  // ---- CA-3 y RF-08: el catálogo ----
+  if (CATALOGO.length !== 42) tiendaErrors.add(`el catálogo tiene ${CATALOGO.length} ítems, deben ser 42 (CA-3)`);
+  if (new Set(CATALOGO.map((i) => i.id)).size !== CATALOGO.length) tiendaErrors.add('ids repetidos en el catálogo');
+  for (const i of CATALOGO) {
+    if (![1, 2, 3, 4, 5].includes(i.estrellas) || !(i.precio > 0) || !i.nombre.trim() || !i.resumen.trim()) tiendaErrors.add(`ítem mal armado: ${i.id}`);
+    if (i.categoria !== 'personal' && i.categoria !== 'social' && i.estrellas >= 2 && i.precio < 300_000) tiendaErrors.add(`${i.id}: compra única de 2 o más estrellas bajo Q300.000 (RF-08)`);
+    if (i.categoria === 'personal' && i.estrellas >= 2 && i.precio <= 45_000) tiendaErrors.add(`${i.id}: tarifa de 2 o más estrellas que cabe en un salario de Q45.000 (RF-08)`);
+    if (i.categoria === 'transporte' && i.precio < 45_000_000) tiendaErrors.add(`${i.id}: transporte de élite bajo Q45 M (RF-08)`);
+    if (i.categoria !== 'social' && i.categoria !== 'personal' && i.estrellas >= 2 && i.precio <= 225_000) tiendaErrors.add(`${i.id}: cabe en 5 temporadas de Q45.000 (CA-4)`);
+    tiendaTextos.add(`${i.nombre}. ${i.resumen}`);
+    if (/\d,\d{2,}/.test(i.resumen)) tiendaErrors.add(`${i.id}: decimales de más en el resumen: ${i.resumen}`);
+    if (i.categoria === 'personal') textosPersonal.add(`${i.nombre}. ${i.resumen}`);
+  }
+  for (const e of new Set(CATALOGO.map((i) => i.espacio))) {
+    const l = CATALOGO.filter((i) => i.espacio === e).sort((a, b) => a.estrellas - b.estrellas);
+    l.forEach((i, k) => {
+      if (k && !(i.precio > l[k - 1].precio && i.animo >= l[k - 1].animo && i.fama >= l[k - 1].fama)) tiendaErrors.add(`${e}: más estrellas no sube el precio o baja el efecto (${i.id})`);
+    });
+  }
+  const conteo = Object.fromEntries(CATEGORIAS.map(([c]) => [c, CATALOGO.filter((i) => i.categoria === c).length]));
+  if (['vivienda', 'carros', 'transporte', 'personal', 'social'].some((c, k) => conteo[c] !== [5, 5, 7, 20, 5][k])) tiendaErrors.add(`conteo por categoría: ${JSON.stringify(conteo)}`);
+  console.log(`Catálogo: ${CATALOGO.length} ítems (${Object.entries(conteo).map(([k, v]) => `${k} ${v}`).join(' · ')}), precio y efecto crecientes por espacio, cotas de RF-08 y CA-4.`);
+
+  // ---- CA-2: rechazos de cada tipo dejan todo idéntico ----
+  {
+    const sinCambios = (nombre: string, c: Career, f: () => { ok: boolean; motivo?: string }) => {
+      const antes = JSON.stringify(c.player) + c.saldo;
+      const r = f();
+      if (r.ok || !r.motivo?.trim()) tiendaErrors.add(`rechazo ${nombre}: ${r.ok ? 'se aceptó' : 'sin motivo'}`);
+      else tiendaTextos.add(r.motivo);
+      if (JSON.stringify(c.player) + c.saldo !== antes) tiendaErrors.add(`rechazo ${nombre}: cambió el saldo, el historial o el jugador`);
+    };
+    const c = mk(1);
+    sinCambios('ítem inexistente', c, () => c.buy('mansion-9'));
+    sinCambios('ítem inexistente (contratar)', c, () => c.hire('chef-9'));
+    sinCambios('saldo insuficiente (compra)', c, () => c.buy('vivienda-1'));
+    sinCambios('saldo insuficiente (contratación)', c, () => c.hire('chef-1'));
+    sinCambios('compra de algo que se contrata', c, () => c.buy('chef-1'));
+    sinCambios('contratación de algo que se compra', c, () => c.hire('vivienda-1'));
+    conSaldo(c, 50_000_000);
+    sinCambios('reserva del transporte de élite', c, () => c.buy('helicoptero-3'));
+    if (!c.buy('vivienda-3').ok || !c.buy('carro-2').ok || !c.hire('chef-2').ok) tiendaErrors.add('compras válidas rechazadas');
+    sinCambios('ya tiene uno mejor (vivienda)', c, () => c.buy('vivienda-2'));
+    sinCambios('ya tiene ese (vivienda)', c, () => c.buy('vivienda-3'));
+    sinCambios('ya tiene ese carro', c, () => c.buy('carro-2'));
+    sinCambios('ya lo tiene contratado', c, () => c.hire('chef-2'));
+    c.player.retired = true;
+    sinCambios('jugador retirado', c, () => c.buy('carro-3'));
+    c.player.retired = false;
+    // La reserva del transporte: con 1,5 veces el precio se puede, justo debajo no.
+    const e = mk(2);
+    conSaldo(e, 67_499_999);
+    sinCambios('reserva justo debajo', e, () => e.buy('helicoptero-3'));
+    conSaldo(e, 1);
+    if (!e.buy('helicoptero-3').ok) tiendaErrors.add('con la reserva exacta (1,5 veces) no dejó comprar el helicóptero');
+    // El garaje es una colección: varios carros, no el mismo dos veces, y el ánimo solo cuenta el mejor.
+    const g = conSaldo(mk(3));
+    for (const k of [1, 2, 3, 4, 5]) if (!g.buy(`carro-${k}`).ok) tiendaErrors.add(`garaje: no dejó comprar el carro ${k}`);
+    if (g.buy('carro-3').ok || poseidos(g.player).filter((i) => i.espacio === 'carro').length !== 5) tiendaErrors.add('garaje: repitió un modelo o no es una colección');
+    const solo = conSaldo(mk(3));
+    solo.buy('carro-5');
+    if (animoBase(g.player) !== animoBase(solo.player)) tiendaErrors.add('garaje: el ánimo cuenta más que el mejor carro');
+    if (g.player.compras.reduce((t, k) => t + k.fama, 0) !== [1, 2, 3, 4, 5].reduce((t, k) => t + itemById(`carro-${k}`)!.fama, 0)) tiendaErrors.add('garaje: la fama puntual no es la de cada compra');
+    // Despedir es libre; contratar el mismo rol en otro nivel reemplaza.
+    const h = conSaldo(mk(4));
+    h.hire('fisio-2');
+    h.hire('fisio-4');
+    if (h.player.personal.length !== 1 || contratadoDe(h.player, 'fisio')?.estrellas !== 4) tiendaErrors.add('contratar otro nivel del mismo rol no reemplazó');
+    const saldoAntes = h.saldo;
+    if (!h.fire('fisio') || h.player.personal.length || h.saldo !== saldoAntes || h.fire('fisio')) tiendaErrors.add('despedir no es libre o no deja al rol vacío');
+    // preview: lo que avisa la confirmación.
+    const pv = conSaldo(mk(5), 1_000_000);
+    pv.hire('entrenador-3');
+    const v = pv.preview('vivienda-2');
+    if (!v || v.saldoDespues !== 500_000 || v.alcanza || v.tarifas !== 600_000) tiendaErrors.add(`preview de la compra con personal: ${JSON.stringify(v)}`);
+    if (pv.preview('vivienda-5') !== null) tiendaErrors.add('preview de una compra que el motor rechaza debe ser null');
+  }
+
+  // ---- CA-7: ánimo ----
+  {
+    const stub = (ids: string[]) => ({ compras: ids.filter((i) => !/^(chef|fisio|entrenador|asistente)/.test(i)).map((id) => ({ id, year: 0, precio: 0, fama: 0 })), personal: ids.filter((i) => /^(chef|fisio|entrenador|asistente)/.test(i)).map((id) => ({ id, desde: 0 })) }) as any;
+    let max = 0;
+    for (const v of ['', 'vivienda-1', 'vivienda-2', 'vivienda-3', 'vivienda-4', 'vivienda-5']) for (const k of ['', 'carro-1', 'carro-2', 'carro-3', 'carro-4', 'carro-5'])
+      for (const h of ['', 'helicoptero-3', 'helicoptero-4']) for (const y of ['', 'yate-3', 'yate-4', 'yate-5']) for (const a of ['', 'avion-4', 'avion-5'])
+        for (const s of ['', 'asistente-1', 'asistente-2', 'asistente-3', 'asistente-4', 'asistente-5']) max = Math.max(max, animoBase(stub([v, k, h, y, a, s].filter(Boolean))));
+    console.log(`Ánimo base: nominal 5 → ${animoDe(5).toFixed(2)} · nominal 18 → ${animoDe(18).toFixed(2)} · máximo de las 7.776 combinaciones ${max.toFixed(2)} (tope ${TOPE_ANIMO})`);
+    if (max > TOPE_ANIMO || animoDe(5) < 2.7 || animoDe(5) > 3 || animoDe(18) < 3.8 || animoDe(18) > TOPE_ANIMO) tiendaErrors.add('el ánimo base se sale de CA-7');
+  }
+
+  // ---- CA-8: lesiones evitadas y físico de chef y fisioterapeuta ----
+  {
+    const evita = (ids: string[]) => {
+      const c = mk(11);
+      c.player.personal = ids.map((id) => ({ id, desde: 0 }));
+      let n = 0;
+      for (let i = 0; i < 20000; i++) if ((c as any).applyEffects({ injury: 1 }).includes('Lesión evitada')) n++;
+      return (100 * n) / 20000;
+    };
+    const ambos = evita(['chef-5', 'fisio-5']), soloChef = evita(['chef-5']), soloFisio = evita(['fisio-5']), nadie = evita([]);
+    console.log(`Lesión evitada en 20.000 sorteos: chef 5★ y fisio 5★ ${t1(ambos)}% (tope 40) · solo chef ${t1(soloChef)}% (15) · solo fisio ${t1(soloFisio)}% (40) · sin personal ${t1(nadie)}%`);
+    if (ambos < 38 || ambos > 42 || soloChef < 13 || soloChef > 17 || soloFisio < 38 || soloFisio > 42 || nadie !== 0) tiendaErrors.add('lesiones evitadas fuera de CA-8');
+    const f = mk(12).player;
+    f.personal = [{ id: 'chef-5', desde: 0 }, { id: 'fisio-5', desde: 0 }];
+    if (fisicoExtra(f) !== TOPE_FISICO) tiendaErrors.add(`el físico de chef y fisio 5★ suma ${fisicoExtra(f)}, debe ser ${TOPE_FISICO}`);
+    f.personal = [{ id: 'fisio-1', desde: 0 }];
+    if (Math.abs(fisicoExtra(f) - 0.3) > 1e-9) tiendaErrors.add('el físico del fisioterapeuta 1★ no es 0,3');
+    // Sin personal no se toca el azar (RF-22): el siguiente número es el mismo que en una carrera sin lesión sorteada.
+    const a = mk(13), b = mk(13);
+    (a as any).applyEffects({ injury: 1 });
+    if (a.rng() !== b.rng()) tiendaErrors.add('sin personal, una lesión consumió azar (RF-22)');
+  }
+
+  // ---- CA-9: vida social y abuso ----
+  {
+    const c = conSaldo(mk(21));
+    const p = c.player;
+    const n = 10000;
+    const gala = itemById('social-5')!;
+    const cuenta = [0, 1, 2, 3].map(() => ({ esc: 0, dis: 0, animo: 0, fama: 0 }));
+    for (let t = 0; t < n; t++) {
+      p.compras = [];
+      p.morale = 50;
+      p.fame = 0;
+      for (let k = 0; k < 4; k++) {
+        const r = c.buy('social-5');
+        if (!r.ok) { tiendaErrors.add('compra social rechazada'); break; }
+        tiendaTextos.add(r.text);
+        cuenta[k].esc += /escándalo/.test(r.text) ? 1 : 0;
+        cuenta[k].dis += /distrajo/.test(r.text) ? 1 : 0;
+        cuenta[k].animo += r.changes.includes(`+${gala.animo} Ánimo`) ? 2 : r.changes.includes(`+${Math.floor(gala.animo / 2)} Ánimo`) ? 1 : r.changes.some((x) => /\+\d+ Ánimo/.test(x)) ? -99 : 0;
+        cuenta[k].fama += r.changes.includes(`+${gala.fama} Fama`) ? 2 : r.changes.includes(`+${Math.floor(gala.fama / 2)} Fama`) ? 1 : r.changes.some((x) => /\+\d+ Fama/.test(x)) ? -99 : 0;
+      }
+    }
+    const pc = (x: number) => (100 * x) / n;
+    console.log(`Vida social, ${n} ventanas de 4 compras de una Gala benéfica: escándalo/distracción 1.ª ${t1(pc(cuenta[0].esc))}/${t1(pc(cuenta[0].dis))} · 2.ª ${t1(pc(cuenta[1].esc))}/${t1(pc(cuenta[1].dis))} · 3.ª ${t1(pc(cuenta[2].esc))}/${t1(pc(cuenta[2].dis))} (20/15) · 4.ª ${t1(pc(cuenta[3].esc))}/${t1(pc(cuenta[3].dis))} (45/25)`);
+    for (const k of [0, 1]) if (cuenta[k].esc || cuenta[k].dis || cuenta[k].animo !== 2 * n || cuenta[k].fama !== 2 * n) tiendaErrors.add(`la compra social ${k + 1} trae riesgo o no da su efecto completo`);
+    if (Math.abs(pc(cuenta[2].esc) - 20) > 3 || Math.abs(pc(cuenta[2].dis) - 15) > 3) tiendaErrors.add('la 3.ª compra social no trae 20 % y 15 %');
+    if (Math.abs(pc(cuenta[3].esc) - 45) > 3 || Math.abs(pc(cuenta[3].dis) - 25) > 3) tiendaErrors.add('la 4.ª compra social no trae 45 % y 25 %');
+    if (cuenta[2].animo !== n || cuenta[2].fama !== n) tiendaErrors.add('la 3.ª compra social no da la mitad del ánimo y la fama');
+    if (cuenta[3].animo !== 0 || cuenta[3].fama !== 0) tiendaErrors.add('la 4.ª compra social da ánimo o fama');
+    // La ventana: tres temporadas después la cuenta vuelve a empezar.
+    p.compras = [];
+    for (let k = 0; k < 3; k++) c.buy('social-1');
+    p.year += 3;
+    if (riesgoSocial(p).factor !== 1) tiendaErrors.add('la ventana de 3 temporadas no se renueva');
+    // Determinismo (RF-22): las dos primeras compras sociales y una vivienda no consumen azar.
+    const a = conSaldo(mk(22)), b = mk(22);
+    a.buy('vivienda-1'); a.buy('social-1'); a.buy('social-2');
+    if (a.rng() !== b.rng()) tiendaErrors.add('comprar sin riesgo consumió azar (RF-22)');
+  }
+
+  // ---- CA-6: el entrenador solo acelera el avance por la brecha ----
+  {
+    let casos = 0, mal = 0;
+    for (let age = 16; age <= 36; age++) for (const gap of [3, 10, 25, 40]) for (const morale of [30, 60, 90]) for (const share of [0.2, 0.8]) {
+      const par = [0, 1].map(() => {
+        const c = mk(31);
+        const p = c.player;
+        Object.assign(p, { age, rating: 50, potential: 50 + gap, morale, fitness: 100 });
+        return c;
+      });
+      par[1].player.personal = [{ id: 'entrenador-5', desde: 0 }];
+      (par[0] as any).progress(share, 0, 0, { entrenador: bonoEntrenador(par[0].player), animo: 0, fisico: 0 });
+      (par[1] as any).progress(share, 0, 0, { entrenador: bonoEntrenador(par[1].player), animo: 0, fisico: 0 });
+      const [x, y] = [par[0].player, par[1].player];
+      const dif = y.rating - x.rating;
+      casos++;
+      const mood = 0.6 + morale / 125;
+      const brecha0 = age <= 23 ? Math.min(6, Math.max(0, gap * 0.2 * mood * (0.5 + share / 2))) : age <= 29 ? gap * 0.12 : 0;
+      const b = bonoEntrenador(y); // 0 con 30 años o más
+      const esperado = age > 29 ? 0 : Math.min(brecha0 * (1 + b), 6) - brecha0;
+      if (Math.abs(dif - esperado) > 1e-9 || dif > gap + 1e-9 || x.potential !== y.potential || (age > 29 && b !== 0)) mal++;
+    }
+    console.log(`Entrenador 5★ contra ninguno (misma semilla y estado): ${casos} casos de los 16 a los 36 años, ${mal} fuera de CA-6`);
+    if (mal) tiendaErrors.add(`entrenador: ${mal} de ${casos} casos fuera de CA-6`);
+  }
+
+  // ---- CA-13: la pantalla ----
+  {
+    const es = conSaldo(mk(41, 'ES'), 2_000_000);
+    const cash = (q: number) => moneyShort(es.home, q);
+    const original = CATALOGO[0].nombre;
+    CATALOGO[0].nombre = '<b>x</b>';
+    const html = tiendaHtml(es, estadoInicial(), cash);
+    CATALOGO[0].nombre = original;
+    if (html.includes('<b>x</b>') || !html.includes('&lt;b&gt;x&lt;/b&gt;')) tiendaErrors.add('la pantalla de tienda no escapa los nombres (CA-13)');
+    if (/Q\d/.test(html) || !html.includes('€')) tiendaErrors.add('un jugador español no ve euros (CA-13)');
+    if (!html.includes('aria-label="3 de 5 estrellas">★★★☆☆<')) tiendaErrors.add('estrellas de un ítem de 3 mal escritas (CA-13)');
+    if ((html.match(/<button/g) ?? []).length < 10 || !html.includes('data-act="volver"')) tiendaErrors.add('la pantalla no trae botones ni "Volver al juego"');
+    const confirm = tiendaHtml(es, { sel: 'vivienda-2', aviso: '<i>aviso</i>', abiertas: ['vivienda'] }, cash);
+    if (confirm.includes('<i>aviso</i>') || !confirm.includes('Saldo después') || !confirm.includes('data-act="confirmar"')) tiendaErrors.add('la confirmación no muestra el saldo después o no escapa el aviso');
+    for (const h of [html, confirm]) tiendaTextos.add(h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    textosPersonal.add(tiendaHtml(es, { sel: 'chef-3', aviso: '', abiertas: ['personal'] }, cash).match(/<li class="t-item t-confirm">[\s\S]*?<\/li>/)?.[0].replace(/<[^>]+>/g, ' ') ?? '');
+    // CA-14: el final con la compra más importante.
+    const f = conSaldo(mk(42), 2e9);
+    f.buy('vivienda-5'); f.buy('yate-3');
+    const linea = comprasDestacadasHtml(f.player).replace(/<[^>]+>/g, '');
+    if (linea !== 'Mansión ★★★★★ · Yate de 12 metros ★★★' || comprasDestacadasHtml(mk(43).player) !== '') tiendaErrors.add(`línea de compras destacadas: "${linea}" (CA-14)`);
+    if (f.saldo !== summarize(f.player).earned - f.gastado) tiendaErrors.add('el saldo final no es ganado menos gastado (CA-14)');
+    tiendaTextos.add(linea);
+  }
+
+  // ---- CA-15: el ranking no recibe nada de la tienda ----
+  {
+    const main = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+    const envio = main.match(/rankingApi\(\{[^\n]*\n?[^\n]*\)/)?.[0] ?? '';
+    const card = main.match(/const card: RankCard = \{[\s\S]*?\};/)?.[0] ?? '';
+    if (!envio || /saldo|gastad|compra|personal|tienda/i.test(envio + card)) tiendaErrors.add('el envío al ranking menciona la tienda (CA-15)');
+  }
+
+  // ---- Las pasadas ----
+  type Pol = 'sin' | 'prudente' | 'maximo' | 'abuso';
+  const grupoDe = (code: string) => (code === 'GT' ? 'Guatemala' : ['ES', 'AR', 'BR'].includes(code) ? 'ES/AR/BR' : 'resto');
+  const GRUPOS = ['Guatemala', 'ES/AR/BR', 'resto'];
+  // Orden: entrenador, fisioterapeuta, chef, vivienda, asistente, carro, vida social, transporte: fracción del saldo que se acepta gastar.
+  const REGLAS: Record<Exclude<Pol, 'sin'>, number[]> = {
+    prudente: [0.15, 0.15, 0.15, 0.4, 0.1, 0.4, 0.05, 0.4],
+    maximo: [0.3, 0.3, 0.3, 0.9, 0.2, 0.9, 0.2, 0.9],
+    abuso: [0, 0, 0, 0, 0, 0, 0.2, 0],
+  };
+  const porPrecio = (f: (i: (typeof CATALOGO)[number]) => boolean) => CATALOGO.filter(f).sort((a, b) => b.precio - a.precio);
+
+  function pasada(pol: Pol) {
+    const R = {
+      scores: [] as number[], peaks: [] as number[], peaksBajos: [] as number[], brechas: [] as number[], years: 0, mundial: 0, verd: {} as Record<string, number>,
+      saldo: Object.fromEntries(GRUPOS.map((g) => [g, [] as number[]])), ganado: [] as number[], gastado: [] as number[],
+      compras: Object.fromEntries(GRUPOS.map((g) => [g, new Map<string, number>()])), n: Object.fromEntries(GRUPOS.map((g) => [g, 0])),
+      nivel: Object.fromEntries(GRUPOS.map((g) => [g, Object.fromEntries(CATEGORIAS.map(([c]) => [c, [0, 0, 0, 0, 0, 0]]))])),
+      despidos: 0, conDespidos: 0, evitadas: 0, escandalos: 0, distracciones: 0, sociales: 0, famaMax: 0, rechazos: 0, gt2: 0, gt2n: 0, gt2compra: 0, transporteBajo: 0,
+    };
+    for (let i = 0; i < N; i++) {
+      const country = countries[i % countries.length];
+      const k = Math.floor(i / countries.length);
+      const career = new Career(
+        { firstName: 'Sim', lastName: `#${i}`, country: country.code, dept: country.regions[k % country.regions.length], position: positions[k % 4], foot: 'Derecho', number: 10, mode: modes[k % 3], avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 } },
+        i + 1,
+      );
+      const p = career.player;
+      const personalVisto = new Set<string>();
+      let gastadoPropio = 0; // lo que se pagó en compras, contado aparte para cuadrar con el motor
+      const chequear = (donde: string) => {
+        const gastos = p.seasons.reduce((t, r) => t + (r.gastos?.personal ?? 0), 0);
+        if (career.saldo < 0) tiendaErrors.add(`${pol}: saldo negativo (${career.saldo}) ${donde}`);
+        if (career.saldo !== earned(p) - career.gastado || career.gastado !== gastadoPropio + gastos) tiendaErrors.add(`${pol}: el saldo no cuadra con lo ganado, lo comprado y lo cobrado ${donde}`);
+      };
+      const comprar = (id: string) => {
+        const it = itemById(id)!;
+        const r = it.categoria === 'personal' ? career.hire(id) : career.buy(id);
+        if (!r.ok) { R.rechazos++; tiendaErrors.add(`${pol}: la política intentó algo que el motor rechaza: ${id}: ${r.motivo}`); return; }
+        if (it.categoria !== 'personal') gastadoPropio += it.precio;
+        else { personalVisto.add(id); textosPersonal.add(r.text); }
+        tiendaTextos.add(r.text);
+        if (it.categoria === 'social') R.sociales++;
+        if (/escándalo/.test(r.text)) R.escandalos++;
+        if (/distrajo/.test(r.text)) R.distracciones++;
+        chequear(`tras comprar ${id}`);
+      };
+      // Compra el ítem más caro de la lista que el motor acepte y quepa en la fracción del saldo.
+      const mejor = (lista: typeof CATALOGO, regla: number) => lista.find((i) => i.precio <= regla * career.saldo && validar(p, career.saldo, i.id, i.categoria === 'personal' ? 'contratar' : 'comprar').ok);
+      const politica = () => {
+        const [rEnt, rFis, rChef, rViv, rAsi, rCar, rSoc, rTra] = REGLAS[pol as Exclude<Pol, 'sin'>];
+        if (p.age > 29 && contratadoDe(p, 'entrenador')) career.fire('entrenador');
+        const rol = (r: 'entrenador' | 'fisio' | 'chef' | 'asistente', regla: number) => {
+          const actual = contratadoDe(p, r)?.estrellas ?? 0;
+          const it = mejor(porPrecio((i) => i.espacio === r && i.estrellas > actual), regla);
+          if (it) comprar(it.id);
+        };
+        if (p.age <= 28 && rEnt) rol('entrenador', rEnt);
+        if (p.age >= 26 && rFis) rol('fisio', rFis);
+        if (p.age >= 26 && rChef) rol('chef', rChef);
+        if (rViv) { const it = mejor(porPrecio((i) => i.categoria === 'vivienda'), rViv); if (it) comprar(it.id); }
+        if (rAsi) rol('asistente', rAsi);
+        if (rCar) {
+          const mejorCarro = Math.max(0, ...poseidos(p).filter((i) => i.espacio === 'carro').map((i) => i.estrellas));
+          const it = mejor(porPrecio((i) => i.categoria === 'carros' && i.estrellas > mejorCarro), rCar);
+          if (it) comprar(it.id);
+        }
+        if (rSoc) {
+          const limite = pol === 'abuso' ? 3 : 2;
+          for (let n = 0; n < limite; n++) {
+            if (p.compras.filter((c) => itemById(c.id)!.categoria === 'social' && c.year > p.year - 3).length >= limite) break;
+            const it = mejor(porPrecio((i) => i.categoria === 'social'), rSoc);
+            if (!it) break;
+            comprar(it.id);
+          }
+        }
+        if (rTra) for (let n = 0; n < 3; n++) { const it = mejor(porPrecio((i) => i.categoria === 'transporte'), rTra); if (!it) break; comprar(it.id); }
+      };
+      career.start();
+      let guard = 0;
+      while (!career.isOver && guard++ < 100) {
+        if (!career.pendingEvent) {
+          career.playBlock();
+          chequear('al cerrar el bloque');
+          if (!career.isOver && pol !== 'sin') politica();
+        }
+        const ev = career.pendingEvent;
+        if (ev) {
+          const forced = ev.id.startsWith('nac_') ? (NAC === 'aceptar' ? 0 : NAC === 'rechazar' ? 1 : -1) : -1;
+          const stay = ev.options.length - 1;
+          const pick = forced >= 0 ? forced : ev.id === 'oferta' && !uniform
+            ? career.rng() < 0.5 ? stay : policy === 'mejor' ? 0 : Math.floor(career.rng() * stay)
+            : Math.floor(career.rng() * ev.options.length);
+          if (career.choose(pick).changes.includes('Lesión evitada')) R.evitadas++;
+          chequear('tras una decisión');
+        }
+      }
+      const s = summarize(p);
+      const g = grupoDe(country.code);
+      R.scores.push(s.score);
+      R.peaks.push(p.peakRating);
+      if (p.potential <= 70) R.peaksBajos.push(p.peakRating);
+      R.brechas.push(p.peakRating - p.potential);
+      R.years += p.seasons.length;
+      if (p.flags.mundial) R.mundial++;
+      R.verd[s.verdict.title.startsWith('Leyenda ') ? 'Leyenda' : s.verdict.title] = (R.verd[s.verdict.title.startsWith('Leyenda ') ? 'Leyenda' : s.verdict.title] ?? 0) + 1;
+      R.ganado.push(s.earned);
+      R.gastado.push(career.gastado);
+      R.saldo[g].push(career.saldo);
+      R.n[g]++;
+      const fama = p.compras.reduce((t, c) => t + c.fama, 0);
+      R.famaMax = Math.max(R.famaMax, fama);
+      if (fama > TOPE_FAMA) tiendaErrors.add(`${pol}: la fama de la tienda pasó de ${TOPE_FAMA} (${fama})`);
+      if (pol === 'sin' && (p.compras.length || p.personal.length || p.seasons.some((r) => r.gastos))) tiendaErrors.add('sin tienda, la carrera trae compras o gastos');
+      for (const r of p.seasons) {
+        R.despidos += r.gastos?.despidos.length ?? 0;
+        for (const d of r.gastos?.despidos ?? []) { tiendaTextos.add(d); textosPersonal.add(d); }
+        if (r.gastos && r.gastos.personal < 0) tiendaErrors.add('gasto de personal negativo');
+      }
+      if (p.seasons.some((r) => r.gastos?.despidos.length)) R.conDespidos++;
+      const niveles = Object.fromEntries(CATEGORIAS.map(([c]) => [c, 0]));
+      const vistos = new Set<string>();
+      for (const c of p.compras) {
+        const it = itemById(c.id)!;
+        if (!vistos.has(it.id)) R.compras[g].set(it.id, (R.compras[g].get(it.id) ?? 0) + 1); // una vez por carrera, aunque se repita
+        vistos.add(it.id);
+        niveles[it.categoria] = Math.max(niveles[it.categoria], it.estrellas);
+        if (it.categoria === 'transporte' && s.earned < 67_500_000) R.transporteBajo++;
+      }
+      // El personal no queda en el historial de compras: se cuenta aparte, una vez por nivel contratado en la carrera.
+      for (const id of personalVisto) {
+        const it = itemById(id)!;
+        R.compras[g].set(id, (R.compras[g].get(id) ?? 0) + 1);
+        niveles.personal = Math.max(niveles.personal, it.estrellas);
+      }
+      for (const [cat, n] of Object.entries(niveles)) R.nivel[g][cat][n]++;
+      // CA-4: quien nunca salió de la Segunda División de Guatemala no compra nada de 2 o más estrellas.
+      const gt2 = country.code === 'GT' && p.seasons.every((r) => r.tier === 3 && clubById(r.clubId).country === 'GT');
+      if (gt2) {
+        R.gt2n++;
+        if (p.compras.some((c) => itemById(c.id)!.estrellas >= 2)) R.gt2compra++;
+      }
+    }
+    return R;
+  }
+  type Pasada = ReturnType<typeof pasada>;
+  const t0 = Date.now();
+  const pasadas = { sin: pasada('sin'), prudente: pasada('prudente'), maximo: pasada('maximo'), abuso: pasada('abuso') };
+  console.log(`(4 pasadas de ${N} carreras en ${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+  const sorted = (a: number[]) => [...a].sort((x, y) => x - y);
+  const mean = (a: number[]) => a.reduce((t, x) => t + x, 0) / Math.max(1, a.length);
+  const stat = (R: Pasada) => ({
+    media: mean(R.scores), p90: quant(R.scores, 0.9), max: Math.max(...R.scores), temporadas: R.years / N, mundial: (100 * R.mundial) / N, pico: mean(R.peaks), picoBajo: mean(R.peaksBajos),
+    p99brecha: quant(R.brechas, 0.99),
+  });
+  const base = stat(pasadas.sin);
+  // La pasada sin tienda reproduce el bucle principal: mismas semillas, mismas decisiones.
+  if (JSON.stringify(sorted(pasadas.sin.scores)) !== JSON.stringify(sorted(scores))) tiendaErrors.add('la pasada sin tienda no da los mismos puntajes que el bucle principal');
+  console.log('Con y sin tienda (puntaje medio · p90 · máximo · temporadas por carrera · Mundial · nivel pico · pico con potencial ≤70 · p99 de pico−potencial):');
+  for (const [nombre, R] of Object.entries(pasadas)) {
+    const s = stat(R);
+    console.log(`  ${nombre.padEnd(8)} ${t1(s.media)} · ${s.p90} · ${s.max} · ${s.temporadas.toFixed(2)} · ${t1(s.mundial)}% · ${s.pico.toFixed(2)} · ${s.picoBajo.toFixed(2)} · ${s.p99brecha}`);
+  }
+  console.log(`  (línea base de adc673f: puntaje medio 107,1 · p90 204 · máximo 705 · 21,0 temporadas · Mundial 10,8 %)`);
+  for (const nombre of ['prudente', 'maximo'] as const) {
+    const R = pasadas[nombre], s = stat(R);
+    const errs: string[] = [];
+    if (s.media > base.media * 1.05) errs.push(`puntaje medio +${t1((100 * (s.media - base.media)) / base.media)}% (tope 5)`);
+    if (s.pico - base.pico > 1.5) errs.push(`nivel pico +${(s.pico - base.pico).toFixed(2)} (tope 1,5)`);
+    if (s.picoBajo - base.picoBajo > 1) errs.push(`nivel pico con potencial ≤70 +${(s.picoBajo - base.picoBajo).toFixed(2)} (tope 1,0)`);
+    if (s.temporadas - base.temporadas > 0.5) errs.push(`temporadas +${(s.temporadas - base.temporadas).toFixed(2)} (tope 0,5)`);
+    if (s.mundial - base.mundial > 1) errs.push(`Mundial +${t1(s.mundial - base.mundial)} puntos (tope 1,0)`);
+    if (s.max >= 1000) errs.push(`puntaje máximo ${s.max} (debe ser menor que 1000)`);
+    if (s.p99brecha - base.p99brecha > 1) errs.push(`p99 de pico−potencial +${s.p99brecha - base.p99brecha} (tope 1)`);
+    for (const v of new Set([...Object.keys(R.verd), ...Object.keys(pasadas.sin.verd)])) {
+      const d = (100 * ((R.verd[v] ?? 0) - (pasadas.sin.verd[v] ?? 0))) / N;
+      if (Math.abs(d) > 3) errs.push(`veredicto ${v} ${d > 0 ? '+' : ''}${t1(d)} puntos (tope 3)`);
+    }
+    console.log(`  ${nombre}: ${errs.length ? errs.join(' · ') : 'dentro de los topes de CA-10'}`);
+    if (N >= 5000 && !only && errs.length) tiendaErrors.add(`${nombre} fuera de CA-10: ${errs.join('; ')}`);
+  }
+  console.log('Veredictos con y sin tienda (puntos de diferencia contra sin tienda):');
+  for (const v of Object.keys(pasadas.sin.verd).sort((a, b) => pasadas.sin.verd[b] - pasadas.sin.verd[a])) {
+    console.log(`  ${v}: sin ${t1((100 * pasadas.sin.verd[v]) / N)}% · prudente ${t1((100 * (pasadas.prudente.verd[v] ?? 0)) / N)}% · máximo ${t1((100 * (pasadas.maximo.verd[v] ?? 0)) / N)}%`);
+  }
+  for (const nombre of ['prudente', 'maximo', 'abuso'] as const) {
+    const R = pasadas[nombre];
+    console.log(`\nPolítica ${nombre}: ganado medio ${GTM(mean(R.ganado))} · gastado medio ${GTM(mean(R.gastado))} (${t1((100 * mean(R.gastado)) / mean(R.ganado))}% de lo ganado) · fama máxima de la tienda ${R.famaMax}`);
+    for (const g of GRUPOS) if (R.saldo[g].length) console.log(`  saldo final ${g.padEnd(9)} (${R.n[g]}) p10 ${GTM(quant(R.saldo[g], 0.1))} · p50 ${GTM(quant(R.saldo[g], 0.5))} · p90 ${GTM(quant(R.saldo[g], 0.9))}`);
+    console.log(`  despidos automáticos por falta de saldo: ${R.despidos} en ${t1((100 * R.conDespidos) / N)}% de las carreras · lesiones evitadas ${R.evitadas} · compras sociales ${R.sociales} · escándalos ${R.escandalos} · distracciones ${R.distracciones}`);
+    if (nombre === 'abuso') continue;
+    const top = (g: string) => [...R.compras[g]].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, n]) => `${itemById(id)!.nombre} ${t1((100 * n) / Math.max(1, R.n[g]))}%`).join(' · ');
+    for (const g of GRUPOS) console.log(`  compras más comunes ${g} (% de carreras que la hicieron al menos una vez): ${top(g) || 'ninguna'}`);
+    for (const g of GRUPOS) {
+      console.log(`  mejor nivel por categoría, ${g} (sin/1★/2★/3★/4★/5★, % de carreras):`);
+      for (const [cat, nombreCat] of CATEGORIAS) console.log(`    ${nombreCat.padEnd(20)} ${R.nivel[g][cat].map((n) => t1((100 * n) / Math.max(1, R.n[g])).padStart(5)).join(' ')}`);
+    }
+    console.log(`  Segunda División de Guatemala toda la carrera: ${R.gt2n} carreras, ${R.gt2compra} compraron algo de 2 o más estrellas (CA-4)`);
+    if (R.gt2compra) tiendaErrors.add(`${nombre}: ${R.gt2compra} carreras que nunca salieron de la Segunda División de Guatemala compraron algo de 2 o más estrellas (CA-4)`);
+    if (R.transporteBajo) tiendaErrors.add(`${nombre}: transporte de élite con ganado final menor que Q67,5 M (CA-4)`);
+  }
+  const todo = Object.values(pasadas);
+  if (todo.some((R) => Math.max(...R.scores) >= 1000)) tiendaErrors.add('el puntaje máximo llegó a 1.000 o más (CA-15)');
+  // Lo que se pudo costear con una carrera normal de Guatemala (revisión de la escala de precios, T7).
+  {
+    const gt = pasadas.prudente.nivel.Guatemala;
+    const alcanza = (cat: string, k: number) => t1((100 * (gt[cat].slice(k).reduce((t, x) => t + x, 0))) / Math.max(1, pasadas.prudente.n.Guatemala));
+    console.log(`Guatemala con la política prudente: apartamento o mejor ${alcanza('vivienda', 1)}% · carro normal o mejor ${alcanza('carros', 1)}% · casa de 3★ o más ${alcanza('vivienda', 3)}% · transporte ${alcanza('transporte', 3)}%`);
+  }
+
+  // ---- CA-12 (apoyo): búsqueda de términos de RC-01 a RC-04. RC-05 exige que una persona lea cada texto. ----
+  const RC_PROHIBIDO = new RegExp([
+    // RC-01: servicios sexuales, compañía pagada
+    'sex', 'desnud', '\\bcitas?\\b', 'escort', 'mujer', 'chica', 'dama', 'prostit', 'acompañante', 'compañía', 'novia', 'amante', 'cuerpo', 'strip', 'burdel', 'cabaret',
+    // RC-02: personas como mercancía (se miran solo en lo que habla del personal, abajo)
+    'esclav', 'mercanc', 'propiedad', 'dueñ',
+    // RC-03: alcohol, drogas, apuestas
+    'alcohol', 'cerveza', '\\bvino\\b', 'trago', 'licor', 'whisky', 'champ[aá]', 'brindis', 'borrach', 'droga', 'apuest', 'casino', 'póker', 'poker', 'cantina', 'cóctel', 'coctel',
+    // RC-04: marcas y personas reales
+    'ferrari', 'lamborghini', 'porsche', 'tesla', 'mercedes', 'bmw', 'audi', 'toyota', 'honda', 'ford', 'chevrolet', 'rolls', 'bentley', 'bugatti', 'maserati', 'lexus', 'jaguar', 'mazda',
+    'nissan', 'cessna', 'boeing', 'airbus', 'gulfstream', 'learjet', 'sikorsky', 'robinson', 'azimut', 'sunseeker', 'ferretti', 'messi', 'ronaldo', 'neymar', 'mbapp', 'maradona',
+  ].join('|'), 'i');
+  const PERSONAL_TRATO = /compr|posee|poseé|\bobjeto|\blujo|\btuyo\b|\bde tu propiedad/i;
+  // El texto de todo lo que dice el código de la tienda (no solo lo que salió en las pasadas): el catálogo, los motivos, los avisos y la pantalla.
+  for (const fuente of ['../src/engine/tienda.ts', '../src/ui/tienda.ts']) {
+    const src = readFileSync(new URL(fuente, import.meta.url), 'utf8');
+    for (const lit of src.match(/'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) ?? []) tiendaTextos.add(lit);
+  }
+  let leidos = 0;
+  for (const t of tiendaTextos) {
+    leidos++;
+    const m = t.match(RC_PROHIBIDO);
+    if (m) tiendaErrors.add(`texto con "${m[0]}" (RC-01 a RC-04): ${t.slice(0, 120)}`);
+  }
+  for (const t of textosPersonal) if (PERSONAL_TRATO.test(t)) tiendaErrors.add(`texto de personal que lo trata como objeto (RC-02): ${t.slice(0, 120)}`);
+  console.log(`\nTextos de la tienda revisados con la búsqueda de términos: ${leidos} (sin coincidencias; RC-05 exige además la lectura de una persona).`);
+}
+if (tiendaErrors.size) {
+  console.error(`Tienda con errores (${tiendaErrors.size}):\n  ${[...tiendaErrors].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Tienda: catálogo, rechazos, saldo nunca negativo, topes, sorteos, entrenador, pantalla, ranking y textos cuadran.');
 
 // ---------- Minijuegos (specs/minijuegos) ----------
 // Línea base: `simulate 5000` en main con las ramas de mercado, términos, doble nacionalidad y vida sentimental ya integradas
@@ -897,3 +1374,228 @@ if (mjErrors.size) {
   console.error(`Minijuegos con errores (${mjErrors.size}):\n  ${[...mjErrors].slice(0, 40).join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Minijuegos: situaciones, frecuencia, pisos de categoría, dificultad, Simular, equidad, resultados, textos, puntaje y modo por turnos cuadran.');
+
+// ---------- Trofeos (specs/trofeos-reales) ----------
+// Juega una carrera completa con decisiones al azar (de su propio generador) o "optimistas" (la opción de mayor valor esperado en nivel y fama).
+const trSetup = (seed: number, country = COUNTRIES[seed % COUNTRIES.length]) => ({
+  firstName: 'T', lastName: `#${seed}`, country: country.code, dept: country.regions[0], position: positions[seed % 4], foot: 'Derecho' as const, number: 10, mode: modes[seed % 3],
+  avatar: { skin: 0, hair: 0, hairColor: 0, beard: 0, extra: 0 },
+});
+function trCarrera(seed: number, optimista = false, country?: ReturnType<typeof countryOf>) {
+  const c = new Career(trSetup(seed, country), seed);
+  c.start();
+  let guard = 0;
+  while (!c.isOver && guard++ < 100) {
+    if (!c.pendingEvent) c.playBlock();
+    const ev = c.pendingEvent;
+    if (!ev) continue;
+    let pick = Math.floor(c.rng() * ev.options.length);
+    if (optimista) {
+      const value = (o: (typeof ev.options)[number]) => o.outcomes.reduce((t, x) => t + x.p * (3 * (x.effects.rating ?? 0) + (x.effects.potential ?? 0) + 0.1 * (x.effects.fame ?? 0) + 0.05 * (x.effects.morale ?? 0)), 0);
+      pick = ev.options.reduce((best, o, i) => (value(o) > value(ev.options[best]) ? i : best), 0);
+    }
+    c.choose(pick);
+  }
+  return c.player;
+}
+// CA-5: huella de las temporadas (sin premios) de las semillas 1 a 200. Con el motor de antes de esta función daba ca5eb9d9 (4171 temporadas).
+const trErrors = new Set<string>();
+const HUELLA_BASE = 'ca5eb9d9';
+{
+  let h = 2166136261;
+  let n = 0;
+  for (let seed = 1; seed <= 200; seed++) {
+    for (const r of trCarrera(seed).seasons) {
+      const { awards: _premios, ...resto } = r;
+      for (const ch of JSON.stringify(resto)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+      n++;
+    }
+  }
+  const huella = (h >>> 0).toString(16);
+  console.log(`Trofeos, huella de las temporadas sin premios (semillas 1 a 200): ${huella} (${n} temporadas; antes ${HUELLA_BASE})`);
+  if (huella !== HUELLA_BASE) trErrors.add(`huella ${huella} distinta de ${HUELLA_BASE}: algo además de los premios cambió las temporadas (CA-5)`);
+  // Dos corridas de la misma semilla dan los mismos premios.
+  for (let seed = 1; seed <= 40; seed++) {
+    const a = JSON.stringify(trCarrera(seed).seasons.map((r) => r.awards));
+    if (a !== JSON.stringify(trCarrera(seed).seasons.map((r) => r.awards))) trErrors.add(`semilla ${seed}: dos corridas dieron premios distintos (CA-5)`);
+  }
+}
+
+// Carrera i del mismo reparto que el bucle principal (país, posición y ritmo van rotando sin repetir pares), decisiones al azar u "optimistas".
+function trReparto(i: number) {
+  const country = countries[i % countries.length];
+  const k = Math.floor(i / countries.length);
+  return { country, setup: { ...trSetup(i + 1, country), dept: country.regions[k % country.regions.length], position: positions[k % 4], mode: modes[k % 3] } };
+}
+function trJugar(i: number, optimista: boolean) {
+  const { setup } = trReparto(i);
+  const c = new Career(setup, i + 1);
+  c.start();
+  let guard = 0;
+  while (!c.isOver && guard++ < 100) {
+    if (!c.pendingEvent) c.playBlock();
+    const ev = c.pendingEvent;
+    if (!ev) continue;
+    const value = (o: (typeof ev.options)[number]) => o.outcomes.reduce((t, x) => t + x.p * (3 * (x.effects.rating ?? 0) + (x.effects.potential ?? 0) + 0.1 * (x.effects.fame ?? 0) + 0.05 * (x.effects.morale ?? 0)), 0);
+    c.choose(optimista ? ev.options.reduce((best, o, j) => (value(o) > value(ev.options[best]) ? j : best), 0) : Math.floor(c.rng() * ev.options.length));
+  }
+  return c.player;
+}
+const POTENCIAS = ['ES', 'EN', 'IT', 'DE', 'FR', 'AR', 'BR', 'PT', 'NL'];
+const NEW = ['balon', 'bota', 'golden'] as const;
+const NAMES = { balon: 'Balón de Oro', bota: 'Bota de Oro', golden: 'Golden Boy' };
+const trGroup = (code: string) => (code === 'GT' ? 'Guatemala' : POTENCIAS.includes(code) ? 'potencias' : 'resto');
+
+// CA-2: pruebas de borde directas de las reglas (RF-02 a RF-04).
+{
+  const base: SeasonFacts = { rating: 84, age: 25, fame: 60, apps: 31, goals: 15, matches: 44, clubTitles: 0, own: { country: 'ES', tier: 1 }, held: { balon: 0, bota: 0, golden: false } };
+  const win = (f: Partial<SeasonFacts>) => majorAwards({ ...base, ...f });
+  const borde = (nombre: string, got: string[], want: string[]) => { if (got.join() !== want.join()) trErrors.add(`borde ${nombre}: dio [${got}], esperado [${want}]`); };
+  borde('Balón: nivel 83', win({ rating: 83 }), []);
+  borde('Balón: nivel 84', win({}), ['balon']);
+  borde('Balón: fama 59', win({ fame: 59 }), []);
+  borde('Balón: fama 60', win({ fame: 60 }), ['balon']);
+  borde('Balón: 14 goles sin título', win({ goals: 14 }), []);
+  borde('Balón: 14 goles con título', win({ goals: 14, clubTitles: 1 }), ['balon']);
+  borde('Balón: 30 de 44 partidos (68 %)', win({ apps: 30 }), []);
+  borde('Balón: 31 de 44 partidos (70,5 %)', win({ apps: 31 }), ['balon']);
+  borde('Balón: liga de nivel 12 (EE. UU.)', win({ own: { country: 'US', tier: 1 } }), []);
+  borde('Balón: segunda división', win({ own: { country: 'ES', tier: 2 } }), []);
+  borde('Balón: ya tiene 5', win({ held: { balon: 5, bota: 0, golden: false } }), []);
+  borde('Balón: ya tiene 4', win({ held: { balon: 4, bota: 0, golden: false } }), ['balon']);
+  borde('Bota: 24 goles en casa (grande)', win({ rating: 60, goals: 24 }), []);
+  borde('Bota: 25 goles en casa (grande)', win({ rating: 60, goals: 25 }), ['bota']);
+  borde('Bota: 32 goles en casa (otra europea)', win({ rating: 60, goals: 32, own: { country: 'PT', tier: 1 } }), []);
+  borde('Bota: 33 goles en casa (otra europea)', win({ rating: 60, goals: 33, own: { country: 'PT', tier: 1 } }), ['bota']);
+  borde('Bota: 19 goles afuera (grande)', win({ rating: 60, goals: 19, matches: 36 }), []);
+  borde('Bota: 20 goles afuera (grande)', win({ rating: 60, goals: 20, matches: 36 }), ['bota']);
+  borde('Bota: 26 goles afuera (otra europea)', win({ rating: 60, goals: 26, matches: 36, own: { country: 'NL', tier: 1 } }), []);
+  borde('Bota: 27 goles afuera (otra europea)', win({ rating: 60, goals: 27, matches: 36, own: { country: 'NL', tier: 1 } }), ['bota']);
+  borde('Bota: fuera de la UEFA', win({ rating: 60, goals: 40, own: { country: 'AR', tier: 1 } }), []);
+  borde('Bota: ya tiene 3', win({ rating: 60, goals: 25, held: { balon: 0, bota: 3, golden: false } }), []);
+  borde('Golden: 22 años', win({ rating: 70, age: 22, goals: 0 }), []);
+  borde('Golden: 21 años', win({ rating: 70, age: 21, goals: 0 }), ['golden']);
+  borde('Golden: nivel 69', win({ rating: 69, age: 21, goals: 0 }), []);
+  borde('Golden: nivel 70', win({ rating: 70, age: 21, goals: 0 }), ['golden']);
+  borde('Golden: 21 de 44 partidos', win({ rating: 70, age: 21, goals: 0, apps: 21 }), []);
+  borde('Golden: 22 de 44 partidos', win({ rating: 70, age: 21, goals: 0, apps: 22 }), ['golden']);
+  borde('Golden: ya lo ganó', win({ rating: 70, age: 21, goals: 0, held: { balon: 0, bota: 0, golden: true } }), []);
+  borde('Golden: liga de otro continente', win({ rating: 70, age: 21, goals: 0, own: { country: 'MX', tier: 1 } }), []);
+  borde('Golden: división de ascenso', win({ rating: 70, age: 21, goals: 0, own: { country: 'ES', tier: 2 } }), []);
+  borde('El goleador de Hypermotion no tiene nombre propio', [scorerName('ES', 2) ?? ''], ['']);
+  borde('El goleador de LaLiga se llama Pichichi', [scorerName('ES', 1) ?? ''], ['Pichichi']);
+}
+
+// Una pasada por las carreras con la política dada: reparto de premios por grupo y chequeos de CA-1 y CA-2 sobre cada temporada.
+function trMedir(n: number, optimista: boolean) {
+  type G = { n: number; any: Record<string, number>; total: Record<string, number> };
+  const mk = (): G => ({ n: 0, any: { balon: 0, bota: 0, golden: 0 }, total: { balon: 0, bota: 0, golden: 0 } });
+  const g: Record<string, G> = { Guatemala: mk(), potencias: mk(), resto: mk(), todos: mk() };
+  const names = new Map<string, number>(); // nombre del goleador -> premios en total
+  let balonDos = 0, botaForanea = 0, maxPuntaje = 0, maxBalon = 0, maxBota = 0, maxGolden = 0;
+  for (let i = 0; i < n; i++) {
+    const { country } = trReparto(i);
+    const p = trJugar(i, optimista);
+    const seasons = p.seasons;
+    const cnt: Record<string, number> = { balon: 0, bota: 0, golden: 0 };
+    for (const r of seasons) {
+      const own = clubById(r.clubId);
+      const matches = MATCHES[r.tier];
+      const ntTitles = (r.nt?.groups ?? []).filter((x) => x.out === 'Campeón').length;
+      const clubTitles = r.titles.length - ntTitles;
+      const had = (k: string) => r.awards.filter((a) => a.kind === k);
+      // CA-1: el nombre del goleador.
+      const scorer = had('goleador');
+      const must = r.goals >= (r.tier === 3 ? 16 : 20);
+      if (scorer.length !== (must ? 1 : 0)) trErrors.add(`goleador: ${scorer.length} premios con ${r.goals} goles en la división ${r.tier} (RF-01)`);
+      for (const a of scorer) {
+        const want = scorerName(own.country, own.tier);
+        const nombre = a.label ?? a.name.replace(/ de .+$/, '');
+        names.set(nombre, (names.get(nombre) ?? 0) + 1);
+        if (want ? a.label !== want || a.name !== `${want} ${r.label}` : a.label !== undefined || !a.name.startsWith('Goleador de ') || !a.name.endsWith(r.label)) trErrors.add(`goleador de ${own.country} división ${own.tier} se llama "${a.name}" (RF-01)`);
+      }
+      // CA-2: cada premio nuevo cumple sus condiciones (la fama no queda en el registro; sus bordes se prueban arriba) y los topes.
+      const strong = own.tier === 1 && countryOf(own.country).level >= 14;
+      const uefa = own.tier === 1 && countryOf(own.country).conf === 'UEFA';
+      const peso = ['ES', 'EN', 'IT', 'DE', 'FR'].includes(own.country) ? 2 : 1.5;
+      const okBalon = strong && r.rating >= 84 && r.apps >= 0.7 * matches && (r.goals >= 15 || clubTitles >= 1);
+      const okBota = uefa && r.goals * peso >= 1.1 * matches;
+      const okGolden = uefa && r.age <= 21 && r.apps >= 0.5 * matches && r.rating >= 70;
+      if (had('balon').length > 1 || had('bota').length > 1 || had('golden').length > 1) trErrors.add('dos premios iguales en una temporada');
+      if (had('balon').length && !okBalon) trErrors.add(`Balón sin cumplir: nivel ${r.rating}, ${r.apps}/${matches} partidos, ${r.goals} goles, ${clubTitles} títulos, ${own.country} división ${own.tier} (RF-04)`);
+      if (had('bota').length && !okBota) trErrors.add(`Bota sin cumplir: ${r.goals} goles en ${matches} partidos, ${own.country} división ${own.tier} (RF-02)`);
+      if (!had('bota').length && okBota && cnt.bota < 3) trErrors.add(`Bota que faltó: ${r.goals} goles en ${matches} partidos, ${own.country} (RF-02)`);
+      if (had('golden').length && !okGolden) trErrors.add(`Golden Boy sin cumplir: ${r.age} años, nivel ${r.rating}, ${r.apps}/${matches} partidos (RF-03)`);
+      if (!had('golden').length && okGolden && cnt.golden < 1) trErrors.add(`Golden Boy que faltó: ${r.age} años, nivel ${r.rating} (RF-03)`);
+      for (const k of NEW) {
+        cnt[k] += had(k).length;
+        for (const a of had(k)) if (a.name !== `${NAMES[k]} ${r.label}` || a.label !== undefined) trErrors.add(`nombre del premio nuevo: "${a.name}"`);
+      }
+      if (had('bota').length && r.tier === 0) botaForanea++;
+    }
+    if (cnt.balon > 5 || cnt.bota > 3 || cnt.golden > 1) trErrors.add(`tope superado: ${cnt.balon} Balones, ${cnt.bota} Botas, ${cnt.golden} Golden Boy (RF-05)`);
+    if (cnt.balon >= 2) balonDos++;
+    maxBalon = Math.max(maxBalon, cnt.balon); maxBota = Math.max(maxBota, cnt.bota); maxGolden = Math.max(maxGolden, cnt.golden);
+    maxPuntaje = Math.max(maxPuntaje, summarize(p).score);
+    for (const grupo of [trGroup(country.code), 'todos']) {
+      g[grupo].n++;
+      for (const k of NEW) { g[grupo].any[k] += cnt[k] > 0 ? 1 : 0; g[grupo].total[k] += cnt[k]; }
+    }
+  }
+  return { g, names, balonDos, botaForanea, maxPuntaje, maxBalon, maxBota, maxGolden };
+}
+const trPct = (x: number, n: number) => `${((100 * x) / Math.max(1, n)).toFixed(2)}%`;
+function trReporte(titulo: string, r: ReturnType<typeof trMedir>) {
+  console.log(`Trofeos, ${titulo} (carreras con al menos uno · media por carrera):`);
+  for (const [nombre, v] of Object.entries(r.g)) {
+    if (!v.n) continue;
+    console.log(`  ${nombre.padEnd(10)} n=${String(v.n).padStart(5)} · ${NEW.map((k) => `${NAMES[k]} ${trPct(v.any[k], v.n)} (${(v.total[k] / v.n).toFixed(3)})`).join(' · ')}`);
+  }
+  console.log(`  Balón de Oro con 2 o más: ${r.balonDos} carreras · Botas de un jugador extranjero: ${r.botaForanea} · máximos por carrera: ${r.maxBalon} Balones, ${r.maxBota} Botas, ${r.maxGolden} Golden Boy · puntaje máximo ${r.maxPuntaje}`);
+}
+const trAzar = trMedir(N, false);
+trReporte(`decisiones al azar, ${N} carreras`, trAzar);
+console.log(`Trofeos, goleadores por carrera (premios en total): ${[...trAzar.names].sort().map(([k, v]) => `${k} ${(v / N).toFixed(3)} (${v})`).join(' · ')}`);
+// Techo: la política optimista (mayor valor esperado en nivel y fama) en una muestra menor, por tiempo.
+const trN2 = Math.min(N, 8000);
+const trTecho = trMedir(trN2, true);
+trReporte(`política optimista, ${trN2} carreras (techo)`, trTecho);
+// RF-05 (con las 20.000 carreras; con menos el ruido pasa de las bandas, y solo se reporta).
+if (N >= 20000 && !only) {
+  for (const k of NEW) {
+    const pot = (100 * trAzar.g.potencias.any[k]) / trAzar.g.potencias.n;
+    const gt = (100 * trAzar.g.Guatemala.any[k]) / trAzar.g.Guatemala.n;
+    const todos = (100 * trAzar.g.todos.any[k]) / trAzar.g.todos.n;
+    if (pot < 0.7 || pot > 2.5) trErrors.add(`${NAMES[k]}: ${pot.toFixed(2)} % de las carreras de potencias, fuera de 0,7 a 2,5 (RF-05)`);
+    if (gt > 0.3) trErrors.add(`${NAMES[k]}: ${gt.toFixed(2)} % de las carreras de Guatemala, sobre 0,3 (RF-05)`);
+    if (todos > 1.2) trErrors.add(`${NAMES[k]}: ${todos.toFixed(2)} % de todas las carreras, sobre 1,2 (RF-05)`);
+  }
+  if ((100 * trAzar.g.todos.any.balon) / trAzar.g.todos.n < 0.3) trErrors.add('Balón de Oro: menos de 0,3 % de todas las carreras (RF-05)');
+  if (!trAzar.balonDos) trErrors.add('ningún ganador del Balón de Oro lo ganó 2 o más veces (CA-3)');
+}
+// CA-1: los cinco nombres salen al menos una vez.
+if (N >= 5000 && !only) for (const nombre of Object.values(SCORER_NAME)) if (!trAzar.names.get(nombre)) trErrors.add(`el goleador "${nombre}" nunca salió (CA-1)`);
+// CA-4: el puntaje medio y los veredictos casi no se mueven; el límite del servidor deja margen sobre el máximo medido.
+{
+  const mean = scores.reduce((t, x) => t + x, 0) / scores.length;
+  console.log(`Trofeos, puntaje medio ${f1(mean)} (línea base 108.3, banda 105.1 a 111.5) · máximo ${scores.at(-1)} (azar de la corrida principal), ${trAzar.maxPuntaje} (azar de este bloque), ${trTecho.maxPuntaje} (optimista) · límite del servidor ${SCORE_LIMIT}`);
+  if (big && (mean < 105.1 || mean > 111.5)) trErrors.add(`puntaje medio ${f1(mean)} fuera de 105,1 a 111,5 (CA-4)`);
+  const BASE_VEREDICTOS: Record<string, number> = { 'Jugador de culto': 31.8, Cumplidor: 30.4, 'Referente de la Liga': 14.1, 'Promesa que no fue': 8.2, 'Ídolo nacional': 7.3, Leyenda: 8.4 };
+  const grouped: Record<string, number> = {};
+  for (const [k, v] of Object.entries(verdicts)) grouped[k.startsWith('Leyenda ') ? 'Leyenda' : k] = (grouped[k.startsWith('Leyenda ') ? 'Leyenda' : k] ?? 0) + v;
+  for (const [k, base] of Object.entries(BASE_VEREDICTOS)) {
+    const now = (100 * (grouped[k] ?? 0)) / N;
+    if (big && Math.abs(now - base) > 2) trErrors.add(`veredicto ${k}: ${f1(now)} % contra ${f1(base)} % (CA-4)`);
+  }
+  const peor = Math.max(scores.at(-1)!, trAzar.maxPuntaje, trTecho.maxPuntaje);
+  if (SCORE_LIMIT < 1.25 * peor || peor > 0.8 * SCORE_LIMIT) trErrors.add(`límite del servidor ${SCORE_LIMIT} sin 25 % de margen sobre el máximo medido ${peor} (RF-12)`);
+  // Un jugador armado a mano con un Balón, una Bota y un Golden Boy suma 50 puntos por ellos.
+  const p = trJugar(0, false);
+  const antes = summarize(p).score;
+  p.seasons[0].awards.push({ kind: 'balon', name: 'x' }, { kind: 'bota', name: 'x' }, { kind: 'golden', name: 'x' });
+  if (summarize(p).score - antes !== 50) trErrors.add(`Balón + Bota + Golden Boy sumaron ${summarize(p).score - antes}, no 50 (RF-06)`);
+}
+if (trErrors.size) {
+  console.error(`Trofeos con errores (${trErrors.size}):\n  ${[...trErrors].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Trofeos: nombres del goleador, condiciones y topes de los premios nuevos, huella de las temporadas, premios repetibles por semilla, puntaje y límite del servidor cuadran.');

@@ -1,9 +1,14 @@
 import { HOME_CLUBS_BY_DEPT, clubById, clubsOf, viewClub, ALL_CLUBS, type Club } from './clubs';
 import { salaryFor } from './contracts';
 import { CONFED_CUP, countryOf, moneyShort, type Confed, type Country } from './countries';
+import { AWARD_LABEL_ES, majorAwards, scorerName } from './awards';
 import { ALL_EVENTS } from './events';
 import { difficultyFor, resultOf, simulatedScore } from './minigames';
 import { seleccionDe, sortearHerencia } from './nacionalidad';
+import {
+  ORDEN_ROLES, animoBase, bonoEntrenador, contratadoDe, famaRestante, fisicoExtra, gastadoDe, itemById, poseidos, probEvitaLesion, riesgoSocial, saldoDe,
+  tarifaTotal, validar, type Rol,
+} from './tienda';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
 import {
   MODE_SEASONS,
@@ -30,7 +35,7 @@ import {
 export const START_YEAR = 2026;
 const FIRST_WORLD_CUP = 2030;
 /** Partidos posibles por temporada (Apertura + Clausura con fase final) según la división. */
-const MATCHES: Record<Tier, number> = { 0: 36, 1: 44, 2: 40, 3: 32 };
+export const MATCHES: Record<Tier, number> = { 0: 36, 1: 44, 2: 40, 3: 32 };
 const GOALS_PER_APP = { POR: 0, DEF: 0.045, MED: 0.14, DEL: 0.37 };
 const ASSISTS_PER_APP = { POR: 0.005, DEF: 0.06, MED: 0.19, DEL: 0.13 };
 const DEBUT_WEIGHT: Record<Tier, number> = { 0: 0, 1: 0.2, 2: 0.35, 3: 0.45 };
@@ -124,10 +129,11 @@ export const isLeagueTitle = (title: string, league: string) => {
 };
 
 /**
- * Puntos de ranking por premio. Solo suman los que existían cuando se abrió el ranking (goleador y mejor jugador),
- * para que las carreras ya guardadas sigan siendo comparables; los demás se muestran pero no puntúan.
+ * Puntos de ranking por premio. Goleador (con cualquier nombre) y mejor jugador sumaban desde que se abrió el ranking.
+ * Balón de Oro, Bota de Oro y Golden Boy puntúan por decisión del producto (specs/trofeos-reales): son muy raros, así que el puntaje
+ * medio casi no se mueve, y sus topes por carrera (5, 3 y 1) acotan lo que pueden sumar (180 puntos). Los demás se muestran pero no puntúan.
  */
-const AWARD_POINTS: Record<AwardKind, number> = { goleador: 5, mvp: 5, portero: 0, asistidor: 0, joven: 0, ideal: 0 };
+const AWARD_POINTS: Record<AwardKind, number> = { goleador: 5, mvp: 5, portero: 0, asistidor: 0, joven: 0, ideal: 0, balon: 25, bota: 15, golden: 10 };
 
 const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
 export const seasonLabel = (year: number) => `${year}-${String((year + 1) % 100).padStart(2, '0')}`;
@@ -135,6 +141,10 @@ export const seasonLabel = (year: number) => `${year}-${String((year + 1) % 100)
 const nextWorldCup = (year: number) => FIRST_WORLD_CUP + Math.max(0, Math.ceil((year - FIRST_WORLD_CUP) / 4)) * 4;
 
 export const yearsText = (n: number) => `${n} ${n === 1 ? 'año' : 'años'}`;
+
+/** Resultado de comprar o contratar: lo que pasó, o el motivo del rechazo (en texto, listo para mostrar). */
+export type Resultado = { ok: true; text: string; changes: string[] };
+export type Rechazo = { ok: false; motivo: string };
 
 /** Dinero de la carrera: la suma de lo ganado en cada temporada (no hay un saldo aparte que pueda descuadrarse). */
 export const earned = (p: Player) => p.seasons.reduce((t, r) => t + r.salary, 0);
@@ -185,6 +195,8 @@ export class Career {
       peakRating: 0,
       retired: false,
       contract: { salary: 0, until: START_YEAR }, // se firma abajo, con el club del debut
+      compras: [],
+      personal: [],
     };
     this.player.clubId = this.debutClub(setup.dept).id;
     this.signContract(this.club);
@@ -209,6 +221,15 @@ export class Career {
 
   get isOver(): boolean {
     return this.player.retired;
+  }
+
+  /** Saldo: lo ganado menos lo gastado en la tienda (ver tienda.ts). Se deriva siempre, nunca se guarda. */
+  get saldo(): number {
+    return saldoDe(this.player, earned(this.player));
+  }
+
+  get gastado(): number {
+    return gastadoDe(this.player);
   }
 
   /** El debut es en un club del departamento si existe; casi siempre en divisiones de ascenso. */
@@ -296,12 +317,23 @@ export class Career {
     const cleanSheets = pos === 'POR' ? Math.round(apps * clamp(0.3 + diff / 40, 0.12, 0.5) * randRange(rng, 0.8, 1.2)) : undefined;
     const awards: SeasonAward[] = [];
     const award = (kind: AwardKind, name: string) => awards.push({ kind, name: `${name} de ${leagueName} ${seasonLabel(p.year)}` });
-    if (goals >= (tier === 3 ? 16 : 20)) award('goleador', 'Goleador');
+    // El goleador toma el nombre de la liga del club real (primera división de España, Italia...); el resto es "Goleador de <liga>".
+    const named = scorerName(own.country, own.tier);
+    if (goals >= (tier === 3 ? 16 : 20)) {
+      if (named) awards.push({ kind: 'goleador', label: named, name: `${named} ${seasonLabel(p.year)}` });
+      else award('goleador', 'Goleador');
+    }
     if (assists >= (tier === 3 ? 9 : 11)) award('asistidor', 'Máximo asistidor');
     if (cleanSheets !== undefined && share >= 0.7 && cleanSheets >= apps * 0.45 && chance(rng, 0.35)) award('portero', 'Guardameta menos vencido');
     if (share >= 0.7 && diff >= 8 && chance(rng, 0.3)) award('mvp', 'Mejor jugador');
     else if (share >= 0.6 && diff >= 4 && chance(rng, 0.35)) award('ideal', 'Once ideal');
     if (p.age <= 21 && share >= 0.5 && diff >= -2 && chance(rng, 0.3)) award('joven', 'Jugador joven del año');
+    // Balón de Oro, Bota de Oro y Golden Boy: al final, sin azar ni efectos fuera del puntaje (la misma semilla da la misma carrera).
+    const held = (k: AwardKind) => p.seasons.reduce((n, r) => n + r.awards.filter((a) => a.kind === k).length, 0);
+    for (const kind of majorAwards({
+      rating: Math.round(p.rating), age: p.age, fame: p.fame, apps, goals, matches: MATCHES[tier], clubTitles: titles.length, own,
+      held: { balon: held('balon'), bota: held('bota'), golden: held('golden') > 0 },
+    })) awards.push({ kind, name: `${AWARD_LABEL_ES[kind]} ${seasonLabel(p.year)}` });
     p.awards.push(...awards.map((a) => a.name));
 
     const clubTitles = titles.length; // los títulos de selección no cuentan para el ánimo ni la fama de club
@@ -324,7 +356,8 @@ export class Career {
       salary: p.contract.salary, // el contrato con el que se jugó, aunque estuviera lesionado o sin minutos
     };
     p.seasons.push(record);
-    this.progress(apps / MATCHES[tier], clubTitles, goals);
+    record.gastos = this.cobrarPersonal();
+    this.progress(apps / MATCHES[tier], clubTitles, goals, { entrenador: bonoEntrenador(p), animo: animoBase(p), fisico: fisicoExtra(p) });
     this.checkPlayingTime(record);
     p.age++;
     p.year++;
@@ -648,22 +681,23 @@ export class Career {
     p.ntLevel = level;
   }
 
-  private progress(share: number, titles: number, goals: number) {
+  /** bonos: lo que dan la tienda y el personal contratado este cierre; en cero la temporada es la de siempre. */
+  private progress(share: number, titles: number, goals: number, bonos = { entrenador: 0, animo: 0, fisico: 0 }) {
     const p = this.player;
     const rng = this.rng;
     const gap = p.potential - p.rating;
     const minutes = 0.5 + share / 2;
     const mood = 0.6 + p.morale / 125;
-    if (p.age <= 23) p.rating += clamp(gap * 0.2 * mood * minutes, 0, 6) + randRange(rng, -0.8, 1);
-    else if (p.age <= 29) p.rating += (gap > 0 ? gap * 0.12 : 0) + randRange(rng, -1, 1);
+    if (p.age <= 23) p.rating += clamp(gap * 0.2 * mood * minutes * (1 + bonos.entrenador), 0, 6) + randRange(rng, -0.8, 1);
+    else if (p.age <= 29) p.rating += (gap > 0 ? gap * 0.12 * (1 + bonos.entrenador) : 0) + randRange(rng, -1, 1);
     else if (p.age <= 32) p.rating -= randRange(rng, 0, 2);
     else p.rating -= randRange(rng, 1.5, 4);
     p.rating = clamp(p.rating, 35, 97);
     p.peakRating = Math.max(p.peakRating, Math.round(p.rating));
 
     p.fitness = p.age >= 30 ? p.fitness - randInt(rng, 2, 7) : p.fitness + (100 - p.fitness) * 0.3;
-    p.fitness = clamp(p.fitness, 20, 100);
-    p.morale = clamp(p.morale + (60 - p.morale) * 0.25 + (share > 0.65 ? 5 : share < 0.2 ? -8 : 0) + titles * 4, 0, 100);
+    p.fitness = clamp(p.fitness + bonos.fisico, 20, 100);
+    p.morale = clamp(p.morale + (60 + bonos.animo - p.morale) * 0.25 + (share > 0.65 ? 5 : share < 0.2 ? -8 : 0) + titles * 4, 0, 100);
     p.coach = clamp(p.coach + (55 - p.coach) * 0.3, 0, 100); // cada temporada la relación se normaliza un poco
     const visibility = this.club.tier === 1 || this.club.abroad ? 1 : 0.4;
     p.fame += (goals * 0.25 + titles * 4 + (share > 0.65 ? 1.5 : 0)) * visibility;
@@ -714,6 +748,94 @@ export class Career {
   private retire() {
     this.player.retired = true;
     this.pending = null;
+  }
+
+  // ---------- Tienda (specs/tienda) ----------
+
+  /** Compra un bien o paga un gasto social. Todo se valida antes de tocar nada: un rechazo no cambia saldo, historial ni jugador. */
+  buy(id: string): Resultado | Rechazo {
+    const p = this.player;
+    const v = validar(p, this.saldo, id, 'comprar');
+    if (!v.ok) return { ok: false, motivo: v.motivo };
+    const it = v.item;
+    const social = it.categoria === 'social';
+    // El riesgo se mira antes de registrar la compra: cuenta las anteriores. Sin riesgo no se gasta azar.
+    const riesgo = social ? riesgoSocial(p) : null;
+    // Un carro da su fama completa en cada compra (es una colección); el transporte, solo la diferencia con lo que ya había dado ese espacio.
+    const previa = it.categoria === 'transporte' ? (poseidos(p).find((i) => i.espacio === it.espacio)?.fama ?? 0) : 0;
+    const fama = Math.min(Math.floor((it.fama - previa) * (riesgo?.factor ?? 1)), famaRestante(p));
+    p.compras.push({ id, year: p.year, precio: it.precio, fama });
+    const changes = this.applyEffects({ morale: social ? Math.floor(it.animo * riesgo!.factor) : 0, fame: fama });
+    let text = `Compraste: ${it.nombre} por ${moneyShort(this.home, it.precio)}.`;
+    if (riesgo && riesgo.escandalo + riesgo.distraccion > 0) {
+      const r = this.rng();
+      if (r < riesgo.escandalo) {
+        changes.push(...this.applyEffects({ fame: -5, morale: -4, coach: -3 }));
+        text += ' Tanta salida seguida se volvió escándalo y la prensa lo comentó.';
+      } else if (r < riesgo.escandalo + riesgo.distraccion) {
+        changes.push(...this.applyEffects({ rating: -1, morale: -2 }));
+        text += ' Tanta salida seguida te distrajo de los entrenamientos.';
+      }
+    }
+    return { ok: true, text, changes };
+  }
+
+  /** Contrata a un profesional (uno por rol; uno distinto en el mismo rol lo reemplaza). La tarifa se cobra al cierre de cada temporada. */
+  hire(id: string): Resultado | Rechazo {
+    const p = this.player;
+    const v = validar(p, this.saldo, id, 'contratar');
+    if (!v.ok) return { ok: false, motivo: v.motivo };
+    p.personal = [...p.personal.filter((c) => itemById(c.id)!.espacio !== v.item.espacio), { id, desde: p.year }];
+    return { ok: true, text: `Contrataste: ${v.item.nombre}. Su tarifa es de ${moneyShort(this.home, v.item.precio)} por temporada.`, changes: [] };
+  }
+
+  /** Deja de trabajar con el profesional de ese rol, sin costo ni reembolso. false si no había nadie. */
+  fire(rol: Rol): boolean {
+    const p = this.player;
+    const n = p.personal.length;
+    p.personal = p.personal.filter((c) => itemById(c.id)!.espacio !== rol);
+    return p.personal.length < n;
+  }
+
+  /**
+   * Qué pasaría con el saldo al confirmar una compra o contratación, para avisar antes de pagar (null si el motor la rechazaría).
+   * tarifas: lo que cuesta por temporada el personal que quedaría; alcanza: si el saldo de después las cubre.
+   */
+  preview(id: string): { saldoDespues: number; tarifas: number; alcanza: boolean; abuso?: string } | null {
+    const p = this.player;
+    const it = itemById(id);
+    const v = it && validar(p, this.saldo, id, it.categoria === 'personal' ? 'contratar' : 'comprar');
+    if (!v || !v.ok) return null;
+    const hire = v.item.categoria === 'personal';
+    const saldoDespues = hire ? this.saldo : this.saldo - v.item.precio;
+    const tarifas = hire ? tarifaTotal(p) - (contratadoDe(p, v.item.espacio as Rol)?.precio ?? 0) + v.item.precio : tarifaTotal(p);
+    const r = v.item.categoria === 'social' ? riesgoSocial(p) : null;
+    const abuso = !r || r.factor === 1 ? undefined : r.factor ? 'Ya saliste varias veces seguidas: esta da la mitad y trae riesgo de escándalo o distracción.' : 'Ya saliste demasiadas veces seguidas: esta ya no te da nada y el riesgo de escándalo o distracción es alto.';
+    return { saldoDespues, tarifas, alcanza: saldoDespues >= tarifas, abuso };
+  }
+
+  /**
+   * Cierre de temporada (el salario ya está abonado): cobra a cada contratado en orden fijo contra el saldo disponible;
+   * al que no se le alcanza lo despide sin cobrarle. Nunca deja el saldo negativo. Sin personal no hace nada.
+   */
+  private cobrarPersonal(): SeasonRecord['gastos'] {
+    const p = this.player;
+    if (!p.personal.length) return undefined;
+    let disponible = this.saldo;
+    let personal = 0;
+    const despidos: string[] = [];
+    for (const rol of ORDEN_ROLES) {
+      const c = contratadoDe(p, rol);
+      if (!c) continue;
+      if (disponible >= c.precio) {
+        disponible -= c.precio;
+        personal += c.precio;
+      } else {
+        p.personal = p.personal.filter((x) => itemById(x.id)!.espacio !== rol);
+        despidos.push(`Tu ${c.nombre.toLowerCase()} ${'★'.repeat(c.estrellas)} dejó de trabajar con vos: el saldo no alcanzó para pagar su tarifa.`);
+      }
+    }
+    return { personal, despidos };
   }
 
   // ---------- Decisiones ----------
@@ -914,8 +1036,13 @@ export class Career {
     if (e.potential) p.potential = clamp(p.potential + e.potential, 40, 97);
     p.peakRating = Math.max(p.peakRating, Math.round(p.rating));
     if (e.injury) {
-      p.injurySeasons += e.injury;
-      changes.push('Lesión');
+      // Sin personal que la evite no se toca el azar: la carrera es la de siempre.
+      const evita = probEvitaLesion(p);
+      if (evita > 0 && this.rng() < evita) changes.push('Lesión evitada');
+      else {
+        p.injurySeasons += e.injury;
+        changes.push('Lesión');
+      }
     }
     for (const f of [e.flag ?? []].flat()) p.flags[f] = 1;
     for (const f of [e.unflag ?? []].flat()) delete p.flags[f];
