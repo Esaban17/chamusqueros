@@ -10,8 +10,8 @@ import {
   tarifaTotal, validar, type Rol,
 } from './tienda';
 import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
+import { AJUSTES, armarAgenda, claseDe, decisionesDe, escalar, escalarMj, pRetiroDe, type Clase, type Item } from './ritmo';
 import {
-  MODE_SEASONS,
   type AwardKind,
   type Effects,
   type Contract,
@@ -160,9 +160,18 @@ export class Career {
   private usedOnce = new Set<string>();
   private lastSeen = new Map<string, number>();
   private recentCategories: EventCategory[] = [];
-  private block = 0;
   private suitor: Club | null = null;
   private pending: GameEvent | null = null;
+  // Agenda de la temporada (specs/ritmo-por-temporada): lo que falta por sacar, cuántas se mostraron y de cuántas consta.
+  private agenda: Item[] = [];
+  private hechas = 0;
+  private de = 0;
+  private ritmoK = 0;
+  private mjHecho = false;
+  /** Cuánto pesan los efectos de la decisión pendiente: ESCALA / K en las de ritmo y 1 en el resto (el minijuego usa escalarMj). */
+  private escala = 1;
+  /** Para `scripts/simulate.ts`: veces que se relajó el espaciado por falta de candidatas y ítems de historia que se saltaron. */
+  readonly stats = { relajadas: 0, saltadas: 0 };
 
   constructor(setup: PlayerSetup, seed = Date.now()) {
     this.rng = createRng(seed);
@@ -252,20 +261,73 @@ export class Career {
 
   /** Primera decisión, a los 16 años y antes de jugar la primera temporada. */
   start() {
-    if (!this.pending && !this.player.seasons.length) this.pending = this.drawEvent();
+    if (this.pending || this.player.seasons.length) return;
+    this.beginSeason();
+    this.siguiente();
   }
 
-  /** Simula un bloque de temporadas según el modo y prepara la siguiente decisión. */
-  playBlock(): SeasonRecord[] {
-    const played: SeasonRecord[] = [];
-    const n = MODE_SEASONS[this.player.setup.mode];
-    for (let i = 0; i < n && !this.player.retired; i++) {
-      played.push(this.simulateSeason());
-      this.checkForcedRetirement();
+  /**
+   * Pasa a lo que sigue: la siguiente decisión de la temporada (queda en pendingEvent y devuelve null) o, si ya no queda nada
+   * (decisiones y minijuego), simula UNA temporada, evalúa el retiro forzado, arma la siguiente y devuelve la temporada jugada.
+   */
+  advance(): SeasonRecord | null {
+    if (this.pending) throw new Error('Falta resolver la decisión pendiente');
+    if (this.player.retired) throw new Error('La carrera terminó');
+    if (this.siguiente()) return null;
+    const record = this.simulateSeason();
+    this.checkForcedRetirement();
+    if (!this.player.retired) {
+      this.beginSeason();
+      this.siguiente();
     }
-    this.block++;
-    this.pending = this.player.retired ? null : this.drawEvent();
-    return played;
+    return record;
+  }
+
+  /** Dónde va el jugador en su temporada: "Decisión n de N · Temporada AAAA-AA". null si no hay decisión pendiente. */
+  get progreso(): { n: number; de: number; temporada: string; minijuego: boolean } | null {
+    if (!this.pending) return null;
+    return { n: this.hechas, de: Math.max(this.de, this.hechas), temporada: seasonLabel(this.player.year), minijuego: !!this.pending.minigame };
+  }
+
+  /** Sortea la agenda de la temporada que empieza (ver ritmo.ts). */
+  private beginSeason() {
+    const p = this.player;
+    this.refreshSuitor();
+    const club = this.club;
+    const outgrowing = p.rating >= club.prestige + 4 && p.age <= 31;
+    this.ritmoK = decisionesDe(p.setup.mode, p.seasons.length);
+    this.agenda = armarAgenda(this.rng, {
+      ritmo: this.ritmoK,
+      pool: this.pool().map(({ e, clase }) => ({ id: e.id, category: e.category, clase })),
+      pRetiro: pRetiroDe(p.age),
+      pOferta: this.suitor ? (outgrowing ? 0.22 : 0.05) + (p.flags.ascenso ? 0.2 : 0) : 0,
+    });
+    this.de = this.agenda.length;
+    this.hechas = 0;
+    this.mjHecho = false;
+  }
+
+  /** Deja en pending la siguiente decisión de la agenda y, al agotarla, el minijuego de la temporada. false si ya no queda nada. */
+  private siguiente(): boolean {
+    while (this.agenda.length) {
+      const ev = this.sacarDecision(this.agenda.shift()!);
+      if (ev) {
+        this.hechas++;
+        this.pending = ev;
+        return true;
+      }
+      this.de--;
+      this.stats.saltadas++;
+    }
+    if (!this.mjHecho) {
+      this.mjHecho = true;
+      const mj = this.sacarMinijuego();
+      if (mj) {
+        this.pending = mj;
+        return true;
+      }
+    }
+    return false;
   }
 
   private simulateSeason(): SeasonRecord {
@@ -748,6 +810,7 @@ export class Career {
   private retire() {
     this.player.retired = true;
     this.pending = null;
+    this.agenda = [];
   }
 
   // ---------- Tienda (specs/tienda) ----------
@@ -857,37 +920,59 @@ export class Career {
     };
   }
 
-  private drawEvent(): GameEvent {
+  /** Mejor club que podría ficharlo hoy (los textos de las ofertas y `transfer: 'suitor'` lo leen). Hasta los 32 años. */
+  private refreshSuitor() {
+    this.suitor = this.player.age <= 32 ? this.findClub('up') : null;
+  }
+
+  /** Lo que se puede sacar hoy (sin los minijuegos) con su clase. espaciado: fracción del espaciado que se respeta; nunca se relaja el "una sola vez". */
+  private pool(espaciado = 1) {
+    const p = this.player;
+    const ctx = this.context();
+    const out: { e: EventTemplate; clase: Clase }[] = [];
+    for (const e of ALL_EVENTS) {
+      if (e.category === 'minijuego' || !this.available(e, espaciado) || !e.when(p, ctx)) continue;
+      out.push({ e, clase: claseDe(e, p, ctx) });
+    }
+    return out;
+  }
+
+  /** Resuelve un ítem de la agenda con el estado de ahora. null si no hay candidata (se salta). */
+  private sacarDecision(item: Item): GameEvent | null {
     const p = this.player;
     const rng = this.rng;
-    this.suitor = p.age <= 32 ? this.findClub('up') : null;
-    if (p.age >= 33 && chance(rng, clamp((p.age - 32) * 0.16, 0, 0.8))) return this.retirementEvent();
-
-    const club = this.club;
-    const last = p.seasons.at(-1);
-    const outgrowing = p.rating >= club.prestige + 4 && p.age <= 31;
-    const ctx = this.context();
-    const pool = ALL_EVENTS.filter((e) => this.available(e) && e.when(p, ctx));
-    // Una ruta en curso (pasos encadenados con peso >= 3) tiene prioridad sobre las ofertas genéricas.
-    const routeSteps = pool.filter((e) => typeof e.weight === 'number' && e.weight >= 3);
-    const routeStep = routeSteps.length > 0;
-    const offerChance = ((outgrowing ? 0.22 : 0.05) + (p.flags.ascenso ? 0.2 : 0)) * (routeStep ? 0.3 : 1);
-    if (this.suitor && chance(rng, offerChance)) {
+    this.escala = 1;
+    if (item.k === 'retiro') return { ...this.retirementEvent(), clase: 'historia' };
+    this.refreshSuitor();
+    if (item.k === 'oferta') {
+      if (!this.suitor) return null;
       delete p.flags.ascenso;
       this.remember('oferta', 'contrato');
-      return this.transferOffer(this.suitor);
+      return { ...this.transferOffer(this.suitor), clase: 'historia' };
     }
 
+    const match = (x: { e: EventTemplate; clase: Clase }) =>
+      item.k === 'nac' ? x.e.id === item.id : x.clase === item.k && (!('cat' in item) || x.e.category === item.cat);
+    let candidates = this.pool().filter(match);
+    // Con 2 o 3 sorteos por temporada el repertorio puede agotarse: se relaja el espaciado a la mitad y, si no alcanza, del todo.
+    for (const espaciado of item.k === 'ritmo' ? [0.5, 0] : []) {
+      if (candidates.length) break;
+      candidates = this.pool(espaciado).filter(match);
+      if (candidates.length) this.stats.relajadas++;
+    }
+    if (!candidates.length) return null;
+
+    const last = p.seasons.at(-1);
     const notable = !!last && (last.titles.length > 0 || last.goals >= 15 || last.apps < MATCHES[last.tier] * 0.2);
-    // Si hay una historia en curso, casi siempre continúa: así las rutas (Selección, extranjero) se completan.
-    const candidates = routeStep && chance(rng, 0.7) ? routeSteps : pool;
-    const template = weightedPick(rng, candidates, (e) => {
+    const ctx = this.context();
+    const { e: template } = weightedPick(rng, candidates, ({ e }) => {
       let w = typeof e.weight === 'function' ? e.weight(p, ctx) : (e.weight ?? 1);
-      const isRoute = typeof e.weight === 'number' && e.weight >= 3;
+      const isRoute = item.k === 'paso';
       const repeats = this.recentCategories.filter((c) => c === e.category).length;
       // Variedad: no repetir el mismo tipo de escena, salvo que sea el siguiente paso de una ruta.
       if (isRoute) w *= 3;
       else w *= repeats === 0 ? 1 : repeats === 1 ? 0.4 : 0.15;
+      if (item.k === 'ritmo') w *= AJUSTES.PESO_CATEGORIA[e.category] ?? 1;
       if (e.category === 'medios' && notable) w *= 1.8;
       if (e.category === 'seleccion' && ctx.qualifiers && p.ntLevel > 0) w *= 1.6;
       if (e.category === 'extranjero' && ctx.abroad) w *= 1.4;
@@ -896,13 +981,35 @@ export class Career {
     });
     this.remember(template.id, template.category);
     if (template.once) this.usedOnce.add(template.id);
+    if (item.k === 'ritmo') this.escala = AJUSTES.ESCALA / this.ritmoK;
     return {
       id: template.id,
       category: template.category,
       title: typeof template.title === 'function' ? template.title(p, ctx) : template.title,
       text: template.text(p, ctx),
       options: template.options(p, ctx),
-      ...(template.minigame ? { minigame: this.minigameFor(template.minigame(p, ctx)) } : {}),
+      clase: item.k === 'ritmo' ? 'ritmo' : 'historia',
+    };
+  }
+
+  /**
+   * El minijuego de la temporada (specs/ritmo-por-temporada): uno por temporada desde los 18 años, de cualquier situación de la posición
+   * que aplique y no haya salido hace menos de 3 temporadas. Toma TODAS las plantillas de la categoría, no una lista fija. null si ninguna aplica.
+   */
+  private sacarMinijuego(): GameEvent | null {
+    const p = this.player;
+    const ctx = this.context();
+    const pool = ALL_EVENTS.filter((e) => e.category === 'minijuego' && this.available(e) && e.when(p, ctx));
+    if (!pool.length) return null;
+    const t = pick(this.rng, pool); // ponytail: parejo entre las que aplican; las de contexto (clásico, Selección) no pesan más
+    this.lastSeen.set(t.id, p.seasons.length);
+    return {
+      id: t.id,
+      category: t.category,
+      title: typeof t.title === 'function' ? t.title(p, ctx) : t.title,
+      text: t.text(p, ctx),
+      options: t.options(p, ctx),
+      minigame: this.minigameFor(t.minigame!(p, ctx)),
     };
   }
 
@@ -910,14 +1017,15 @@ export class Career {
     return { kind, difficulty: difficultyFor(this.player.rating, importance) };
   }
 
-  private available(e: EventTemplate) {
+  /** El espaciado se cuenta en temporadas jugadas (no en decisiones); con espaciado 0 solo queda "no dos veces en la misma temporada". */
+  private available(e: EventTemplate, espaciado = 1) {
     if (e.once && this.usedOnce.has(e.id)) return false;
     const seen = this.lastSeen.get(e.id);
-    return seen === undefined || this.block - seen > (e.cooldown ?? 4);
+    return seen === undefined || this.player.seasons.length - seen > Math.floor((e.cooldown ?? 4) * espaciado);
   }
 
   private remember(id: string, category: EventCategory) {
-    this.lastSeen.set(id, this.block);
+    this.lastSeen.set(id, this.player.seasons.length);
     this.recentCategories = [category, ...this.recentCategories].slice(0, 3);
   }
 
@@ -1008,13 +1116,12 @@ export class Career {
       if (option.outcomes.length !== 3) throw new Error(`El minijuego ${event.id} no tiene tres desenlaces`);
       const result = resultOf(score ?? simulatedScore(this.rng, event.minigame.difficulty));
       const outcome = option.outcomes[{ ok: 0, half: 1, fail: 2 }[result]];
-      const changes = this.applyEffects(outcome.effects);
-      this.player.flags[event.id] = this.player.year; // el año alimenta el tope de 3 y el espaciado (events/minijuegos.ts)
+      const changes = this.applyEffects(escalarMj(outcome.effects, this.rng));
       this.pending = null;
       return { text: outcome.text, changes, result };
     }
     const outcome = weightedPick(this.rng, option.outcomes, (o) => o.p);
-    const changes = this.applyEffects(outcome.effects);
+    const changes = this.applyEffects(escalar(outcome.effects, this.escala, this.rng));
     this.pending = null;
     return { text: outcome.text, changes };
   }

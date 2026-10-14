@@ -62,3 +62,5 @@ Gastos, inversiones, cláusulas de rescisión, primas por títulos o goles, nego
 3. **"Me quedo"**: no renegocia; el contrato sigue igual.
 4. **Arabia Saudita y similares**: sin multiplicador especial; una sola escala por nivel de liga.
 5. **Dinero en la carta o el ranking**: no. `api/ranking.ts` queda sin cambios.
+
+> Nota: reemplazado o ajustado por `specs/ritmo-por-temporada` (ver "Cambios a specs anteriores"). Las ofertas de traspaso son por temporada (RF-14); las ofertas por carrera se mantienen (1,68 ±10 %). CA-6 no cambia.

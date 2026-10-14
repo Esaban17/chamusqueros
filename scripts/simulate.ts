@@ -7,7 +7,9 @@
 //        por defecto decide 50/50 entre quedarse o irse y después sortea el club; OFERTA=mejor: 50/50 y se va al club de mayor
 //        prestigio, que es lo más parecido a la política de antes, cuando había un solo club)
 // La sección "Tienda" (specs/tienda) mide el balance con tres políticas de compra y revisa saldo, catálogo, topes y textos; TIENDA=off la omite.
-// La sección final "Minijuegos" (specs/minijuegos) mide frecuencia, pisos de categoría, Simular, equidad y modo por turnos.
+// La sección "Minijuegos" (specs/minijuegos) mide Simular, equidad, textos y modo por turnos; la frecuencia ahora es de "Ritmo".
+// La sección "Ritmo" (specs/ritmo-por-temporada, scripts/ritmo.ts) mide decisiones por temporada, equidad entre modos, tasas, rutas y variedad;
+// RITMO=off lo omite. Costo: unos 3 minutos con 5.000 carreras (el motor sortea unas 5 veces más que antes). AJUSTES='{"ESCALA":0.4}' mueve las perillas.
 import { readFileSync } from 'node:fs';
 import { Career, MATCHES, earned, summarize, yearsText } from '../src/engine/engine';
 import { COUNTRIES, countryOf, moneyShort } from '../src/engine/countries';
@@ -16,7 +18,7 @@ import { DIASPORA, elegible, residencia } from '../src/engine/nacionalidad';
 import { clubById, clubsOf, viewClub, ALL_CLUBS } from '../src/engine/clubs';
 import { salaryFor } from '../src/engine/contracts';
 import { ALL_EVENTS } from '../src/engine/events';
-import { MINIJUEGOS_EVENTS } from '../src/engine/events/minijuegos';
+import { medirRitmo } from './ritmo';
 import { difficultyFor, resultOf, simulatedScore } from '../src/engine/minigames';
 import { createRng } from '../src/engine/rng';
 import { CATALOGO, CATEGORIAS, TOPE_ANIMO, TOPE_FAMA, TOPE_FISICO, animoBase, animoDe, contratadoDe, fisicoExtra, bonoEntrenador, itemById, poseidos, riesgoSocial, validar } from '../src/engine/tienda';
@@ -51,6 +53,10 @@ const byPos: Record<string, { goals: number; apps: number; n: number }> = {};
 const eventCount: Record<string, number> = {};
 const catCount: Record<string, number> = {};
 const decisionsByMode: Record<string, number[]> = {};
+const minijuegosByMode: Record<string, number[]> = {};
+/** Cada carrera termina antes de este número de iteraciones; si lo alcanza, el bucle la cortó en silencio y es un error. */
+const GUARD = 2000;
+const guardErrors = new Set<string>();
 const scores: number[] = [];
 // Un portero no anota goles de jugada: ningún texto que vea puede decir que él marcó.
 const KEEPER_GOAL = /\b(anotás|anotaste|cabezazo|cabeceás|golazo|marcaste|volviste a marcar)\b|metiste (un |el )?(gol|de cabeza)|gol (de cabeza|tuyo|en tu debut|en el clásico|de despedida)|¡gol|prometo gol|a buscar el gol|gol en el mundial/i;
@@ -76,6 +82,7 @@ let compOtro = 0, amorOpen = 0, hijaPairs = 0, hijaMoved = 0, compStep = 0, comp
 const mjErrors = new Set<string>();
 const MJ_POS: Record<MinigameKind, Position> = { penal: 'DEL', atajada: 'POR', pase: 'MED', cierre: 'DEF' };
 const mjByMode: Record<string, { n: number[]; decisions: number }> = {};
+const MINIJUEGOS_EVENTS = ALL_EVENTS.filter((e) => e.category === 'minijuego'); // todas las de la categoría, incluidas las del contenido nuevo
 const mjSeen: Record<string, number> = {};
 const mjTexts = new Set<string>(); // todo texto de minijuego que salió, sin repetir
 const mjEffects = new Map<string, import('../src/engine/types').Effects[]>(); // los efectos de cada plantilla (no dependen del contexto)
@@ -173,11 +180,10 @@ for (let i = 0; i < N; i++) {
   let decisions = 0;
   let amorN = 0; // eventos de amor de esta carrera
   let mjN = 0; // minijuegos de esta carrera
-  let lastMj = -9; // índice de la decisión del último minijuego
   let hijaClub = ''; // club al abrir la ruta de la hija del técnico
   let compClub = ''; // club al abrir la ruta de la pareja del compañero
   const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
-  let seenContract: object | null = null; // los contratos se anotan al verlos nuevos: debut, tras cada decisión y tras cada bloque
+  let seenContract: object | null = null; // los contratos se anotan al verlos nuevos: debut, tras cada decisión y tras cada temporada
   const watch = () => {
     const c = career.player.contract;
     if (c === seenContract) return;
@@ -192,14 +198,15 @@ for (let i = 0; i < N; i++) {
   };
   watch();
   career.start();
-  while (!career.isOver && guard++ < 100) {
+  while (!career.isOver && guard++ < GUARD) {
     if (!career.pendingEvent) {
       const p = career.player;
       const contractBefore = p.contract;
       const yearBefore = p.year;
       const clubBefore = p.clubId;
       const before = [p.caps, p.natGoals];
-      const played = career.playBlock();
+      const season = career.advance(); // una temporada por vez; null si solo pasó a la siguiente decisión de la misma
+      const played = season ? [season] : [];
       const matches = played.flatMap((s) => s.nt?.matches ?? []);
       for (const s of played) {
         const groups = s.nt?.groups ?? [];
@@ -245,11 +252,11 @@ for (let i = 0; i < N; i++) {
           }
         }
       }
-      // Contrato: la primera temporada del bloque se jugó con el que había (vigente), y todas pagan; el final nunca queda vencido.
-      if (contractBefore.until < yearBefore) marketErrors.add('temporada con el contrato vencido');
+      // Contrato: la temporada se jugó con el que había (vigente) y paga; el final nunca queda vencido.
+      if (season && contractBefore.until < yearBefore) marketErrors.add('temporada con el contrato vencido');
       if (played[0] && played[0].salary !== contractBefore.salary) marketErrors.add(`salario de la temporada ${played[0].salary} distinto del contrato ${contractBefore.salary}`);
       if (played.some((r) => !(r.salary > 0))) marketErrors.add('temporada sin salario');
-      if (p.clubId !== clubBefore && p.contract === contractBefore) marketErrors.add('cambió de club por falta de minutos sin contrato nuevo');
+      if (season && p.clubId !== clubBefore && p.contract === contractBefore) marketErrors.add('cambió de club por falta de minutos sin contrato nuevo');
       watch();
       const goals = matches.reduce((t, m) => t + m.goals, 0);
       if (matches.length !== p.caps - before[0]) ntErrors.add(`partidos: ${matches.length} listados, ${p.caps - before[0]} sumados`);
@@ -369,8 +376,6 @@ for (let i = 0; i < N; i++) {
         mjN++;
         mjSeen[ev.id] = (mjSeen[ev.id] ?? 0) + 1;
         if (!only1) mjErrors.add(`${ev.id}: no trae una opción con tres desenlaces`);
-        if (decisions - lastMj === 1) mjErrors.add(`${ev.id}: dos minijuegos en decisiones seguidas`);
-        lastMj = decisions;
         if (MJ_POS[mg.kind] !== pb.setup.position) mjErrors.add(`${ev.id}: tipo ${mg.kind} para un ${pb.setup.position}`);
         if (ev.id.endsWith('_clasico') && !ctx.club.rival) mjErrors.add(`${ev.id}: clásico sin rival`);
         if (ev.id.endsWith('_seleccion')) {
@@ -401,7 +406,7 @@ for (let i = 0; i < N; i++) {
       }
       if (PAREJA.filter(tiene).length > 1) amorErrors.add(`dos estados sentimentales a la vez tras ${ev.id} (RF-01)`);
       if (tiene('amor_famosa') && !PAREJA.some(tiene)) amorErrors.add(`pareja famosa sin pareja tras ${ev.id} (RF-01)`);
-      decisions++;
+      if (!ev.minigame) decisions++;
       // Tras aceptar: nivel de convocatoria 1 o 2, los partidos y goles previos se conservan, y casa, moneda y clubes siguen igual.
       if (ev.id.startsWith('nac_') && p.cambioSel) {
         const c = p.cambioSel;
@@ -414,7 +419,9 @@ for (let i = 0; i < N; i++) {
       }
     }
   }
+  if (guard >= GUARD) guardErrors.add(`la carrera ${i} (${mode}) alcanzó el límite de ${GUARD} iteraciones: se cortó en silencio`);
   (decisionsByMode[mode] ??= []).push(decisions);
+  (minijuegosByMode[mode] ??= []).push(mjN);
   const mm = (mjByMode[mode] ??= { n: [], decisions: 0 });
   mm.n.push(mjN);
   mm.decisions += decisions;
@@ -520,7 +527,7 @@ const pct = (x: number) => `${((100 * x) / N).toFixed(1)}%`;
 const avg = (a: number[]) => (a.reduce((x, y) => x + y, 0) / a.length).toFixed(1);
 console.log(`Carreras: ${N}`);
 console.log(`Debut: primera división ${pct(debutTier[1])} · segunda ${pct(debutTier[2])} · tercera ${pct(debutTier[3])}`);
-console.log(`Temporadas promedio: ${(years / N).toFixed(1)} · decisiones: intensa ${avg(decisionsByMode.intensa)}, normal ${avg(decisionsByMode.normal)}, exprés ${avg(decisionsByMode.expres)}`);
+console.log(`Temporadas promedio: ${(years / N).toFixed(1)} · decisiones (sin minijuegos): intensa ${avg(decisionsByMode.intensa)}, normal ${avg(decisionsByMode.normal)}, exprés ${avg(decisionsByMode.expres)} · minijuegos: intensa ${avg(minijuegosByMode.intensa)}, normal ${avg(minijuegosByMode.normal)}, exprés ${avg(minijuegosByMode.expres)}`);
 console.log(`Llegaron a primera: ${pct(reachedLN)} · jugaron en el extranjero: ${pct(abroad)} · Selección mayor: ${pct(nt)} · Mundial: ${pct(mundial)}`);
 console.log(`Mercado: ofertas por carrera ${(offers / N).toFixed(2)} · me quedo ${((100 * stayed) / Math.max(1, offers)).toFixed(1)}% · cambio ${((100 * (offers - stayed)) / Math.max(1, offers)).toFixed(1)}% · cambios de club por carrera ${(moves / N).toFixed(2)}`);
 console.log(`Títulos promedio: ${(titles / N).toFixed(2)} · partidos con Selección: ${(caps / N).toFixed(1)} · máximo de goles: ${maxGoals}`);
@@ -533,7 +540,7 @@ console.log('Puntaje p25/p50/p75/p90/p97:', [0.25, 0.5, 0.75, 0.9, 0.97].map((q)
 console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, `(el servidor acepta hasta ${SCORE_LIMIT} y 200)`);
 console.log('Fase final (torneos jugados · campeón · finalista):');
 for (const [k, v] of Object.entries(koStats).sort()) console.log(`  ${k}: ${v.played} · ${((100 * v.champ) / v.played).toFixed(1)}% · ${((100 * v.final) / v.played).toFixed(1)}%`);
-const totalEvents = Object.values(eventCount).reduce((a, b) => a + b, 0);
+const totalEvents = Object.values(eventCount).reduce((a, b) => a + b, 0) - (catCount.minijuego ?? 0); // sin minijuegos: hay uno por temporada y no compiten con las decisiones
 console.log('Categorías:', Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(0)}%`).join(' · '));
 // ---- Vida sentimental: frecuencia, rutas y chequeos ----
 console.log('Categorías (un decimal):', Object.entries(catCount).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${((100 * v) / totalEvents).toFixed(1)}%`).join(' · '));
@@ -544,7 +551,8 @@ for (const m of modes) {
   const withAny = a.n.filter((x) => x > 0).length / a.n.length;
   const max = Math.max(...a.n);
   console.log(`Amor ${m}: ${mean.toFixed(2)} por carrera · ${(100 * withAny).toFixed(0)}% de carreras con alguno · máximo ${max} · ${((100 * total) / a.decisions).toFixed(1)}% de las decisiones`);
-  if (max > 8) amorErrors.add(`${m}: una carrera con ${max} eventos de amor (CA-7)`);
+  if (max > 14) amorErrors.add(`${m}: una carrera con ${max} eventos de amor (máximo 14, ritmo-por-temporada CA-12)`);
+  if (N >= 5000 && !only && (mean < 1 || mean > 3)) amorErrors.add(`${m}: ${mean.toFixed(2)} eventos de amor por carrera, fuera de 1,0 a 3,0 (ritmo-por-temporada CA-12)`);
 }
 const amorTotal = catCount.amor ?? 0;
 console.log('Amor por evento:', Object.entries(eventCount).filter(([k]) => k.startsWith('amor_')).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k.slice(5)} ${v}`).join(' · '));
@@ -577,6 +585,10 @@ if (leaks.size) {
   console.error(`Textos de Guatemala en carreras de otros países (${leaks.size}):\n  ${[...leaks].slice(0, 40).join('\n  ')}`);
   process.exitCode = 1;
 } else if (countries.some((x) => x.code !== 'GT')) console.log('Países: ningún texto de Guatemala se cuela en otras nacionalidades.');
+if (guardErrors.size) {
+  console.error(`Carreras cortadas por el límite de iteraciones:\n  ${[...guardErrors].slice(0, 10).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log(`Iteraciones: ninguna carrera llegó al límite de ${GUARD}.`);
 if (summaryErrors.size) {
   console.error(`Resumen de carrera con errores:\n  ${[...summaryErrors].join('\n  ')}`);
   process.exitCode = 1;
@@ -1001,11 +1013,13 @@ else {
       };
       career.start();
       let guard = 0;
-      while (!career.isOver && guard++ < 100) {
+      while (!career.isOver && guard++ < GUARD) {
         if (!career.pendingEvent) {
-          career.playBlock();
-          chequear('al cerrar el bloque');
-          if (!career.isOver && pol !== 'sin') politica();
+          // La política corre tras cada temporada simulada (una por vez en los tres modos), como el jugador en el resumen de temporada.
+          if (career.advance()) {
+            chequear('al cerrar la temporada');
+            if (!career.isOver && pol !== 'sin') politica();
+          }
         }
         const ev = career.pendingEvent;
         if (ev) {
@@ -1018,6 +1032,7 @@ else {
           chequear('tras una decisión');
         }
       }
+      if (guard >= GUARD) tiendaErrors.add(`${pol}: la carrera ${i} alcanzó el límite de ${GUARD} iteraciones`);
       const s = summarize(p);
       const g = grupoDe(country.code);
       R.scores.push(s.score);
@@ -1084,7 +1099,7 @@ else {
     const s = stat(R);
     console.log(`  ${nombre.padEnd(8)} ${t1(s.media)} · ${s.p90} · ${s.max} · ${s.temporadas.toFixed(2)} · ${t1(s.mundial)}% · ${s.pico.toFixed(2)} · ${s.picoBajo.toFixed(2)} · ${s.p99brecha}`);
   }
-  console.log(`  (línea base de adc673f: puntaje medio 107,1 · p90 204 · máximo 705 · 21,0 temporadas · Mundial 10,8 %)`);
+  console.log(`  (línea base de main antes de ritmo-por-temporada, 6c440b6: puntaje medio 107,6 · p90 206 · máximo 705 · 21,0 temporadas · Mundial 10,8 %; la pasada "sin" se compara contra sí misma)`);
   for (const nombre of ['prudente', 'maximo'] as const) {
     const R = pasadas[nombre], s = stat(R);
     const errs: string[] = [];
@@ -1164,9 +1179,8 @@ if (tiendaErrors.size) {
 } else console.log('Tienda: catálogo, rechazos, saldo nunca negativo, topes, sorteos, entrenador, pantalla, ranking y textos cuadran.');
 
 // ---------- Minijuegos (specs/minijuegos) ----------
-// Línea base: `simulate 5000` en main con las ramas de mercado, términos, doble nacionalidad y vida sentimental ya integradas
-// (el spec original se midió antes de amor y de las otras ramas). Cada categoría puede bajar hasta 2,5 puntos.
-const MJ_BASE: Record<string, number> = { contrato: 20.6, medios: 16.3, divisiones: 12.5, retiro: 10.8, cancha: 10.2, vida: 8.9, amor: 8.8, seleccion: 5.8, extranjero: 3.4, formacion: 2.8 };
+// Los veredictos del puntaje de hoy (specs/minijuegos CA-8, el ancla de ritmo-por-temporada CA-05). La frecuencia, la cobertura por temporada
+// y las proporciones de categoría que antes se medían aquí (MJ_BASE, pisos de -2,5) pasaron al sección "Ritmo".
 const MJ_VEREDICTOS: Record<string, number> = { 'Jugador de culto': 32.0, Cumplidor: 30.2, 'Referente de la Liga': 13.8, 'Promesa que no fue': 8.4, 'Ídolo nacional': 7.4, Leyenda: 8.2 };
 const big = N >= 5000 && !only; // los criterios porcentuales piden la muestra completa
 const f1 = (x: number) => x.toFixed(1);
@@ -1174,10 +1188,15 @@ const f2 = (x: number) => x.toFixed(2);
 console.log('\n--- Minijuegos ---');
 
 // CA-1: cada situación sale al menos una vez; el resto se comprobó en cada decisión (posición, clásico, Selección, tres desenlaces).
+// La lista sale de ALL_EVENTS (toda plantilla de la categoría minijuego), no de un archivo: el contenido nuevo entra solo.
 const mjIds = MINIJUEGOS_EVENTS.map((e) => e.id);
 console.log(`Situaciones vistas: ${mjIds.filter((id) => mjSeen[id]).length} de ${mjIds.length} · por plantilla: ${mjIds.map((id) => `${id.slice(3)} ${mjSeen[id] ?? 0}`).join(' · ')}`);
 if (big) for (const id of mjIds) if (!mjSeen[id]) mjErrors.add(`${id} nunca salió (CA-1)`);
-for (const e of MINIJUEGOS_EVENTS) if (typeof e.weight === 'number') mjErrors.add(`${e.id}: peso numérico (el motor lo trataría como paso de una ruta)`);
+for (const e of MINIJUEGOS_EVENTS) {
+  if (typeof e.weight === 'number') mjErrors.add(`${e.id}: peso numérico (el motor lo trataría como paso de una ruta)`);
+  if (e.once) mjErrors.add(`${e.id}: con \`once\` (el minijuego sale una vez por temporada, sin límite por carrera; ritmo-por-temporada RF-12)`);
+  if (e.cooldown === undefined || e.cooldown < 2) mjErrors.add(`${e.id}: sin espaciado de 3 temporadas (cooldown 2, ritmo-por-temporada RF-11)`);
+}
 console.log(`Minijuegos de Selección vistos después de cambiar de Selección: ${mjNtTrasCambio} (todos nombran la Selección nueva)`);
 // Selección que cambió: la plantilla nombra la nueva y no la de origen (prueba directa, sin depender de la suerte).
 {
@@ -1191,31 +1210,17 @@ console.log(`Minijuegos de Selección vistos después de cambiar de Selección: 
   }
 }
 
-// CA-2: frecuencia por ritmo y pisos de categoría.
-console.log('Frecuencia (media por carrera · carreras con al menos uno · % de las decisiones · máximo):');
+// CA-2 (minijuegos): frecuencia y pisos de categoría quedan reemplazados por ritmo-por-temporada RF-09 a RF-13 (sección "Ritmo": uno por temporada,
+// 18 años o más, sin repetir en menos de 3 temporadas, categorías contra la línea base de hoy).
+console.log('Frecuencia (media por carrera · carreras con al menos uno · máximo): el detalle por temporada está en el sección "Ritmo"');
 let mjTotal = 0;
 for (const m of modes) {
   const a = mjByMode[m];
   const total = a.n.reduce((x, y) => x + y, 0);
   mjTotal += total;
-  const max = Math.max(...a.n);
-  console.log(`  ${m}: ${f2(total / a.n.length)} · ${f1((100 * a.n.filter((x) => x > 0).length) / a.n.length)}% · ${f1((100 * total) / a.decisions)}% · máx ${max}`);
-  if (max > 3) mjErrors.add(`${m}: una carrera con ${max} minijuegos (máximo 3)`);
+  console.log(`  ${m}: ${f2(total / a.n.length)} · ${f1((100 * a.n.filter((x) => x > 0).length) / a.n.length)}% · máx ${Math.max(...a.n)}`);
 }
-{
-  const a = mjByMode.normal;
-  const mean = a.n.reduce((x, y) => x + y, 0) / a.n.length;
-  const con = (100 * a.n.filter((x) => x > 0).length) / a.n.length;
-  console.log(`  meta en ritmo normal: media entre 1,0 y 1,2 (${f2(mean)}) · al menos uno 70% o más (${f1(con)}%): ${mean >= 1 && mean <= 1.2 ? 'cumple' : 'fuera de la meta'} / ${con >= 70 ? 'cumple' : 'fuera de la meta'} (son metas reportadas: mandan los pisos de categoría)`);
-}
-console.log(`Categoría nueva, minijuego: ${f1((100 * (catCount.minijuego ?? 0)) / totalEvents)}% de las decisiones (${mjTotal} minijuegos en ${N} carreras)`);
-console.log('Categorías contra la línea base (piso = línea base - 2,5):');
-for (const [cat, base] of Object.entries(MJ_BASE)) {
-  const now = (100 * (catCount[cat] ?? 0)) / totalEvents;
-  const ok = now >= base - 2.5;
-  console.log(`  ${cat}: ${f1(now)}% (línea base ${f1(base)}, ${now - base >= 0 ? '+' : ''}${f1(now - base)}, piso ${f1(base - 2.5)}) ${ok ? 'ok' : 'POR DEBAJO DEL PISO'}`);
-  if (big && !ok) mjErrors.add(`${cat} cayó a ${f1(now)}% (piso ${f1(base - 2.5)}) (CA-2)`);
-}
+console.log(`Categoría minijuego: ${mjTotal} minijuegos en ${N} carreras (${f1(mjTotal / N)} por carrera)`);
 
 // CA-3: dificultad y parámetros.
 for (const imp of [1, 2, 3] as const) {
@@ -1385,8 +1390,8 @@ function trCarrera(seed: number, optimista = false, country?: ReturnType<typeof 
   const c = new Career(trSetup(seed, country), seed);
   c.start();
   let guard = 0;
-  while (!c.isOver && guard++ < 100) {
-    if (!c.pendingEvent) c.playBlock();
+  while (!c.isOver && guard++ < GUARD) {
+    if (!c.pendingEvent) c.advance();
     const ev = c.pendingEvent;
     if (!ev) continue;
     let pick = Math.floor(c.rng() * ev.options.length);
@@ -1398,9 +1403,12 @@ function trCarrera(seed: number, optimista = false, country?: ReturnType<typeof 
   }
   return c.player;
 }
-// CA-5: huella de las temporadas (sin premios) de las semillas 1 a 200. Con el motor de antes de esta función daba ca5eb9d9 (4171 temporadas).
+// CA-5: huella de las temporadas (sin premios) de las semillas 1 a 200. Con el motor de antes de trofeos-reales daba ca5eb9d9 (4171 temporadas).
+// ritmo-por-temporada la rompe a propósito (cambian las decisiones, sus efectos y el orden del azar: las temporadas simuladas son otras) y se
+// recalcula con el motor nuevo: adaf6479 (4006 temporadas), con las perillas de AJUSTES y el contenido de variedad.ts y minijuegos-extra.ts.
+// Cualquier cambio de perillas o de contenido la mueve: se vuelve a anotar. Dos corridas de la misma semilla siguen dando los mismos premios.
 const trErrors = new Set<string>();
-const HUELLA_BASE = 'ca5eb9d9';
+const HUELLA_BASE = 'adaf6479';
 {
   let h = 2166136261;
   let n = 0;
@@ -1412,7 +1420,7 @@ const HUELLA_BASE = 'ca5eb9d9';
     }
   }
   const huella = (h >>> 0).toString(16);
-  console.log(`Trofeos, huella de las temporadas sin premios (semillas 1 a 200): ${huella} (${n} temporadas; antes ${HUELLA_BASE})`);
+  console.log(`Trofeos, huella de las temporadas sin premios (semillas 1 a 200): ${huella} (${n} temporadas; esperada ${HUELLA_BASE})`);
   if (huella !== HUELLA_BASE) trErrors.add(`huella ${huella} distinta de ${HUELLA_BASE}: algo además de los premios cambió las temporadas (CA-5)`);
   // Dos corridas de la misma semilla dan los mismos premios.
   for (let seed = 1; seed <= 40; seed++) {
@@ -1432,8 +1440,8 @@ function trJugar(i: number, optimista: boolean) {
   const c = new Career(setup, i + 1);
   c.start();
   let guard = 0;
-  while (!c.isOver && guard++ < 100) {
-    if (!c.pendingEvent) c.playBlock();
+  while (!c.isOver && guard++ < GUARD) {
+    if (!c.pendingEvent) c.advance();
     const ev = c.pendingEvent;
     if (!ev) continue;
     const value = (o: (typeof ev.options)[number]) => o.outcomes.reduce((t, x) => t + x.p * (3 * (x.effects.rating ?? 0) + (x.effects.potential ?? 0) + 0.1 * (x.effects.fame ?? 0) + 0.05 * (x.effects.morale ?? 0)), 0);
@@ -1578,7 +1586,7 @@ if (N >= 5000 && !only) for (const nombre of Object.values(SCORER_NAME)) if (!tr
 // CA-4: el puntaje medio y los veredictos casi no se mueven; el límite del servidor deja margen sobre el máximo medido.
 {
   const mean = scores.reduce((t, x) => t + x, 0) / scores.length;
-  console.log(`Trofeos, puntaje medio ${f1(mean)} (línea base 108.3, banda 105.1 a 111.5) · máximo ${scores.at(-1)} (azar de la corrida principal), ${trAzar.maxPuntaje} (azar de este bloque), ${trTecho.maxPuntaje} (optimista) · límite del servidor ${SCORE_LIMIT}`);
+  console.log(`Trofeos, puntaje medio ${f1(mean)} (línea base 108.3, banda 105.1 a 111.5) · máximo ${scores.at(-1)} (azar de la corrida principal), ${trAzar.maxPuntaje} (azar de esa sección), ${trTecho.maxPuntaje} (optimista) · límite del servidor ${SCORE_LIMIT}`);
   if (big && (mean < 105.1 || mean > 111.5)) trErrors.add(`puntaje medio ${f1(mean)} fuera de 105,1 a 111,5 (CA-4)`);
   const BASE_VEREDICTOS: Record<string, number> = { 'Jugador de culto': 31.8, Cumplidor: 30.4, 'Referente de la Liga': 14.1, 'Promesa que no fue': 8.2, 'Ídolo nacional': 7.3, Leyenda: 8.4 };
   const grouped: Record<string, number> = {};
@@ -1599,3 +1607,14 @@ if (trErrors.size) {
   console.error(`Trofeos con errores (${trErrors.size}):\n  ${[...trErrors].slice(0, 40).join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Trofeos: nombres del goleador, condiciones y topes de los premios nuevos, huella de las temporadas, premios repetibles por semilla, puntaje y límite del servidor cuadran.');
+
+// ---------- Ritmo por temporada (specs/ritmo-por-temporada) ----------
+console.log('\n--- Ritmo ---');
+if (process.env.RITMO === 'off') console.log('Ritmo: omitido (RITMO=off)');
+else {
+  const errores = medirRitmo(N, !only);
+  if (errores.length) {
+    console.error(`Ritmo con errores (${errores.length}):\n  ${errores.join('\n  ')}`);
+    process.exitCode = 1;
+  } else console.log('Ritmo: decisiones por temporada, minijuego, equidad entre modos, tasas, rutas, variedad, efectos, categorías y límites cuadran (o informan, según el tamaño de la muestra).');
+}

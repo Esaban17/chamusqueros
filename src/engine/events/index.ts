@@ -5,8 +5,10 @@ import { DIVISIONES_EVENTS } from './divisiones';
 import { EXTRANJERO_EVENTS } from './extranjero';
 import { MEDIOS_EVENTS } from './medios';
 import { MINIJUEGOS_EVENTS } from './minijuegos';
+import { MINIJUEGOS_EXTRA_EVENTS } from './minijuegos-extra';
 import { NACIONALIDAD_EVENTS } from './nacionalidad';
 import { SELECCION_EVENTS } from './seleccion';
+import { VARIEDAD_EVENTS } from './variedad';
 
 export const ALL_EVENTS: EventTemplate[] = [
   ...BASE_EVENTS,
@@ -17,6 +19,8 @@ export const ALL_EVENTS: EventTemplate[] = [
   ...SELECCION_EVENTS,
   ...AMOR_EVENTS,
   ...MINIJUEGOS_EVENTS,
+  ...MINIJUEGOS_EXTRA_EVENTS,
+  ...VARIEDAD_EVENTS,
 ];
 
 const ids = new Set<string>();
