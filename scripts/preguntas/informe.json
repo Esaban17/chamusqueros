@@ -1,0 +1,72 @@
+{
+ "total": 178,
+ "porTema": {
+  "mundiales": 34,
+  "champions": 22,
+  "balon-de-oro": 20,
+  "records": 20,
+  "clubes": 30,
+  "estadios": 27,
+  "centroamerica": 25
+ },
+ "porDificultad": {
+  "1": 50,
+  "2": 60,
+  "3": 68
+ },
+ "cruce": {
+  "mundiales": {
+   "1": 13,
+   "2": 11,
+   "3": 10
+  },
+  "champions": {
+   "1": 7,
+   "2": 8,
+   "3": 7
+  },
+  "balon-de-oro": {
+   "1": 7,
+   "2": 7,
+   "3": 6
+  },
+  "records": {
+   "1": 0,
+   "2": 7,
+   "3": 13
+  },
+  "clubes": {
+   "1": 16,
+   "2": 4,
+   "3": 10
+  },
+  "estadios": {
+   "1": 7,
+   "2": 13,
+   "3": 7
+  },
+  "centroamerica": {
+   "1": 0,
+   "2": 10,
+   "3": 15
+  }
+ },
+ "origen": {
+  "sparql": 151,
+  "curada": 27
+ },
+ "fecha": "2026-10-14",
+ "calibracion": [
+  "Mundiales: 26 filas, 23 ediciones (1930 a 2026), una por campeón: calibrada.",
+  "Mundiales, sede: 20 de 23 ediciones (fuera las conjuntas 2002 y 2026 y 1966).",
+  "  descartada la cifra de selecciones de 2002: Wikidata dice 33 y lista 32",
+  "  descartada la cifra de selecciones de 2022: Wikidata dice 32 y lista 4",
+  "Champions: 71 filas, 70 temporadas válidas; descartadas por etiqueta o campeón dudosos: Q485956 \"Liga de Campeones de la UEFA 2011-12\" (inicio 2012-07-03).",
+  "Balón de Oro: 51 filas con año, 51 años con un solo ganador masculino; descartados por más de un ganador: ninguno; los años sin dato (Wikidata no lo tiene) no se rellenan.",
+  "Balón de Oro del Mundial: 11 filas con año, 11 Mundiales con un solo ganador masculino (1970, 1982, 1986, 1990, 1994, 1998, 2002, 2006, 2010, 2014, 2018).",
+  "Clubes: 44 clubes; fundación para 27; descartados (fecha sin día, dos años o dudoso): Nápoles (fecha sin día), Atlético de Madrid (fecha sin día), Arsenal (fecha sin día), Sevilla (fecha sin día), Manchester United (fecha sin día), Manchester City (dudoso), Herediano (dudoso), América (fecha sin día), Monterrey (fecha sin día), Xelajú (fecha sin día), Tauro (fecha sin día), Motagua (fecha sin día), Comunicaciones (fecha sin día), Pumas (fecha sin día), Alajuelense (fecha sin día), Alianza (fecha sin día), Antigua (fecha sin día); país para 32 (sin los ingleses, que Wikidata da como Reino Unido, ni los de nombre ambiguo).",
+  "Copa de Campeones de la Concacaf: 54 filas, 44 ediciones con año en la etiqueta y un solo campeón, 12 con campeón centroamericano.",
+  "Campeonato Concacaf y Copa Oro: 24 filas, 21 ediciones con un solo campeón, 4 con campeón centroamericano (Wikidata no tiene campeón en 2021, 2023 ni 2025: sin esas).",
+  "Generadas 178 preguntas (151 de plantillas SPARQL, 27 curadas)."
+ ]
+}
