@@ -213,6 +213,7 @@ export type EventCategory =
   | 'seleccion'
   | 'extranjero'
   | 'divisiones'
+  | 'amor'
   | 'retiro';
 
 export interface GameEvent {

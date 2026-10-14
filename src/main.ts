@@ -639,6 +639,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   seleccion: 'Selección',
   extranjero: 'Extranjero',
   divisiones: 'Ascenso',
+  amor: 'Vida sentimental',
   retiro: 'Final de carrera',
 };
 

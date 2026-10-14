@@ -1,4 +1,4 @@
-import { rivalOf } from '../helpers';
+import { has, rivalOf } from '../helpers';
 import type { Effects, EventContext, EventOption, EventTemplate, Outcome } from '../types';
 
 const o = (p: number, text: string, effects: Effects = {}): Outcome => ({ p, text, effects });
@@ -180,7 +180,7 @@ export const BASE_EVENTS: EventTemplate[] = [
     category: 'medios',
     title: 'Programa de farándula',
     text: () => 'Te sacan en un programa de farándula por tu nueva relación.',
-    when: (p, ctx) => p.age >= 20 && p.fame >= 15,
+    when: (p, ctx) => p.age >= 20 && p.fame >= 15 && !has(p, 'amor_comprometido') && !has(p, 'amor_casado'),
     options: () => [
       opt('Lo hago público',
         o(0.5, 'Son la pareja del momento. Felices.', { fame: 8, morale: 10 }),

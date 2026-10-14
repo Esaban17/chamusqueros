@@ -1,4 +1,5 @@
 import type { EventTemplate } from '../types';
+import { AMOR_EVENTS } from './amor';
 import { BASE_EVENTS } from './base';
 import { DIVISIONES_EVENTS } from './divisiones';
 import { EXTRANJERO_EVENTS } from './extranjero';
@@ -13,6 +14,7 @@ export const ALL_EVENTS: EventTemplate[] = [
   ...MEDIOS_EVENTS,
   ...NACIONALIDAD_EVENTS,
   ...SELECCION_EVENTS,
+  ...AMOR_EVENTS,
 ];
 
 const ids = new Set<string>();
