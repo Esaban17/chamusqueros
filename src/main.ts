@@ -16,7 +16,9 @@ import {
   type Resolution,
   type SeasonRecord,
 } from './engine/types';
-import { BEARD_STYLES, DEFAULT_AVATAR, EXTRAS, HAIR_COLORS, HAIR_STYLES, NT_KIT, SKIN_TONES, avatarSVG, randomAvatar } from './ui/avatar';
+import { DEFAULT_AVATAR, NT_KIT, avatarSVG } from './ui/avatar';
+import { avatarDeCodigo, avatarEditorHtml, montarEditorAvatar } from './ui/avatar-editor';
+import { CODIGO_RE } from './retos/online/protocolo';
 import { TIERS, drawCareerCard } from './ui/card';
 import { celebrate } from './ui/celebrate';
 import { mountMinigame } from './ui/minigames';
@@ -33,6 +35,7 @@ const DONATE_URL: string = '';
 const BEST_KEY = 'chamusqueros:mejores';
 const LAST_SETUP_KEY = 'chamusqueros:ultimo';
 const PLAYER_KEY = 'chamusqueros:id';
+const PERFIL_KEY = 'chamusqueros:perfil';   // copia local del perfil (src/perfil/cliente.ts): sin token
 const NT_LABEL = ['', 'Convocado a la Selección', 'Fijo en la Selección', 'Titular en la Selección'];
 
 let career: Career | null = null;
@@ -204,7 +207,7 @@ function home() {
   const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
   const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
   const number = last.number ?? 10;
-  const go = (what: 'start' | 'ranking' | 'retos', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
+  const go = (what: 'start' | 'ranking' | 'retos' | 'perfil' | 'ranking-retos', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
   const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);color:var(--muted)">Duelo de 2 en un solo celular</span>', cls);
   render(`
     <div class="brand">Chamus<span>queros</span></div>
@@ -267,6 +270,7 @@ function home() {
         <li><b>Preguntas:</b> 5 preguntas de fútbol para cada uno.</li>
       </ul>
       ${retos('btn secondary')}
+      <div class="row">${go('perfil', 'Mi perfil ›', 'link')}${go('ranking-retos', 'Ranking de Retos ›', 'link')}</div>
     </section>
 
     <section class="land">
@@ -283,10 +287,24 @@ function home() {
     </section>
     ${footer()}
   `);
-  // Retos Fútbol vive en su propio paquete: solo se descarga cuando alguien toca el botón.
-  const abrirRetos = () => import('./retos/index').then((m) => m.montarRetos(app, home)).catch(() => alert('No se pudo cargar Retos Fútbol. Revisá tu conexión e intentá de nuevo.'));
-  const destino = { start: createForm, ranking: rankingScreen, retos: abrirRetos };
+  const destino = {
+    start: createForm, ranking: rankingScreen, retos: () => abrirRetos(), perfil: abrirPerfil, 'ranking-retos': () => abrirRetos('ranking'),
+  };
   app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = destino[b.dataset.go as keyof typeof destino]));
+}
+
+// Retos Fútbol y el perfil viven en su propio paquete: solo se descargan cuando alguien los abre.
+/** Adonde abre Retos: el ranking, o una sala por su código (link `?sala=`). */
+type DestinoRetos = 'ranking' | { sala: string };
+const sinPaquete = () => alert('No se pudo cargar. Revisá tu conexión e intentá de nuevo.');
+function abrirRetos(destino?: DestinoRetos, alSalir: () => void = home) {
+  // ponytail: el cast sobra cuando el bloque B agrega el tercer parámetro a montarRetos (B7); mientras tanto compila con la firma vieja.
+  import('./retos/index')
+    .then((m) => (m.montarRetos as (a: HTMLElement, salir: () => void, d?: DestinoRetos) => void)(app, alSalir, destino))
+    .catch(sinPaquete);
+}
+function abrirPerfil() {
+  import('./perfil/index').then((m) => m.montarPerfil(app, home)).catch(sinPaquete);
 }
 
 /** Enlace de donación: abre otra pestaña sin acceso a la del juego ni a la dirección de origen. */
@@ -316,21 +334,6 @@ function seg(name: string, options: [string, string, string?][], selected: strin
     .join('')}</div>`;
 }
 
-function swatches(name: string, colors: string[], selected: number, labels?: string[]) {
-  return `<div class="swatches" role="radiogroup">${colors
-    .map((c, i) => `<input type="radio" name="${name}" id="${name}-${i}" value="${i}" ${i === selected ? 'checked' : ''}>
-      <label for="${name}-${i}" style="--sw:${c}" title="${labels?.[i] ?? ''}"><span class="sr">${labels?.[i] ?? `Tono ${i + 1}`}</span></label>`)
-    .join('')}</div>`;
-}
-
-function cycler(key: keyof Avatar, options: string[], value: number) {
-  return `<div class="cycler" data-key="${key}">
-    <button type="button" class="cy-btn" data-dir="-1" aria-label="Anterior">‹</button>
-    <output id="cy-${key}">${options[value]}</output>
-    <button type="button" class="cy-btn" data-dir="1" aria-label="Siguiente">›</button>
-  </div>`;
-}
-
 /** Departamentos (o estados, provincias...) del país; el elegido antes si es del mismo país. */
 function regionOptions(code: string, selected?: string) {
   const regions = countryOf(code).regions;
@@ -340,25 +343,19 @@ function regionOptions(code: string, selected?: string) {
 
 function createForm() {
   const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
-  const avatar: Avatar = { ...DEFAULT_AVATAR, ...(last.avatar ?? {}) };
+  // RF-30: con perfil guardado, el avatar es el del perfil y, si el nombre está vacío, la primera palabra del apodo. Todo sigue editable.
+  const perfil = store<{ apodo?: unknown; avatar?: unknown } | null>(PERFIL_KEY, null);
+  const delPerfil = avatarDeCodigo(perfil?.avatar);
+  const avatar: Avatar = { ...DEFAULT_AVATAR, ...(delPerfil?.avatar ?? last.avatar ?? {}) };
+  const nombre = last.firstName || (typeof perfil?.apodo === 'string' ? perfil.apodo.trim().split(/\s+/)[0].slice(0, 16) : '');
   const country = countryOf(last.country).code;
   const countries = [...COUNTRIES].sort((a, b) => a.name.localeCompare(b.name, 'es'));
   render(`
     <section class="hero"><span class="eyebrow">Creá a tu jugador</span><h1>Tu jugador</h1></section>
     <form class="panel" id="form" novalidate>
-      <div class="avatar-editor">
-        <div class="avatar-preview" id="avatarPreview"></div>
-        <div class="avatar-controls">
-          <div class="field"><span class="label">Piel</span>${swatches('skin', SKIN_TONES, avatar.skin)}</div>
-          <div class="field"><span class="label">Pelo</span>${cycler('hair', HAIR_STYLES, avatar.hair)}</div>
-          <div class="field"><span class="label">Color de pelo</span>${swatches('hairColor', HAIR_COLORS.map((h) => h[1]), avatar.hairColor, HAIR_COLORS.map((h) => h[0]))}</div>
-          <div class="field"><span class="label">Barba</span>${cycler('beard', BEARD_STYLES, avatar.beard)}</div>
-          <div class="field"><span class="label">Accesorio</span>${cycler('extra', EXTRAS, avatar.extra)}</div>
-          <button type="button" class="btn secondary small" id="shuffle">Avatar al azar</button>
-        </div>
-      </div>
+      ${avatarEditorHtml(avatar)}
       <div class="grid-2">
-        <div class="field"><label for="firstName">Nombre</label><input id="firstName" maxlength="16" autocomplete="off" value="${esc(last.firstName ?? '')}" placeholder="Carlos"></div>
+        <div class="field"><label for="firstName">Nombre</label><input id="firstName" maxlength="16" autocomplete="off" value="${esc(nombre)}" placeholder="Carlos"></div>
         <div class="field"><label for="lastName">Apellido</label><input id="lastName" maxlength="18" autocomplete="off" value="${esc(last.lastName ?? '')}" placeholder="Ruiz"></div>
       </div>
       <div class="field"><label for="country">Nacionalidad</label><select id="country">${countries
@@ -392,38 +389,8 @@ function createForm() {
     document.getElementById('deptLabel')!.textContent = countryOf(countrySel.value).regionLabel;
     paint();
   };
-  const sync = () => {
-    (['skin', 'hairColor'] as const).forEach((k) => {
-      const input = document.getElementById(`${k}-${avatar[k]}`) as HTMLInputElement | null;
-      if (input) input.checked = true;
-    });
-    document.getElementById('cy-hair')!.textContent = HAIR_STYLES[avatar.hair];
-    document.getElementById('cy-beard')!.textContent = BEARD_STYLES[avatar.beard];
-    document.getElementById('cy-extra')!.textContent = EXTRAS[avatar.extra];
-    paint();
-  };
+  montarEditorAvatar(app, avatar, paint);
   paint();
-  app.querySelectorAll<HTMLInputElement>('input[name="skin"], input[name="hairColor"]').forEach((input) => {
-    input.onchange = () => {
-      avatar[input.name as 'skin' | 'hairColor'] = Number(input.value);
-      paint();
-    };
-  });
-  const lists: Record<string, string[]> = { hair: HAIR_STYLES, beard: BEARD_STYLES, extra: EXTRAS };
-  app.querySelectorAll<HTMLElement>('.cycler').forEach((el) => {
-    const key = el.dataset.key as 'hair' | 'beard' | 'extra';
-    el.querySelectorAll<HTMLButtonElement>('.cy-btn').forEach((b) => {
-      b.onclick = () => {
-        const n = lists[key].length;
-        avatar[key] = (avatar[key] + Number(b.dataset.dir) + n) % n;
-        sync();
-      };
-    });
-  });
-  document.getElementById('shuffle')!.onclick = () => {
-    Object.assign(avatar, randomAvatar());
-    sync();
-  };
   document.getElementById('number')!.addEventListener('input', paint);
   document.getElementById('back')!.onclick = home;
   document.getElementById('form')!.addEventListener('submit', (e) => {
@@ -886,4 +853,11 @@ function finish() {
   document.getElementById('again')!.onclick = createForm;
 }
 
-home();
+// Un link `?sala=XXXXXX` válido abre Retos directo en esa sala; al salir se limpia la URL para que no la reabra.
+const sala = new URLSearchParams(location.search).get('sala');
+if (sala && CODIGO_RE.test(sala)) {
+  abrirRetos({ sala }, () => {
+    history.replaceState(null, '', location.pathname);
+    home();
+  });
+} else home();
