@@ -1,9 +1,13 @@
 // Simula miles de carreras con decisiones al azar para revisar el balance del juego.
 // Uso: npm run simulate -- 5000       (todas las nacionalidades, por turnos)
 //      npm run simulate -- 2000 GT    (solo un país)
-import { Career, summarize } from '../src/engine/engine';
-import { COUNTRIES, countryOf } from '../src/engine/countries';
-import { clubById, clubsOf } from '../src/engine/clubs';
+//      OFERTA=uniforme npm run simulate -- 5000   (ante una oferta elige al azar entre todas las opciones, "me quedo" incluida;
+//        por defecto decide 50/50 entre quedarse o irse y después sortea el club; OFERTA=mejor: 50/50 y se va al club de mayor
+//        prestigio, que es lo más parecido a la política de antes, cuando había un solo club)
+import { Career, earned, summarize, yearsText } from '../src/engine/engine';
+import { COUNTRIES, countryOf, moneyShort } from '../src/engine/countries';
+import { clubById, clubsOf, viewClub, ALL_CLUBS } from '../src/engine/clubs';
+import { salaryFor } from '../src/engine/contracts';
 import { ALL_EVENTS } from '../src/engine/events';
 import type { Mode, Position } from '../src/engine/types';
 import { bestMoment, palmares } from '../src/ui/palmares';
@@ -17,8 +21,11 @@ const countries = only ? [countryOf(only)] : COUNTRIES;
 const GT_LEAK =
   /Guatemala|chap[ií]n|FEDEFUT|Bicolor|Liga Nacional(?! de Honduras)|Mateo Flores|Obelisco|\bQ\d|\bGuate\b|la Antigua|a Cobán(?! Imperial)|Trébol|Río Dulce|Costa Sur|\bSAT\b|Proyecto Goal|shuco|(?:^|\s)(de|a) el\s/;
 const GT_CLUBS = clubsOf('GT');
+// Las ofertas de clubes de Liga Nacional dicen "Club · Liga Nacional, Guatemala": es un club real de allá, no una fuga.
 const legit = (t: string) =>
-  GT_CLUBS.reduce((s, c) => s.replaceAll(`${c.name} (${c.city})`, '').replaceAll(c.name.includes('Guatemala') ? c.name : '\0', ''), t).replaceAll('un club de Guatemala', '');
+  GT_CLUBS.reduce((s, c) => s.replaceAll(`${c.name} (${c.city})`, '').replaceAll(c.name.includes('Guatemala') ? c.name : '\0', ''), t)
+    .replaceAll('un club de Guatemala', '')
+    .replaceAll(' · Liga Nacional, Guatemala', '');
 const leaks = new Set<string>();
 const byCountry: Record<string, { n: number; top: number; nt: number; wc: number; abroad: number; score: number }> = {};
 const positions: Position[] = ['POR', 'DEF', 'MED', 'DEL'];
@@ -40,6 +47,18 @@ const koStats: Record<string, { played: number; champ: number; final: number }> 
 // El palmarés agrupa sin perder ni inventar trofeos, y siempre hay un momento destacado con texto.
 const summaryErrors = new Set<string>();
 const momentCount: Record<string, number> = {};
+// Mercado: ofertas vistas, cuántas veces eligió quedarse y cambios de club por carrera (cualquier causa).
+let offers = 0, stayed = 0, moves = 0;
+const policy = process.env.OFERTA; // 'uniforme' o 'mejor' (ver arriba); sin valor, 50/50 y club al azar
+const uniform = policy === 'uniforme';
+// Revisiones del mercado y los contratos (mercado-contratos): errores, ofertas por cantidad de clubes y salarios al firmar.
+const marketErrors = new Set<string>();
+const offerSize = [0, 0, 0, 0, 0];
+let multi = 0, multiSimilar = 0, withAbroad = 0, offersCheck = 0;
+const signed: Record<string, number[]> = { 'GT 2da': [], 'GT 1ra': [], 'GT LN': [], 'Top 5 (prestigio 72+)': [] };
+const TOP5 = ['ES', 'EN', 'DE', 'IT', 'FR'];
+const finalMoney: Record<string, number[]> = { Guatemala: [], 'ES/AR/BR': [] };
+let maxSalary = 0, maxLN = 0;
 let maxTitles = 0, years = 0, titles = 0, mundial = 0, abroad = 0, caps = 0, maxGoals = 0, reachedLN = 0, debutTier = [0, 0, 0, 0], nt = 0;
 
 for (let i = 0; i < N; i++) {
@@ -63,10 +82,27 @@ for (let i = 0; i < N; i++) {
   let guard = 0;
   let decisions = 0;
   const outEarly = new Set<string>(); // eliminatorias en las que su Selección quedó fuera en la segunda ronda (Concacaf)
+  let seen: object | null = null; // los contratos se anotan al verlos nuevos: debut, tras cada decisión y tras cada bloque
+  const watch = () => {
+    const c = career.player.contract;
+    if (c === seen) return;
+    seen = c;
+    const own = clubById(career.player.clubId);
+    maxSalary = Math.max(maxSalary, c.salary);
+    const left = c.until - career.player.year + 1;
+    if (!(c.salary > 0) || left < 1 || left > 4) marketErrors.add(`contrato fuera de rango: ${c.salary} quetzales, ${left} años`);
+    const key = own.country === 'GT' ? ({ 1: 'GT LN', 2: 'GT 1ra', 3: 'GT 2da' } as const)[own.tier as 1 | 2 | 3] : TOP5.includes(own.country) && own.prestige >= 72 ? 'Top 5 (prestigio 72+)' : '';
+    if (key) signed[key].push(c.salary);
+    if (own.country === 'GT' && own.tier === 1) maxLN = Math.max(maxLN, c.salary);
+  };
+  watch();
   career.start();
   while (!career.isOver && guard++ < 100) {
     if (!career.pendingEvent) {
       const p = career.player;
+      const contractBefore = p.contract;
+      const yearBefore = p.year;
+      const clubBefore = p.clubId;
       const before = [p.caps, p.natGoals];
       const played = career.playBlock();
       const matches = played.flatMap((s) => s.nt?.matches ?? []);
@@ -110,6 +146,12 @@ for (let i = 0; i < N; i++) {
           }
         }
       }
+      // Contrato: la primera temporada del bloque se jugó con el que había (vigente), y todas pagan; el final nunca queda vencido.
+      if (contractBefore.until < yearBefore) marketErrors.add('temporada con el contrato vencido');
+      if (played[0] && played[0].salary !== contractBefore.salary) marketErrors.add(`salario de la temporada ${played[0].salary} distinto del contrato ${contractBefore.salary}`);
+      if (played.some((r) => !(r.salary > 0))) marketErrors.add('temporada sin salario');
+      if (p.clubId !== clubBefore && p.contract === contractBefore) marketErrors.add('cambió de club por falta de minutos sin contrato nuevo');
+      watch();
       const goals = matches.reduce((t, m) => t + m.goals, 0);
       if (matches.length !== p.caps - before[0]) ntErrors.add(`partidos: ${matches.length} listados, ${p.caps - before[0]} sumados`);
       if (goals !== p.natGoals - before[1]) ntErrors.add(`goles: ${goals} listados, ${p.natGoals - before[1]} sumados`);
@@ -119,6 +161,10 @@ for (let i = 0; i < N; i++) {
     const ev = career.pendingEvent;
     if (ev) {
       for (const t of [ev.title, ev.text, ...ev.options.flatMap((o) => [o.label, ...o.outcomes.map((x) => x.text)])]) leak(ev.id, t);
+      {
+        const left = career.player.contract.until - career.player.year + 1;
+        if (left < 1 || left > 4) marketErrors.add(`decisión con ${left} años de contrato`);
+      }
       eventCount[ev.id] = (eventCount[ev.id] ?? 0) + 1;
       catCount[ev.category] = (catCount[ev.category] ?? 0) + 1;
       if (position === 'POR') {
@@ -126,13 +172,67 @@ for (let i = 0; i < N; i++) {
           if (KEEPER_GOAL.test(t)) keeperGoals.add(`${ev.id}: ${t}`);
         }
       }
-      career.choose(Math.floor(career.rng() * ev.options.length));
+      const pb = career.player;
+      const stay = ev.options.length - 1; // en la oferta, la última opción es quedarse
+      const pick = ev.id === 'oferta' && !uniform
+        ? career.rng() < 0.5 ? stay : policy === 'mejor' ? 0 : Math.floor(career.rng() * stay)
+        : Math.floor(career.rng() * ev.options.length);
+      const cur = career.club;
+      const before = { clubId: pb.clubId, contract: pb.contract, rating: pb.rating, age: pb.age };
+      if (ev.id === 'oferta') {
+        offers++;
+        if (ev.options[pick].label.startsWith('Me quedo')) stayed++;
+        // CA-1 a CA-3: cantidad, repetidos, cotas de prestigio, extranjero y textos.
+        const o = ev.offers ?? [];
+        const n = o.length;
+        offersCheck++;
+        offerSize[n]++;
+        const views = o.map((x) => viewClub(clubById(x.clubId), career.home));
+        if (!n || n > 4) marketErrors.add(`oferta con ${n} clubes`);
+        if (ev.options.length !== n + 1 || !ev.options[n].label.startsWith('Me quedo')) marketErrors.add('las opciones no son un club cada una más quedarse');
+        if (new Set(o.map((x) => x.clubId)).size !== n || o.some((x) => x.clubId === before.clubId)) marketErrors.add('oferta con clubes repetidos o el club actual');
+        if (!views.some((v) => v.prestige > cur.prestige)) marketErrors.add('oferta sin un club de mayor prestigio');
+        if (views.some((v) => v.prestige > Math.max(before.rating + 6, cur.prestige))) marketErrors.add('oferta por encima de la cota de prestigio');
+        if (n >= 3) {
+          multi++;
+          if (views.some((v) => Math.abs(v.prestige - cur.prestige) <= 8)) multiSimilar++;
+        }
+        if (views.some((v) => v.abroad)) withAbroad++;
+        const canGo = before.age <= 30 && (before.rating >= 64 || cur.abroad) && cur.tier <= 1;
+        if (!canGo && views.some((v) => v.abroad && !cur.abroad)) marketErrors.add('oferta del extranjero a un jugador no elegible');
+        o.forEach((x, k) => {
+          const v = views[k];
+          const label = ev.options[k].label;
+          for (const part of [v.name, v.league, countryOf(v.country).name, moneyShort(career.home, x.salary), yearsText(x.years)]) {
+            if (!label.includes(part)) marketErrors.add(`la opción no muestra "${part}": ${label}`);
+          }
+          if (x.years < 1 || x.years > 4 || !(x.salary > 0)) marketErrors.add('oferta con contrato fuera de rango');
+        });
+        const c = before.contract;
+        if (!ev.text.includes(moneyShort(career.home, c.salary)) || !ev.text.includes(yearsText(c.until - pb.year + 1))) marketErrors.add('el texto de la oferta no muestra el contrato actual');
+      }
+      const res = career.choose(pick);
+      for (const t of res.changes) leak(`${ev.id} (cambio)`, t);
+      // CA-5 y CA-6: elegir un club firma lo mostrado; quedarse no toca el contrato; todo cambio de club trae contrato nuevo.
+      if (ev.id === 'oferta') {
+        const x = ev.offers?.[pick];
+        if (x) {
+          if (pb.clubId !== x.clubId || pb.contract.salary !== x.salary || pb.contract.until - pb.year + 1 !== x.years) marketErrors.add('el contrato firmado no es el de la oferta');
+        } else if (pb.clubId !== before.clubId || pb.contract !== before.contract) marketErrors.add('quedarse cambió el club o el contrato');
+      }
+      if (pb.clubId !== before.clubId && pb.contract === before.contract) marketErrors.add(`cambió de club en ${ev.id} sin contrato nuevo`);
+      watch();
       decisions++;
     }
   }
   (decisionsByMode[mode] ??= []).push(decisions);
   const p = career.player;
   const s = summarize(p);
+  if (s.earned !== p.seasons.reduce((t, r) => t + r.salary, 0) || s.earned !== earned(p)) marketErrors.add('el dinero final no es la suma de las temporadas');
+  if (p.seasons.some((r) => !(r.salary > 0))) marketErrors.add('temporada sin salario');
+  for (const r of p.seasons) if (r.note) leak('nota de temporada', r.note);
+  if (country.code === 'GT') finalMoney.Guatemala.push(s.earned);
+  else if (['ES', 'AR', 'BR'].includes(country.code)) finalMoney['ES/AR/BR'].push(s.earned);
   // Los títulos llevan el nombre de la liga donde se ganaron (puede ser la de Guatemala): no se revisan.
   for (const t of [...p.milestones, ...p.seasons.flatMap((r) => (r.nt?.matches ?? []).map((m) => m.comp)), s.verdict.title]) leak('carrera', t);
   const c = (byCountry[country.code] ??= { n: 0, top: 0, nt: 0, wc: 0, abroad: 0, score: 0 });
@@ -157,6 +257,7 @@ for (let i = 0; i < N; i++) {
   byPos[position].apps += s.apps;
   byPos[position].n++;
   years += p.seasons.length;
+  moves += p.seasons.filter((r, j) => j > 0 && r.clubId !== p.seasons[j - 1].clubId).length;
   titles += s.titles.length;
   maxTitles = Math.max(maxTitles, s.titles.length);
   caps += p.caps;
@@ -178,11 +279,13 @@ console.log(`Carreras: ${N}`);
 console.log(`Debut: primera división ${pct(debutTier[1])} · segunda ${pct(debutTier[2])} · tercera ${pct(debutTier[3])}`);
 console.log(`Temporadas promedio: ${(years / N).toFixed(1)} · decisiones: intensa ${avg(decisionsByMode.intensa)}, normal ${avg(decisionsByMode.normal)}, exprés ${avg(decisionsByMode.expres)}`);
 console.log(`Llegaron a primera: ${pct(reachedLN)} · jugaron en el extranjero: ${pct(abroad)} · Selección mayor: ${pct(nt)} · Mundial: ${pct(mundial)}`);
+console.log(`Mercado: ofertas por carrera ${(offers / N).toFixed(2)} · me quedo ${((100 * stayed) / Math.max(1, offers)).toFixed(1)}% · cambio ${((100 * (offers - stayed)) / Math.max(1, offers)).toFixed(1)}% · cambios de club por carrera ${(moves / N).toFixed(2)}`);
 console.log(`Títulos promedio: ${(titles / N).toFixed(2)} · partidos con Selección: ${(caps / N).toFixed(1)} · máximo de goles: ${maxGoals}`);
 for (const [pos, v] of Object.entries(byPos)) console.log(`  ${pos}: ${(v.apps / v.n).toFixed(0)} PJ, ${(v.goals / v.n).toFixed(0)} goles`);
 console.log('Veredictos:');
 for (const [k, v] of Object.entries(verdicts).sort((a, b) => b[1] - a[1])) console.log(`  ${k}: ${pct(v)}`);
 scores.sort((a, b) => a - b);
+console.log(`Puntaje medio: ${avg(scores)}`);
 console.log('Puntaje p25/p50/p75/p90/p97:', [0.25, 0.5, 0.75, 0.9, 0.97].map((q) => scores[Math.floor(q * N)].toFixed(0)).join(' / '));
 console.log('Máximos: puntaje', scores.at(-1), '· títulos', maxTitles, '(el servidor acepta hasta 1000 y 200)');
 console.log('Fase final (torneos jugados · campeón · finalista):');
@@ -218,3 +321,69 @@ if (keeperGoals.size) {
   console.error(`Textos donde el portero anota (${keeperGoals.size}):\n  ${[...keeperGoals].join('\n  ')}`);
   process.exitCode = 1;
 } else console.log('Porteros: ningún texto los hace anotar de jugada.');
+
+// ---------- Mercado y contratos ----------
+const GT = countryOf('GT');
+const ES_ = countryOf('ES');
+const median = (a: number[]) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+const quant = (a: number[], q: number) => [...a].sort((x, y) => x - y)[Math.min(a.length - 1, Math.floor(q * a.length))];
+console.log(`Ofertas: ${offersCheck} · clubes por oferta 1/2/3/4: ${offerSize.slice(1).map((n) => `${((100 * n) / Math.max(1, offersCheck)).toFixed(1)}%`).join(' / ')} · con 2 o más: ${((100 * (offersCheck - offerSize[1])) / Math.max(1, offersCheck)).toFixed(1)}%`);
+console.log(`Ofertas de 3 o más con un club de prestigio parecido: ${((100 * multiSimilar) / Math.max(1, multi)).toFixed(1)}% · ofertas con un club del extranjero: ${((100 * withAbroad) / Math.max(1, offersCheck)).toFixed(1)}%`);
+if (offersCheck && offerSize[1] / offersCheck > 0.05) marketErrors.add(`${((100 * offerSize[1]) / offersCheck).toFixed(1)}% de ofertas con un solo club (máximo 5%)`);
+if (multi && multiSimilar / multi < 0.8) marketErrors.add('menos del 80% de las ofertas de 3 o más trae un club parecido');
+if (offersCheck && !withAbroad && countries.length > 1) marketErrors.add('ninguna oferta trae un club del extranjero');
+
+// CA-7: monotonía de salaryFor con un club de cada tipo; nunca depende de la nacionalidad.
+const grid = (f: (rating: number, fame: number) => number[]) => {
+  for (const r of [40, 55, 70, 85, 95]) for (const fame of [0, 20, 80, 150, 300]) if (f(r, fame).some((x, i, a) => i && x < a[i - 1])) return false;
+  return true;
+};
+for (const c of COUNTRIES) {
+  const list = clubsOf(c.code).sort((a, b) => a.prestige - b.prestige);
+  if (!grid((r, f) => list.map((x) => salaryFor(x, r, f)))) marketErrors.add(`${c.code}: un club de más prestigio paga menos`);
+  for (const t of [1, 2] as const) {
+    const up = clubsOf(c.code).filter((x) => x.tier === t).map((x) => salaryFor(x, 60, 20));
+    const down = clubsOf(c.code).filter((x) => x.tier === t + 1).map((x) => salaryFor(x, 60, 20));
+    if (up.length && down.length && Math.min(...up) < Math.max(...down)) marketErrors.add(`${c.code}: la división ${t + 1} paga más que la ${t}`);
+  }
+}
+const sample = ALL_CLUBS.filter((_, i) => i % 7 === 0);
+for (const x of sample) {
+  const f = (a: number[]) => a.map((r) => salaryFor(x, r, 20));
+  if (f([40, 50, 60, 70, 80, 90, 97]).some((v, i, a) => i && v < a[i - 1])) marketErrors.add(`${x.id}: más nivel no paga más`);
+  if ([0, 10, 50, 100, 150, 400].map((fa) => salaryFor(x, 70, fa)).some((v, i, a) => i && v < a[i - 1])) marketErrors.add(`${x.id}: más fama no paga más`);
+}
+for (let pr = 36; pr <= 76; pr++) {
+  const same = ALL_CLUBS.filter((x) => x.prestige === pr).sort((a, b) => countryOf(a.country).level - countryOf(b.country).level);
+  if (same.some((x, i) => i && countryOf(x.country).level > countryOf(same[i - 1].country).level && salaryFor(x, 60, 20) < salaryFor(same[i - 1], 60, 20))) marketErrors.add(`prestigio ${pr}: una liga mejor paga menos`);
+}
+for (const x of sample) {
+  const base = salaryFor(x, 70, 30);
+  for (const home of [GT, countryOf('ES'), countryOf('JP')]) if (salaryFor(viewClub(x, home), 70, 30) !== base) marketErrors.add(`${x.id}: el salario cambia con la nacionalidad`);
+}
+// CA-8: medianas al firmar por referencia y tope.
+const BANDS: Record<string, [number, number]> = { 'GT 2da': [12_000, 45_000], 'GT 1ra': [30_000, 120_000], 'GT LN': [150_000, 600_000], 'Top 5 (prestigio 72+)': [20e6, 150e6] };
+console.log('Salario al firmar, mediana (min-max aceptado):');
+for (const [k, [lo, hi]] of Object.entries(BANDS)) {
+  if (!signed[k].length) continue; // por ejemplo, la corrida de un solo país
+  const m = median(signed[k]);
+  console.log(`  ${k}: ${moneyShort(GT, m)} de ${signed[k].length} (${moneyShort(GT, lo)} a ${moneyShort(GT, hi)}) · p10 ${moneyShort(GT, quant(signed[k], 0.1))} · p90 ${moneyShort(GT, quant(signed[k], 0.9))}`);
+  if (m < lo || m > hi) marketErrors.add(`mediana de ${k} fuera de banda: ${m}`);
+}
+console.log(`Salario máximo firmado: ${moneyShort(GT, maxSalary)} · máximo en Liga Nacional de Guatemala: ${moneyShort(GT, maxLN)}`);
+if (maxSalary > 600e6) marketErrors.add(`salario sobre 600 M: ${maxSalary}`);
+if (maxLN > 1_500_000) marketErrors.add(`un salario de Liga Nacional sobre 1,5 M: ${maxLN}`);
+// CA-10: formatos de moneyShort.
+const FORMATS: [typeof GT, number, string][] = [
+  [GT, 850, 'Q850'], [GT, 25_500, 'Q25.5 mil'], [GT, 150_000, 'Q150 mil'], [GT, 1_234_567, 'Q1.2 M'], [GT, 2_900_000_000, 'Q2.9 mil M'],
+  [ES_, 10_000_000, '€1.2 M'], [GT, 999_960, 'Q1 M'], [GT, 100_000_000, 'Q100 M'], [GT, 1_000, 'Q1 mil'],
+];
+for (const [c, n, want] of FORMATS) if (moneyShort(c, n) !== want) marketErrors.add(`moneyShort(${c.code}, ${n}) = "${moneyShort(c, n)}", esperado "${want}"`);
+// CA-11: dinero final de carrera.
+console.log('Dinero final de carrera (p50 / p90):');
+for (const [k, v] of Object.entries(finalMoney)) if (v.length) console.log(`  ${k}: ${moneyShort(GT, quant(v, 0.5))} / ${moneyShort(GT, quant(v, 0.9))} en quetzales (${v.length} carreras)`);
+if (finalMoney.Guatemala.length && finalMoney['ES/AR/BR'].length && median(finalMoney['ES/AR/BR']) <= median(finalMoney.Guatemala)) marketErrors.add('el p50 de la potencia no supera al de Guatemala');
+if (marketErrors.size) {
+  console.error(`Mercado y contratos con errores (${marketErrors.size}):\n  ${[...marketErrors].slice(0, 40).join('\n  ')}`);
+  process.exitCode = 1;
+} else console.log('Mercado: ofertas, contratos, salarios y formatos de monto cuadran.');

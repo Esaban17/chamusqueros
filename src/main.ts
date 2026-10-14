@@ -1,7 +1,7 @@
 import './style.css';
-import { Career, summarize, verdictFor, type CareerSummary } from './engine/engine';
+import { Career, earned, summarize, verdictFor, yearsText, type CareerSummary } from './engine/engine';
 import { ALL_CLUBS, clubById, viewClub, type Club } from './engine/clubs';
-import { COUNTRIES, countryOf } from './engine/countries';
+import { COUNTRIES, countryOf, moneyShort } from './engine/countries';
 import { de } from './engine/helpers';
 import {
   POSITION_NAMES,
@@ -535,6 +535,7 @@ function seasonCard(r: SeasonRecord) {
     <span class="eyebrow">Temporada ${r.label} · ${r.age} años</span>
     <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
     <div class="totals">${stats.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('')}</div>
+    <p class="meta money">Ganaste <b>${esc(cash(r.salary))}</b> en la temporada</p>
     ${r.injured ? '<p class="chip down">Temporada marcada por una lesión</p>' : ''}
     ${trophies.length ? `<ul class="trophies">${trophies.join('')}</ul>` : ''}
     ${r.nt ? ntBlock(r.nt) : ''}
@@ -554,6 +555,9 @@ function seasonSummary(played: SeasonRecord[]) {
   if (top) celebrate(top, top.startsWith('Mundial'));
 }
 
+/** Monto en la moneda de la nacionalidad (los datos están en quetzales). */
+const cash = (quetzales: number) => moneyShort(career!.home, quetzales);
+
 function playerHead() {
   const p = career!.player;
   const club = career!.club;
@@ -563,6 +567,7 @@ function playerHead() {
     <div class="who">
       <h2>${esc(fullName())}</h2>
       <p class="meta">${POSITION_NAMES[p.setup.position]} · ${p.age} años · ${esc(career!.home.name)}${nt}</p>
+      <p class="meta money">Ganado <b>${esc(cash(earned(p)))}</b> · Contrato ${esc(cash(p.contract.salary))} por temporada · ${yearsText(p.contract.until - p.year + 1)}</p>
       <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
       ${club.stadium ? `<p class="meta">${esc(club.stadium)} · ${esc(club.city)}</p>` : ''}
     </div>
@@ -590,6 +595,7 @@ function seasonRow(r: SeasonRecord, fresh: boolean) {
   const chips = [
     ...r.titles.map((t) => `<span class="chip gold">${esc(t)}</span>`),
     ...r.awards.map((a) => `<span class="chip gold">${AWARD_LABEL[a.kind]}</span>`),
+    `<span class="chip">Ganó ${esc(cash(r.salary))}</span>`,
     r.nt ? `<span class="chip">Selección · ${r.nt.matches.length} PJ</span>` : '',
     r.note ? `<span class="chip">${esc(r.note)}</span>` : '',
   ].filter(Boolean);
@@ -699,6 +705,11 @@ function finish() {
         <div><b>${p.caps}</b><span>Selección</span></div>
         <div><b>${p.natGoals}</b><span>Goles Sel.</span></div>
       </div>
+    </section>
+    <section class="panel">
+      <span class="eyebrow">Dinero ganado</span>
+      <p class="money-total">${esc(cash(s.earned))}</p>
+      <p class="meta">Suma de los contratos de ${p.seasons.length} temporadas. No cuenta para el puntaje.</p>
     </section>
     ${trophies.length ? `<section class="panel"><span class="eyebrow">Palmarés</span><ul class="trophies">${trophies
       .map((t) => trophy(t.icon, t.label, `${t.icon === 'copa' ? 'Campeón ' : ''}${t.count === 1 ? '1 vez' : `${t.count} veces`}`))
