@@ -14,6 +14,8 @@
   --bad: #b8352b;
   --flag-blue: #4997d0;
   --flag-white: #ffffff;
+  --accent: #1f6aa8; /* fondo de botones de acento: 5,7:1 con texto blanco */
+  --on-accent: #ffffff;
   --display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
   --body: 'Barlow', 'Segoe UI', system-ui, sans-serif;
   color-scheme: light;
@@ -34,6 +36,8 @@
     --bad: #f07a6e;
     --flag-blue: #3a7fb5;
     --flag-white: #c9dcec;
+    --accent: #6cb4ee;
+    --on-accent: #08131f;
     color-scheme: dark;
   }
 }
@@ -52,6 +56,8 @@
   --bad: #f07a6e;
   --flag-blue: #3a7fb5;
   --flag-white: #c9dcec;
+  --accent: #6cb4ee;
+  --on-accent: #08131f;
   color-scheme: dark;
 }
 
@@ -115,6 +121,8 @@ button, input, select { font: inherit; color: inherit; }
 .btn:active { transform: scale(0.98); }
 a.btn { text-decoration: none; }
 .btn.secondary { background: var(--surface); color: var(--ink); border: 1.5px solid var(--line); }
+/* Botón de Retos Fútbol: color propio para que no se pierda contra el fondo de la página. */
+.btn.retos { background: var(--accent); color: var(--on-accent); }
 .btn.big { font-size: 20px; padding: 18px; font-family: var(--display); letter-spacing: 0.04em; text-transform: uppercase; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; }
 .row > .btn { flex: 1 1 140px; }
