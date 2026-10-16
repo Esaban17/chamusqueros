@@ -1,5 +1,5 @@
 // Cliente HTTP del modo en línea: funciones tipadas con protocolo.ts, la identidad del dispositivo y el reloj del servidor.
-// Es el ÚNICO archivo de Retos que toca localStorage (con try/catch en cada acceso: puede no existir o estar bloqueado).
+// Es el único archivo de online/ que toca localStorage (con try/catch en cada acceso: puede no existir o estar bloqueado); fuera de online/, solo dia/almacen.ts (specs/reto-del-dia).
 // Nunca registra ni muestra el token; el `id` y el token solo viajan en cabeceras.
 import {
   CODIGO_RE, type AvatarCodigo, type CodigoError, type Config, type EventoCanal, type Accion, type PerfilCompleto,

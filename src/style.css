@@ -259,6 +259,10 @@ a.btn { text-decoration: none; }
 .record small { font-size: 12px; font-weight: 600; color: var(--muted); }
 .record b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .link { flex: none; min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--celeste); font-weight: 700; font-size: 15px; cursor: pointer; }
+/* Continuar mi carrera (specs/continuar-carrera): botón principal del Home con una línea de resumen, y avisos de una línea. */
+.continuar { display: flex; flex-direction: column; gap: 6px; }
+.continuar-resumen { color: var(--muted); font-size: 14px; line-height: 1.3; text-align: center; overflow-wrap: anywhere; }
+.aviso { color: var(--muted); font-size: 14px; font-weight: 600; line-height: 1.3; text-align: center; }
 
 /* Resumen de temporada */
 .season-card .totals { grid-template-columns: repeat(3, 1fr); }
@@ -511,3 +515,8 @@ button.season:hover { background: var(--surface-2); }
 .trophy-img { flex: none; width: 48px; height: 48px; box-sizing: border-box; padding: 4px; border-radius: 12px; background: #fff; object-fit: contain; }
 .party-banner img, .party-banner svg { flex: none; width: 96px; height: 96px; box-sizing: border-box; border-radius: 16px; background: #fff; padding: 6px; object-fit: contain; }
 .party-banner svg { padding: 22px; border-radius: 50%; background: #f0c14b; fill: none; stroke: #0d1b2a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Bloque "Retar" de la pantalla final: compacto (ajuste post-revisión UX, specs/retar-desde-final). El aviso vacío no ocupa lugar. */
+#retarBox { padding: 14px 16px; gap: 0; }
+#retarBox > * + * { margin-top: 10px; }
+#retarBox .toast:empty { min-height: 0; margin-top: 0; }

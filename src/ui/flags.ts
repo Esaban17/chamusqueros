@@ -24,4 +24,4 @@ export const FLAG_CODE: Record<string, string> = {
 
 /** Bandera decorativa: el nombre del país siempre va escrito al lado. */
 export const flag = (team: string, cls = 'nation-flag') =>
-  FLAG_CODE[team] ? `<img class="${cls}" src="https://flagcdn.com/w40/${FLAG_CODE[team]}.png" alt="" loading="lazy">` : '';
+  Object.hasOwn(FLAG_CODE, team) ? `<img class="${cls}" src="https://flagcdn.com/w40/${FLAG_CODE[team]}.png" alt="" loading="lazy">` : '';

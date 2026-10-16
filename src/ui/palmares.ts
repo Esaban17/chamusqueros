@@ -81,7 +81,7 @@ export const TROFEO_IMG: Record<string, TrofeoImg> = {
 const CLUB_COMPETITIONS = new Set([...COUNTRIES.flatMap((c) => c.leagues), ...CLUB_CUPS, 'Copa Centroamericana']);
 /** La imagen del trofeo; sin foto propia, un título de club lleva la copa dorada. Undefined: se dibuja el ícono de trazo. */
 export const trophyImg = (label: string, icon: TrophyIcon): TrofeoImg | undefined =>
-  TROFEO_IMG[label] ?? (icon === 'copa' && CLUB_COMPETITIONS.has(label) ? COPA : undefined);
+  (Object.hasOwn(TROFEO_IMG, label) ? TROFEO_IMG[label] : undefined) ?? (icon === 'copa' && CLUB_COMPETITIONS.has(label) ? COPA : undefined);
 /** "Liga Nacional · Clausura 2038" y "LaLiga 2031" son el título de "Liga Nacional" y de "LaLiga". */
 export const titleLabel = (t: string) => t.replace(/ · (Apertura|Clausura) \d{4}$/, '').replace(/ \d{4}$/, '');
 

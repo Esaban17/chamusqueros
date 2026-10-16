@@ -20,17 +20,18 @@ export function neonFalso() {
   const salas = new Map<string, SalaFalsa>();
   const partidas: PartidaFalsa[] = [];
   const carreras = new Map<string, { score: number; titles: number; caps: number }>();
+  const carrerasDia = new Map<string, { iniciadas: number; terminadas: number }>();
   const consultas: { tag: string; params: unknown[] }[] = [];
   let fallar: string | null = null;
   const bd = {
-    jugadores, salas, partidas, carreras, consultas,
+    jugadores, salas, partidas, carreras, carrerasDia, consultas,
     /** Se llama antes de resolver cada consulta: sirve para que "otra petición" cambie la sala justo antes de un guardado. */
     gancho: null as null | ((tag: string, params: unknown[]) => void),
     /** Las consultas con esa etiqueta responden 500 (para probar errores sin detalles internos). */
     fallarEn(tag: string | null) { fallar = tag; },
     ranking() { return orden().map((j, i) => ({ pos: i + 1, ...j })); },
     manejar,
-    limpiar() { jugadores.clear(); salas.clear(); partidas.length = 0; carreras.clear(); consultas.length = 0; fallar = null; bd.gancho = null; },
+    limpiar() { jugadores.clear(); salas.clear(); partidas.length = 0; carreras.clear(); carrerasDia.clear(); consultas.length = 0; fallar = null; bd.gancho = null; },
   };
 
   const orden = () => [...jugadores.values()].filter((j) => j.puntos > 0)
@@ -149,6 +150,16 @@ export function neonFalso() {
         for (let i = partidas.length - 1; i >= 0; i--) if (partidas[i].cerrada < Number(partidasAntes)) partidas.splice(i, 1);
         return vacio('DELETE');
       }
+      case 'contarCarrera': {
+        // ahora, evento, evento. Guatemala es UTC-6 fijo.
+        const [ahora, evento] = p;
+        const dia = new Date(Number(ahora) - 6 * 3600_000).toISOString().slice(0, 10);
+        const f = carrerasDia.get(dia) ?? { iniciadas: 0, terminadas: 0 };
+        if (evento === 'iniciada') f.iniciadas++; else if (evento === 'terminada') f.terminadas++;
+        carrerasDia.set(dia, f);
+        return vacio('INSERT');
+      }
+      case 'rankingTop': case 'rankingAvatarGet': case 'rankingGuardar': case 'rankingAvatarPost': return vacio();
       default:
         throw new Error(`consulta sin etiqueta conocida: ${tag}`);
     }

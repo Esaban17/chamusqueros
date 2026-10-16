@@ -147,3 +147,15 @@ export async function limpiar(ahora: number): Promise<void> {
     WITH s AS (DELETE FROM retos_salas WHERE actualizado_at < to_timestamp(${ahora - 3600_000}::double precision / 1000) RETURNING 1)
     DELETE FROM retos_partidas WHERE cerrada_at < to_timestamp(${ahora - 30 * 24 * 3600_000}::double precision / 1000)`;
 }
+
+// ---------- Contador de carreras ----------
+
+/** Suma 1 al contador del día (hora de Guatemala, UTC-6 sin horario de verano) del evento. Una sola sentencia: la suma es atómica. Copia en db/contador-carreras.test.sql. */
+export async function contarCarrera(evento: 'iniciada' | 'terminada', ahora: number): Promise<void> {
+  await sql`/* contarCarrera */
+    INSERT INTO carreras_dia (dia, iniciadas, terminadas)
+    VALUES ((to_timestamp(${ahora}::double precision / 1000) AT TIME ZONE 'America/Guatemala')::date,
+            (${evento}::text = 'iniciada')::int, (${evento}::text = 'terminada')::int)
+    ON CONFLICT (dia) DO UPDATE
+      SET iniciadas = carreras_dia.iniciadas + EXCLUDED.iniciadas, terminadas = carreras_dia.terminadas + EXCLUDED.terminadas`;
+}

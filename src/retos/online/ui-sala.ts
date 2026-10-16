@@ -5,6 +5,7 @@ import { h, type Indice } from '../comun';
 import { COUNTRIES } from '../../engine/countries';
 import { CLUBES, PAISES } from '../../../api/_retos';
 import { limpiar } from '../pingpong';
+import { anclaWhatsApp, botonesCompartir, datosEnLinea, textoResultado } from '../compartir';
 import { nodoAvatar } from './avatar';
 import { crearCuenta } from './cuenta';
 import {
@@ -433,7 +434,7 @@ export function entrarEnSala(sh: Shell, inicial: RespuestaSala, transporte: Tran
         botones.push(sh.boton('Compartir', async () => {
           try { await navigator.share({ title: 'Chamusqueros: Retos Fútbol', text: 'Te reto a un duelo de fútbol en línea.', url: link }); } catch { /* canceló el menú */ }
         }));
-      }
+      } else botones.push(anclaWhatsApp(`Te reto a un duelo de fútbol en Chamusqueros: ${link}`));   // RF-03: sin menú del sistema, WhatsApp
       botones.push(copiar);
       nodoInvitar.append(
         h('h2', { class: 'rt-sub' }, 'Invitá a alguien'),
@@ -582,6 +583,9 @@ export function entrarEnSala(sh: Shell, inicial: RespuestaSala, transporte: Tran
       const b = sh.boton('Revancha', () => { b.disabled = true; void hacer(() => revancha(codigo)).finally(() => { b.disabled = false; }); });
       cuerpo.push(b);
     }
+    const d = datosEnLinea(sala.partida, yo);
+    const compartir = d && botonesCompartir(textoResultado(d));   // RF-02: sin abandono; el texto no lleva el pase
+    if (compartir) cuerpo.push(compartir);
     cuerpo.push(
       sh.boton('Ranking de Retos', () => { detener(); void import('./ui-ranking').then((m) => m.pantallaRanking(sh, () => { void reanudarSala(sh).then((c) => { if (!c) sh.entrada(); }); })); }, 'btn secondary'),
       sh.boton('Salir de la sala', () => { if (dejarSala()) sh.entrada(); }, 'btn secondary'));

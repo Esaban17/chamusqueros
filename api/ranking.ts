@@ -1,6 +1,8 @@
 // Ranking global (Vercel Function + Neon). Una fila por jugador con su mejor carrera; esquema en db/ranking.sql.
 // Orden: score ↓, títulos ↓, partidos con la Selección ↓, quien lo logró primero.
 import { neon } from '@neondatabase/serverless';
+import { ipDe, limitado } from './_http.js';
+import { LIMITES, limitar } from './_limite.js';
 import { esOfensivo } from './_nombres.js';
 
 const sql = neon(process.env.DATABASE_URL!);
@@ -34,6 +36,7 @@ function toCard(c: any) {
 /** Los TOP mejores más la fila del jugador si quedó afuera. Nunca devuelve player_id. */
 async function ranking(playerId: string | null) {
   const rows = await sql`
+    /* rankingTop */
     WITH r AS (
       SELECT player_id, name, score, titles, caps, avatar, card,
         row_number() OVER (ORDER BY score DESC, titles DESC, caps DESC, achieved_at) AS pos
@@ -46,16 +49,24 @@ async function ranking(playerId: string | null) {
 }
 
 export async function GET(req: Request) {
+  // Tope por IP antes de tocar la base (A04). ponytail: la cuenta es por instancia y de mejor esfuerzo; el tope global es la regla de Rate Limiting del Firewall de Vercel.
+  const espera = limitar(`carrera-get-ip:${ipDe(req)}`, LIMITES.carreraGet);
+  if (espera) return limitado(espera);
   const raw = req.headers.get('x-player-id');
   const id = raw && UUID.test(raw) ? raw : null;
   // Las filas guardadas antes de que existiera el avatar lo toman del último jugador creado en ese dispositivo.
   const avatar = req.headers.get('x-player-avatar')?.split(',').map(Number);
   // Si falla, se muestra igual el ranking: completar el avatar no debe tumbar la lectura.
-  if (id && isAvatar(avatar)) await sql`UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${id} AND avatar IS NULL`.catch(() => {});
+  if (id && isAvatar(avatar)) await sql`/* rankingAvatarGet */ UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${id} AND avatar IS NULL`.catch(() => {});
   return ranking(id);
 }
 
 export async function POST(req: Request) {
+  // Cuenta todo intento, también los que terminan en 400: es el tope de escritura.
+  const espera = limitar(`carrera-post-ip:${ipDe(req)}`, LIMITES.carreraPost);
+  if (espera) return limitado(espera);
+  // Exigir JSON obliga al preflight de CORS: una página ajena no puede gastar el tope de la IP de quien la visita (seguridad B-2).
+  if (!(req.headers.get('content-type') ?? '').toLowerCase().startsWith('application/json')) return Response.json({ error: 'Datos inválidos' }, { status: 400 });
   const b = await req.json().catch(() => null);
   // El tope de puntaje deja 25 % sobre el máximo que mide `npm run simulate` (con los premios de specs/trofeos-reales sube a unos 900).
   // ponytail: el puntaje se calcula en el navegador y aquí solo se validan rangos; un POST armado a mano entra.
@@ -72,12 +83,13 @@ export async function POST(req: Request) {
   // Solo reemplaza si la carrera nueva es mejor según el mismo orden del ranking; si empata, conserva la fecha vieja.
   // Copia en db/ranking.test.sql: si cambia aquí, cambiarlo allá.
   await sql`
+    /* rankingGuardar */
     INSERT INTO ranking (player_id, name, score, titles, caps, avatar, card)
     VALUES (${b.id}, ${name}, ${b.score}, ${b.titles}, ${b.caps}, ${avatar}::smallint[], ${card && JSON.stringify(card)}::jsonb)
     ON CONFLICT (player_id) DO UPDATE
       SET name = EXCLUDED.name, score = EXCLUDED.score, titles = EXCLUDED.titles, caps = EXCLUDED.caps, avatar = EXCLUDED.avatar, card = EXCLUDED.card, achieved_at = now()
       WHERE (EXCLUDED.score, EXCLUDED.titles, EXCLUDED.caps) > (ranking.score, ranking.titles, ranking.caps)`;
   // Las filas guardadas antes de que existiera el avatar lo reciben en la siguiente carrera, aunque no sea mejor.
-  if (avatar) await sql`UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${b.id} AND avatar IS NULL`;
+  if (avatar) await sql`/* rankingAvatarPost */ UPDATE ranking SET avatar = ${avatar}::smallint[] WHERE player_id = ${b.id} AND avatar IS NULL`;
   return ranking(b.id);
 }

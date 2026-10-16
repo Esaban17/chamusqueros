@@ -3,6 +3,7 @@
 //   npx tsx scripts/ranking.test.ts
 import assert from 'node:assert/strict';
 import { COUNTRIES } from '../src/engine/countries';
+import { reiniciarLimites } from '../api/_limite';
 
 process.env.DATABASE_URL = 'postgres://u:p@ep-prueba.neon.tech/db';
 const consultas: { query: string; params: unknown[] }[] = [];
@@ -16,12 +17,13 @@ const { POST } = await import('../api/ranking');
 /** Envía una carrera con ese país en la carta y devuelve la carta que se mandó a la base (null si se descartó la carta entera). */
 async function guardar(country: unknown, extra: Record<string, unknown> = {}) {
   consultas.length = 0;
+  reiniciarLimites(); // el tope por IP no es lo que se prueba aquí
   const body = {
     id: '11111111-1111-4111-8111-111111111111', name: 'Prueba', score: 120, titles: 3, caps: 12,
     card: { pos: 'DEL', ovr: 80, club: 'municipal', dept: 'Guatemala', foot: 'Derecho', apps: 300, goals: 100, assists: 40, country },
     ...extra,
   };
-  const res = await POST(new Request('http://x/api/ranking', { method: 'POST', body: JSON.stringify(body) }));
+  const res = await POST(new Request('http://x/api/ranking', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }));
   const insert = consultas.find((c) => /INSERT INTO ranking/.test(c.query));
   return { status: res.status, insertado: !!insert, card: insert ? JSON.parse(String(insert.params[6])) : undefined };
 }
@@ -51,7 +53,8 @@ for (const nombre of ['Pendejo', 'PENDEJO', 'p3nd3j0', 'Juan Hijueputa', 'Cabró
   assert.equal(r.insertado, false, `${nombre}: no debe haber INSERT`);
 }
 {
-  const res = await POST(new Request('http://x/api/ranking', { method: 'POST', body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111', name: 'Pendejo', score: 10, titles: 0, caps: 0 }) }));
+  reiniciarLimites();
+  const res = await POST(new Request('http://x/api/ranking', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111', name: 'Pendejo', score: 10, titles: 0, caps: 0 }) }));
   assert.deepEqual(await res.json(), { error: 'Nombre no permitido' });
 }
 // Los nombres de siempre siguen entrando: vacío ("Anónimo"), con tildes, largos, raros, y palabras que contienen una raíz sin serlo.
@@ -61,3 +64,12 @@ for (const nombre of ['', 'Estuardo', 'Sofía Ñoño', 'Computadora', 'Vergara',
   assert.ok(r.insertado, nombre);
 }
 console.log('ranking: 27 códigos válidos se conservan; ZZ, minúsculas, 3 letras, vacío, HTML, SQL y tipos raros se descartan sin perder la carrera; límites intactos; nombres ofensivos → 400 sin escribir.');
+
+// Seguridad B-2: sin content-type JSON no hay preflight de CORS; se rechaza sin tocar la base.
+{
+  reiniciarLimites();
+  consultas.length = 0;
+  const res = await POST(new Request('http://x/api/ranking', { method: 'POST', body: JSON.stringify({ id: '11111111-1111-4111-8111-111111111111', name: 'Prueba', score: 10, titles: 0, caps: 0 }) }));
+  assert.equal(res.status, 400);
+  assert.equal(consultas.length, 0);
+}

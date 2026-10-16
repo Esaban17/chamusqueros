@@ -4,3 +4,4 @@ dist-single
 .env
 .vercel
 .env*.local
+informes/
