@@ -30,6 +30,6 @@ Ver la adenda de `plan.md`. Orden: T-11 → T-12 → T-13 → T-14.
 | ID | Entregable | Depende de | Cubre |
 |----|------------|------------|-------|
 | T-11 | `src/retos/index.ts`: `Destino` gana `'dia'`; rama `destino === 'dia'` → `retoDelDia()`, **antes** de `else if (destino)`. | — | RF-26, RF-27 |
-| T-12 | `src/main.ts`: `DestinoRetos` gana `'dia'`; fila `data-go="reto-dia"` antes de la línea 239, sin condición; clave `'reto-dia'` en `destino`; línea 229 vuelve a "Duelos de 2: en un solo celular o en línea". | T-11 | RF-25, RF-26, RF-28, RF-29 |
+| T-12 | `src/main.ts`: `DestinoRetos` gana `'dia'`; fila `go('dia', …, 'record reto-dia')` (`data-go="dia"`) antes de la línea 239, sin condición; clave `dia` en `destino` y `'dia'` en la unión de `go`; línea 229 vuelve a "Duelos de 2: en un solo celular o en línea". | T-11 | RF-25, RF-26, RF-28, RF-29 |
 | T-13 | `src/style.css`: `button.record` (reset de botón), `button.reto-dia .reto-texto` (columna de texto) y `button.reto-dia b` (texto en dos líneas), junto a `.record`. | T-12 | RF-25, RF-30 |
 | T-14 | Verificación de la adenda según `plan.md`: build y tamaño, cinco pruebas, navegador a 390×844 y 360×640 con y sin carrera, pestaña de red, `git diff --stat`. Si algo se desvía, se corrige el código o se enmienda la spec de forma explícita. | T-11, T-12, T-13 | RF-25 a RF-30; CA-16 a CA-25 |

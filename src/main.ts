@@ -225,8 +225,8 @@ function home() {
   const last = store<Partial<PlayerSetup>>(LAST_SETUP_KEY, {});
   const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
   const number = last.number ?? 10;
-  const go = (what: 'start' | 'ranking' | 'retos' | 'perfil' | 'ranking-retos', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
-  const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);opacity:.85">Duelos de 2 y un reto nuevo cada día</span>', cls);
+  const go = (what: 'start' | 'ranking' | 'retos' | 'perfil' | 'ranking-retos' | 'dia', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
+  const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);opacity:.85">Duelos de 2: en un solo celular o en línea</span>', cls);
   render(`
     <div class="brand">Chamus<span>queros</span></div>
     <section class="hero center">
@@ -236,6 +236,7 @@ function home() {
     ${guardada && guardada !== 'descartada'
       ? `${bloqueContinuar(guardada.career)}${go('start', 'Empezar mi carrera', 'btn big secondary')}`
       : `${guardada ? `<p class="aviso" role="status">${AVISO_DESCARTADA}</p>` : ''}${go('start', 'Empezar mi carrera')}`}
+    ${go('dia', '<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="reto-texto"><small>Reto del día</small><b>Un reto nuevo cada día. Cuidá tu racha.</b></span><span class="link">Jugar ›</span>', 'record reto-dia')}
     ${retos('btn retos')}
     ${top
       ? `<div class="record">
@@ -308,14 +309,14 @@ function home() {
     ${footer()}
   `);
   const destino = {
-    start: createForm, continuar: continuarCarrera, ranking: rankingScreen, retos: () => abrirRetos(), perfil: abrirPerfil, 'ranking-retos': () => abrirRetos('ranking'),
+    start: createForm, continuar: continuarCarrera, ranking: rankingScreen, retos: () => abrirRetos(), perfil: abrirPerfil, 'ranking-retos': () => abrirRetos('ranking'), dia: () => abrirRetos('dia'),
   };
   app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = destino[b.dataset.go as keyof typeof destino]));
 }
 
 // Retos Fútbol y el perfil viven en su propio paquete: solo se descargan cuando alguien los abre.
 /** Adonde abre Retos: el ranking, o una sala por su código (link `?sala=`). */
-type DestinoRetos = 'ranking' | 'retar' | { sala: string } | { creada: RespuestaSala };
+type DestinoRetos = 'ranking' | 'retar' | 'dia' | { sala: string } | { creada: RespuestaSala };
 const sinPaquete = () => alert('No se pudo cargar. Revisá tu conexión e intentá de nuevo.');
 function abrirRetos(destino?: DestinoRetos, alSalir: () => void = home) {
   import('./retos/index')

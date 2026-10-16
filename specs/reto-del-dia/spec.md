@@ -131,6 +131,7 @@ Lo siguiente reemplaza texto anterior de este spec. Lo que no está aquí sigue 
 - **Sin racha ni estado en el Home en esta versión:** `src/retos/dia/puro.ts` importa `dedonde.ts`, que importa `selecciones.ts`. Leer el registro desde el Home metería ese banco en el paquete principal, contra la carga diferida de RF-21. Ver "Fuera de alcance".
 - **Sin dependencias nuevas, sin peticiones de red nuevas y sin cambios en el almacenamiento.**
 - **Decisión propia de esta adenda (vetable):** en 360 px el texto puede partirse en dos líneas (RF-30). En una sola línea, el estilo de la fila de récord lo corta con puntos suspensivos y se pierde "Cuidá tu racha.". Si se quiere una línea, hay que cambiar el copy o el tamaño de letra, y eso se decide aparte.
+- **Nombre `dia` y fila con `go()` (enmienda de implementación, 2026-10-15).** El resumen del orquestador pide `data-go="dia"`, `'dia'` en la unión de `go()` y `dia` en `destino`; el plan decía `reto-dia`. Se sigue el resumen y `plan.md` se actualiza en el mismo cambio. La fila usa `go()`, el helper que ya usan los demás botones del Home, en vez de escribir el `<button>` a mano (sin `type="button"`: fuera de un formulario no hace falta). Solo cambia el tipo de `go`, no su cuerpo. Ningún RF ni CA cambia.
 
 ### Requisitos funcionales
 - **RF-25** El Home muestra la fila "Reto del día" entre el bloque de la carrera y el botón "Retos Fútbol" (su primera aparición). La fila aparece siempre: con o sin conexión, con o sin el modo en línea, con o sin carrera guardada.
@@ -158,7 +159,7 @@ Medidas con el almacenamiento vacío, salvo donde se diga.
 - Una segunda fila del reto en la sección "Retos Fútbol" de más abajo. Hay una sola fila, arriba.
 
 ### Seguridad (OWASP Top 10)
-- **A03 Inyección:** el marcado de la fila es un literal fijo, sin datos del usuario ni del almacenamiento (RF-29).
-- **A06 Componentes vulnerables:** cero dependencias nuevas (RF-29, CA-22).
-- **A08 Integridad de datos:** el Home no lee ni escribe almacenamiento para el reto, y no hay datos remotos nuevos (RF-29, CA-22).
+- **A03 Inyección:** el marcado de la fila es un literal fijo, sin datos del usuario ni del almacenamiento (RF-29). *Cumplido:* la fila es un literal pasado a `go()`, sin variables; el diff de `src/main.ts` no añade interpolaciones ni `innerHTML` (CA-22, revisado con `git diff`).
+- **A06 Componentes vulnerables:** cero dependencias nuevas (RF-29, CA-22). *Cumplido:* `git diff origin/main -- package.json package-lock.json` sale vacío, y `src/main.ts` no añade imports nuevos.
+- **A08 Integridad de datos:** el Home no lee ni escribe almacenamiento para el reto, y no hay datos remotos nuevos (RF-29, CA-22). *Cumplido:* el diff de `src/main.ts` no añade `localStorage` ni `fetch(`, y no importa nada de `./retos/dia`, `./retos/dedonde` ni `./retos/selecciones` (verificado con `grep`).
 - **Resto (A01, A02, A04, A05, A07, A09, A10):** no aplica; la fila no pide, guarda ni muestra nada del usuario.

@@ -202,9 +202,9 @@ Deriva de la adenda de `spec.md` (RF-25 a RF-30, CA-16 a CA-25); sus decisiones 
 ### Cambios
 | Archivo | Cambio | RF |
 |---|---|---|
-| `src/main.ts` | (a) `DestinoRetos` (línea 318) gana `'dia'`. (b) En `home()`, una fila inline antes de `${retos('btn retos')}` de la línea 239, sin condición (a diferencia de `.record`, que depende de `top`): `<button type="button" class="record reto-dia" data-go="reto-dia">` con el SVG de calendario (`aria-hidden`), `<span class="reto-texto"><small>Reto del día</small><b>Un reto nuevo cada día. Cuidá tu racha.</b></span>` y `<span class="link">Jugar ›</span>`. Dentro de `<button>` solo cabe contenido de frase: por eso `<span>` y no `<div>`, y ningún botón dentro del botón. (c) En el objeto `destino`: `'reto-dia': () => abrirRetos('dia')`. No se toca `go()`. (d) Línea 229 (closure `retos`): vuelve a "Duelos de 2: en un solo celular o en línea". Es una sola cadena, que cubre las dos apariciones (líneas 239 y 292). | RF-25, RF-26, RF-28 |
+| `src/main.ts` | (a) `DestinoRetos` (línea 318) gana `'dia'`. (b) En `home()`, una fila `go('dia', …, 'record reto-dia')` antes de `${retos('btn retos')}` de la línea 239, sin condición (a diferencia de `.record`, que depende de `top`); `go()` la pinta como `<button class="record reto-dia" data-go="dia">` (ver `spec.md`, Decisiones, enmienda de implementación). Lleva el SVG de calendario (`aria-hidden`), `<span class="reto-texto"><small>Reto del día</small><b>Un reto nuevo cada día. Cuidá tu racha.</b></span>` y `<span class="link">Jugar ›</span>`. Dentro de `<button>` solo cabe contenido de frase: por eso `<span>` y no `<div>`, y ningún botón dentro del botón. (c) En el objeto `destino`: `dia: () => abrirRetos('dia')`. `go()` solo gana `'dia'` en la unión de `what`; su cuerpo no cambia. (d) Línea 229 (closure `retos`): vuelve a "Duelos de 2: en un solo celular o en línea". Es una sola cadena, que cubre las dos apariciones (líneas 239 y 292). | RF-25, RF-26, RF-28 |
 | `src/retos/index.ts` | (a) `Destino` (línea 30) gana `'dia'`. (b) En "Apertura" (líneas 346-353): `else if (destino === 'dia') retoDelDia();` **antes** de `else if (destino)` (línea 351), que trata cualquier valor verdadero como `{ sala }`. | RF-26, RF-27 |
-| `src/style.css` | Junto a `.record` (líneas 253-260): `button.record { width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }` y `button.reto-dia .reto-texto { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }`, `button.reto-dia b { white-space: normal; }`. Nada más. | RF-25, RF-30 |
+| `src/style.css` | Junto a `.record` (líneas 253-260): `button.record { width: 100%; text-align: left; cursor: pointer; }` (font y color ya vienen de la regla global de `button`, línea 83) y `button.reto-dia .reto-texto { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }`, `button.reto-dia b { white-space: normal; }`. Nada más. | RF-25, RF-30 |
 
 Sin `'dia'` en los dos tipos, `abrirRetos('dia')` no compila; por eso T-11 va antes que T-12.
 
@@ -212,7 +212,7 @@ Sin `'dia'` en los dos tipos, `abrirRetos('dia')` no compila; por eso T-11 va an
 | RF | Dónde |
 |---|---|
 | RF-25 | fila en `main.ts`, antes de la línea 239, sin condición |
-| RF-26 | `destino['reto-dia']` en `main.ts`; rama `dia` en `index.ts`. Si la descarga falla, `sinPaquete` muestra el mismo aviso que el botón |
+| RF-26 | `dia` en `destino` de `main.ts`; rama `dia` en `index.ts`. Si la descarga falla, `sinPaquete` muestra el mismo aviso que el botón |
 | RF-27 | `retoDelDia()` ya existente: "Salir" llama a `alSalir` (que es `home`); "Volver a Retos" llama a `entrada`. Sin cambios |
 | RF-28 | closure `retos` de `main.ts` (línea 229) |
 | RF-29 | ningún `import` nuevo ni `localStorage` en `main.ts`; CA-22 y CA-23 |

@@ -258,6 +258,10 @@ a.btn { text-decoration: none; }
 .record div { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
 .record small { font-size: 12px; font-weight: 600; color: var(--muted); }
 .record b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Reto del día (specs/reto-del-dia, adenda): botón con aspecto de .record; font y color ya vienen de la regla global de button. */
+button.record { width: 100%; text-align: left; cursor: pointer; }
+button.reto-dia .reto-texto { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }
+button.reto-dia b { white-space: normal; }
 .link { flex: none; min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--celeste); font-weight: 700; font-size: 15px; cursor: pointer; }
 /* Continuar mi carrera (specs/continuar-carrera): botón principal del Home con una línea de resumen, y avisos de una línea. */
 .continuar { display: flex; flex-direction: column; gap: 6px; }
