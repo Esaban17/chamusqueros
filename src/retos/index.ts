@@ -27,7 +27,7 @@ interface Sesion {
 }
 
 /** A dónde abre Retos: una sala por su link, el ranking o el perfil. Sin destino, la entrada (o la sala que este dispositivo tenía abierta). */
-export type Destino = { sala: string } | { creada: RespuestaSala } | 'ranking' | 'perfil' | 'retar';
+export type Destino = { sala: string } | { creada: RespuestaSala } | 'ranking' | 'perfil' | 'retar' | 'dia';
 
 const WIKIDATA = 'https://www.wikidata.org/';
 const base = import.meta.env.BASE_URL;
@@ -348,6 +348,7 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
   else if (destino === 'perfil') abrirPerfil(volverAlHome);
   else if (destino === 'retar') abrirEnLinea((sh, m) => m.crearSalaNueva(sh));
   else if (typeof destino === 'object' && 'creada' in destino) abrirEnLinea(async (sh, m) => m.entrarEnSala(sh, destino.creada));
+  else if (destino === 'dia') retoDelDia();
   else if (destino) abrirEnLinea((sh, m) => m.unirseConLink(sh, destino.sala));
   else if (salaGuardada()) abrirEnLinea(async (sh, m) => (await m.reanudarSala(sh)) ?? void sh.entrada());   // RF-08: volver a la sala de siempre
   else entrada();

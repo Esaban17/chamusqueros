@@ -6,7 +6,7 @@ Valor: una jugada de unos 20 segundos, en solitario, con el contenido que Retos 
 Limitación honesta: no hay medición de retorno en el sitio (sin analítica), así que el efecto en retención no se podrá verificar con datos propios. Esta spec entrega la mecánica, no la prueba de su efecto.
 
 ## Alcance
-- Una opción nueva, "Reto del día", en la pantalla de entrada de Retos, y una línea más corta en el botón de Retos del Home que la menciona (decisión del orquestador, ver Decisiones).
+- Una opción nueva, "Reto del día", en la pantalla de entrada de Retos, y una línea más corta en el botón de Retos del Home que la menciona (decisión del orquestador, ver Decisiones). *[enmendado por la adenda 2026-10-15; ver Enmiendas]*
 - Un solo reto por fecha de Guatemala: una pregunta de fútbol o un futbolista de "¿De dónde es?", alternando por día, igual para todos los dispositivos.
 - Una jugada por fecha, sin reloj, con acierto o fallo.
 - Una racha de días consecutivos jugados, la mejor racha, jugados, aciertos y los últimos 7 días, guardados solo en el navegador.
@@ -21,13 +21,13 @@ Limitación honesta: no hay medición de retorno en el sitio (sin analítica), a
 - Reloj por pregunta y puntos por rapidez.
 - Historial más allá de 7 días; sincronizar entre dispositivos o navegadores.
 - Defender la racha contra quien cambia el reloj de su propio dispositivo (ver Decisiones).
-- Cambios en el Home (más allá del texto de la segunda línea del botón de Retos), en la carrera, en el Reto completo ni en los demás modos de Retos.
+- Cambios en el Home (más allá del texto de la segunda línea del botón de Retos), en la carrera, en el Reto completo ni en los demás modos de Retos. *[enmendado por la adenda 2026-10-15; ver Enmiendas]*
 - Medición de uso (analítica).
 
 ## Requisitos funcionales
 
 ### Entrada y pantalla
-- **RF-01** La pantalla de entrada de Retos muestra una opción "Reto del día" con la línea "Un reto nuevo cada día, igual para todos. Cuidá tu racha." Aparece siempre, también cuando el modo en línea no está disponible. En el Home solo cambia el texto de la segunda línea del botón de Retos, que pasa de "Duelos de 2: en un solo celular o en línea" a "Duelos de 2 y un reto nuevo cada día"; nada más del Home cambia.
+- **RF-01** La pantalla de entrada de Retos muestra una opción "Reto del día" con la línea "Un reto nuevo cada día, igual para todos. Cuidá tu racha." Aparece siempre, también cuando el modo en línea no está disponible. En el Home solo cambia el texto de la segunda línea del botón de Retos, que pasa de "Duelos de 2: en un solo celular o en línea" a "Duelos de 2 y un reto nuevo cada día"; nada más del Home cambia. *[enmendado por la adenda 2026-10-15; ver Enmiendas]*
 - **RF-02** La pantalla del reto tiene el título "Reto del día", la fecha de Guatemala escrita en español (por ejemplo, "15 de octubre de 2026"), la racha vigente ("Racha: 3 días", "Racha: 1 día", "Racha: 0 días") y el reto del día.
 
 ### Qué reto toca cada día
@@ -57,7 +57,7 @@ Limitación honesta: no hay medición de retorno en el sitio (sin analítica), a
 - **RF-18** Operación cero: ningún servicio propio nuevo ni petición a `/api/`, ningún host nuevo, ninguna dependencia nueva, ninguna variable de entorno. Las banderas de las opciones del futbolista son las de flagcdn.com que "¿De dónde es?" ya usa.
 - **RF-19** Todo texto que se muestra (preguntas, nombres de futbolistas, opciones, fecha, números) se ve literal; nunca se interpreta como marcado.
 - **RF-20** Funciona a 360 px y en escritorio sin desplazamiento horizontal. Los botones miden 48 px de alto o más. Al cambiar de pantalla el foco va al título (al abrir y en "Ya jugaste", el "Reto del día"; al responder, el encabezado del resultado "Acertaste" o "Fallaste", que es el título de lo que aparece). Se juega solo con teclado. Contraste de 4,5:1 o más en tema claro y oscuro. Con "reducir movimiento" no hay animaciones.
-- **RF-21** Nada del reto se descarga hasta tocar "Reto del día", y de los dos bancos solo se baja el del tipo de hoy. Si la descarga falla, se dice y hay "Volver a Retos". El paquete principal del sitio no cambia.
+- **RF-21** Nada del reto se descarga hasta tocar "Reto del día", y de los dos bancos solo se baja el del tipo de hoy. Si la descarga falla, se dice y hay "Volver a Retos". El paquete principal del sitio no cambia. *[enmendado por la adenda 2026-10-15; ver Enmiendas]*
 - **RF-22** El "Salir" del encabezado de Retos lleva al Home sin pedir confirmación (no hay partida que perder), y la pantalla ofrece "Volver a Retos". Al salir no queda nada corriendo.
 - **RF-23** Los demás modos de Retos (duelo local, Reto completo de 3 categorías, en línea, perfil, ranking) se comportan igual que antes, y sus pruebas existentes pasan sin cambiar ninguna aserción (la única edición permitida es un comentario en `scripts/retos.test.ts` que nombra la excepción de `src/retos/dia/`, decisión 3 del orquestador).
 - **RF-24** `privacidad.html` dice, en una viñeta dentro de la sección de Retos Fútbol, que el Reto del día guarda en el navegador solo fechas, aciertos o fallos y contadores de racha; que eso no sale del dispositivo; y que se borra borrando los datos del sitio. La viñeta que dice que el modo "en el mismo celular" no escribe nada en el almacenamiento se mantiene verdadera porque se refiere al duelo, y se aclara que el Reto del día es aparte.
@@ -77,8 +77,8 @@ Las "fechas" son fechas de Guatemala. Los números salen de los bancos del 2026-
 - **CA-10** (RF-01, RF-02, RF-06, RF-07, RF-08, RF-09, RF-11) Dado un navegador a 360×640 con el reloj fijado en 2026-10-15 12:00 GT y sin datos guardados, cuando se abre Retos, entonces "Reto del día" está en la entrada con su línea. Cuando se toca, entonces hay un título "Reto del día", la fecha "15 de octubre de 2026", "Racha: 0 días" y un futbolista con 4 opciones (2026-10-15 es de futbolista). Cuando se sale sin responder y se vuelve a entrar, entonces sigue disponible con las mismas 4 opciones en el mismo orden. Cuando se responde, entonces la opción correcta lleva ✓ y texto, se ve "Racha: 1 día" y "Volvé mañana", y la entrada guardada es un objeto con racha 1, mejor 1, jugados 1 y un historial de una entrada. Cuando se recarga la página, entonces se ve "Ya jugaste el reto de hoy" y no se puede responder. Cuando se avanza el reloj a 2026-10-16 12:00 GT, entonces el reto es una pregunta con 4 opciones, "Racha: 1 día" y "Jugá hoy para llegar a 2"; al responder, "Racha: 2 días". Cuando se avanza a 2026-10-19 sin haber jugado, entonces "Racha: 0 días" y la mejor racha sigue en 2 (en el registro guardado; en pantalla se ve en las estadísticas al jugar ese día).
 - **CA-11** (RF-17) Dado el reto de 2026-10-15 abierto a las 23:59:50 GT, cuando se responde a las 00:00:10 del 2026-10-16, entonces la jugada se guarda con la fecha 2026-10-15; al abrir el reto, el de 2026-10-16 está disponible.
 - **CA-12** (RF-20) Dado el reto en cada una de sus pantallas (por jugar, resultado, "Ya jugaste") a 360×640 y a 1280×800, entonces el ancho de desplazamiento no supera el ancho de la ventana, cada botón mide 48 px de alto o más, el foco empieza en el título, se completa el reto solo con teclado (Tab, Enter y teclas 1 a 4), y los contrastes son de 4,5:1 o más en tema claro y oscuro.
-- **CA-13** (RF-18, RF-21) Dada la pestaña de red al abrir el Home y la entrada de Retos, entonces no hay ninguna petición del reto (ni de sus archivos, ni de los bancos). Dado un clic en "Reto del día" un día de pregunta, entonces no se descarga el banco de futbolistas; un día de futbolista, no se descarga el banco de preguntas. En ambos casos no hay ninguna petición a `/api/` ni a un host que no sea el sitio (o flagcdn.com, solo los días de futbolista). Dado `npm run build`, entonces el tamaño comprimido del paquete principal es igual al de `origin/main` (diferencia de 100 bytes o menos). El código del reto es mínimo; el reparto en archivos que genera el empaquetador puede moverse, así que se informa la suma comprimida de los archivos de Retos antes y después, sin umbral.
-- **CA-14** (RF-22, RF-23) Dado el reto abierto, cuando se toca "Salir", entonces se ve el Home sin diálogo de confirmación. Dado el cambio completo, entonces `scripts/retos.test.ts`, `scripts/trivia.test.ts`, `scripts/dedonde.test.ts`, `scripts/online-cliente.test.ts` y `npm run build` pasan sin cambiar ninguna aserción (solo `retos.test.ts` gana un comentario), y `git diff --stat origin/main` solo toca los archivos que enumera el plan.
+- **CA-13** (RF-18, RF-21) Dada la pestaña de red al abrir el Home y la entrada de Retos, entonces no hay ninguna petición del reto (ni de sus archivos, ni de los bancos). Dado un clic en "Reto del día" un día de pregunta, entonces no se descarga el banco de futbolistas; un día de futbolista, no se descarga el banco de preguntas. En ambos casos no hay ninguna petición a `/api/` ni a un host que no sea el sitio (o flagcdn.com, solo los días de futbolista). Dado `npm run build`, entonces el tamaño comprimido del paquete principal es igual al de `origin/main` (diferencia de 100 bytes o menos). *[enmendado por la adenda 2026-10-15; ver Enmiendas]* El código del reto es mínimo; el reparto en archivos que genera el empaquetador puede moverse, así que se informa la suma comprimida de los archivos de Retos antes y después, sin umbral.
+- **CA-14** (RF-22, RF-23) Dado el reto abierto, cuando se toca "Salir", entonces se ve el Home sin diálogo de confirmación. Dado el cambio completo, entonces `scripts/retos.test.ts`, `scripts/trivia.test.ts`, `scripts/dedonde.test.ts`, `scripts/online-cliente.test.ts` y `npm run build` pasan sin cambiar ninguna aserción (solo `retos.test.ts` gana un comentario), y `git diff --stat origin/main` solo toca los archivos que enumera el plan. *[enmendado por la adenda 2026-10-15; ver Enmiendas]*
 - **CA-15** (RF-24) Dado `privacidad.html`, entonces la sección de Retos Fútbol tiene una viñeta que nombra el Reto del día, lo que guarda y cómo borrarlo, y sigue diciendo que el duelo "en el mismo celular" no escribe nada en el almacenamiento.
 
 ## Seguridad (OWASP Top 10 2021)
@@ -105,7 +105,61 @@ Las "fechas" son fechas de Guatemala. Los números salen de los bancos del 2026-
 - **Enmienda explícita a `specs/retos-futbol` RF-28 ("Retos no escribe en el almacenamiento del navegador"):** ya la matizó `specs/retos-en-linea` (identidad y perfil). Esta spec agrega una entrada más (`chamusqueros:reto-dia`), y solo al jugar el Reto del día. El duelo local sigue sin escribir nada. El comentario de `src/retos/online/cliente.ts` que decía "el único archivo de Retos que toca localStorage" se actualiza aquí (solo el comentario; decisión 2 del orquestador): ahora dice que es el único de `online/` y que fuera de `online/` solo lo hace `dia/almacen.ts`.
 - **La guarda de `scripts/retos.test.ts` contra `localStorage` no se esquiva en silencio (decisión 3 del orquestador):** esa prueba solo recorre los archivos de primer nivel de `src/retos/`, así que `src/retos/dia/` queda fuera, igual que `online/`. La prueba gana un comentario que nombra a `dia/` como excepción aprobada por esta spec; `scripts/reto-del-dia.test.ts` fija que `localStorage` aparezca solo en `dia/almacen.ts` (CA-9).
 - **Banderas en el futbolista:** se usan las de `flagcdn.com` que "¿De dónde es?" ya carga. Si la imagen no carga, el nombre del país sigue escrito al lado y se puede jugar. "Sin red" en esta spec significa sin servidor propio ni hosts nuevos, no sin imágenes.
-- **Entrada en el Home, solo como texto (decisión del orquestador, 2026-10-15; reemplaza "Sin entrada en el Home"):** no hay botón nuevo en el Home; el reto vive en el menú de Retos. Pero la segunda línea del botón de Retos (`src/main.ts`, una sola línea, cambio localizado porque otras ramas editan ese archivo) pasa a "Duelos de 2 y un reto nuevo cada día" para que el reto se descubra sin entrar a Retos.
+- **Entrada en el Home, solo como texto (decisión del orquestador, 2026-10-15; reemplaza "Sin entrada en el Home"):** no hay botón nuevo en el Home; el reto vive en el menú de Retos. Pero la segunda línea del botón de Retos (`src/main.ts`, una sola línea, cambio localizado porque otras ramas editan ese archivo) pasa a "Duelos de 2 y un reto nuevo cada día" para que el reto se descubra sin entrar a Retos. *[enmendado por la adenda 2026-10-15; ver Enmiendas]*
 
 ## Aclaraciones resueltas
 Decididas por el orquestador (fecha de Guatemala, almacenamiento local no confiable, sin servidor, sin proteger de más) o como supuesto explícito arriba (alternancia, sin reloj, racha por jugar, historial de 7 días, enunciado no repetido). No queda ninguna ambigüedad bloqueante.
+
+## Adenda 2026-10-15: entrada desde el Home
+
+Un reto que solo se alcanza por Home → Retos Fútbol → Reto del día no lo ve quien no entra a Retos. Esta adenda pone una fila propia en el Home. Cambia la entrada; el reto, su registro y sus reglas siguen igual.
+
+### Enmiendas a la versión original
+Lo siguiente reemplaza texto anterior de este spec. Lo que no está aquí sigue igual.
+- RF-01, parte del Home ("nada más del Home cambia"): reemplazada por RF-25 a RF-28.
+- Alcance, parte del Home: el botón de Retos ya no menciona el reto; lo reemplaza la fila de RF-25 (ver RF-28).
+- **Fuera de alcance**, bullet de cambios en el Home: la fila de RF-25 queda dentro de alcance; el resto del Home sigue fuera.
+- **Decisión "Entrada en el Home, solo como texto"**: reemplazada por la primera decisión de esta adenda.
+- RF-21 ("el paquete principal del sitio no cambia") y CA-13 (±100 bytes): el paquete principal crece por la fila; ver CA-22 y CA-23.
+- CA-14 y el plan (una línea en `src/main.ts`, solo estos archivos): la fila cambia `src/main.ts` en más de una línea y suma `src/style.css` (CA-25). `privacidad.html`, `package.json` y `package-lock.json` no cambian.
+
+### Decisiones
+- **Fila propia en el Home** (decisión del orquestador, 2026-10-15). Va entre el bloque de la carrera ("Empezar mi carrera" o "Continuar mi carrera") y el botón "Retos Fútbol", y no depende de nada guardado.
+- **Aspecto:** igual que la fila de récord ("Tu récord"): mismo fondo, borde y radio, con el ícono a la izquierda. El ícono es un calendario en SVG en línea, del mismo estilo que el trofeo de esa fila, con `aria-hidden`. Texto: "Reto del día" (línea chica), "Un reto nuevo cada día. Cuidá tu racha." (negrita) y "Jugar ›" a la derecha. Toda la fila es un solo botón de al menos 44 px de alto.
+- **Entrada directa:** tocar la fila abre el reto del día, no la entrada de Retos. "Volver a Retos" sigue llevando a la entrada de Retos, y "Salir" al Home, como hoy.
+- **Subtítulo de vuelta:** el botón "Retos Fútbol" del Home vuelve a "Duelos de 2: en un solo celular o en línea", porque el reto ya tiene fila propia. Vale para sus dos apariciones.
+- **Sin racha ni estado en el Home en esta versión:** `src/retos/dia/puro.ts` importa `dedonde.ts`, que importa `selecciones.ts`. Leer el registro desde el Home metería ese banco en el paquete principal, contra la carga diferida de RF-21. Ver "Fuera de alcance".
+- **Sin dependencias nuevas, sin peticiones de red nuevas y sin cambios en el almacenamiento.**
+- **Decisión propia de esta adenda (vetable):** en 360 px el texto puede partirse en dos líneas (RF-30). En una sola línea, el estilo de la fila de récord lo corta con puntos suspensivos y se pierde "Cuidá tu racha.". Si se quiere una línea, hay que cambiar el copy o el tamaño de letra, y eso se decide aparte.
+- **Nombre `dia` y fila con `go()` (enmienda de implementación, 2026-10-15).** El resumen del orquestador pide `data-go="dia"`, `'dia'` en la unión de `go()` y `dia` en `destino`; el plan decía `reto-dia`. Se sigue el resumen y `plan.md` se actualiza en el mismo cambio. La fila usa `go()`, el helper que ya usan los demás botones del Home, en vez de escribir el `<button>` a mano (sin `type="button"`: fuera de un formulario no hace falta). Solo cambia el tipo de `go`, no su cuerpo. Ningún RF ni CA cambia.
+
+### Requisitos funcionales
+- **RF-25** El Home muestra la fila "Reto del día" entre el bloque de la carrera y el botón "Retos Fútbol" (su primera aparición). La fila aparece siempre: con o sin conexión, con o sin el modo en línea, con o sin carrera guardada.
+- **RF-26** Toda la fila es un único control: tocarla en cualquier parte abre la pantalla "Reto del día" en un solo paso, sin pasar por la entrada de Retos Fútbol. Si el paquete de Retos no se puede bajar, se muestra el mismo aviso que el botón "Retos Fútbol".
+- **RF-27** Desde esa pantalla, "Volver a Retos" lleva a la entrada de Retos Fútbol, y "Salir" lleva al Home sin pedir confirmación.
+- **RF-28** Los dos botones "Retos Fútbol" del Home muestran el subtítulo "Duelos de 2: en un solo celular o en línea". Reemplaza el texto de RF-01 para el Home.
+- **RF-29** Al abrir el Home, la fila no muestra racha, fecha, estado ni resultado del reto, y el Home no lee ningún dato guardado para el reto. Abrir el Home no pide ningún archivo de Retos. Al tocar la fila se descarga lo necesario para el reto del día, y solo el banco de hoy (RF-21). La fila no agrega dependencias, peticiones de red ni escrituras en el almacenamiento, y el paquete principal no incluye el código ni los bancos del reto.
+- **RF-30** A 360 px de ancho, el texto de la fila se lee completo: puede partirse en dos líneas, pero no se corta con puntos suspensivos ni se oculta.
+
+### Criterios de aceptación
+Medidas con el almacenamiento vacío, salvo donde se diga.
+- **CA-16** (RF-25) Dado el Home a 390×844 sin carrera guardada, cuando se carga sin desplazarse, entonces la fila completa se ve entre "Empezar mi carrera" y "Retos Fútbol". Con una carrera guardada, se informa la posición de la fila (sin umbral).
+- **CA-17** (RF-26) Dado el Home, cuando se toca la fila una vez, entonces la primera pantalla es la del reto: su título (h1) es "Reto del día" y la entrada de Retos Fútbol no aparece en el camino.
+- **CA-18** (RF-27) Dado el reto abierto desde la fila, cuando se toca "Volver a Retos", entonces se ve la entrada de Retos Fútbol (h1 "Retos Fútbol"). Cuando se toca "Salir", entonces se ve el Home sin diálogo de confirmación; igual desde la entrada de Retos.
+- **CA-19** (RF-26) Dada la fila, entonces es un único botón que contiene "Reto del día" y "Jugar ›", mide 44 px de alto o más en 360×640 y en 390×844, y se activa con Tab y Enter.
+- **CA-20** (RF-30) Dado el Home a 360×640, entonces no hay desplazamiento horizontal (el ancho de desplazamiento no supera el de la ventana) y la fila muestra "Un reto nuevo cada día. Cuidá tu racha." completo, en una o dos líneas, sin puntos suspensivos.
+- **CA-21** (RF-28) Dado el código del Home, entonces "Duelos de 2: en un solo celular o en línea" aparece una vez en `src/main.ts` (la función que pinta los dos botones) y "Duelos de 2 y un reto nuevo cada día" aparece 0 veces.
+- **CA-22** (RF-29) Dada la pestaña de red al abrir el Home sin tocar nada, comparada con `origin/main`, entonces no hay peticiones nuevas (ni archivos de Retos ni `/api/`). Dado `src/main.ts`, entonces no importa de `./retos/dia`, `./retos/dedonde` ni `./retos/selecciones`, y su diff no añade `localStorage`, `fetch(` ni dependencias.
+- **CA-23** (RF-29; reemplaza a RF-21 y CA-13 en el paquete principal) Dado `npm run build`, entonces el JS del paquete principal, comprimido (gzip), crece 1.000 bytes o menos respecto de `origin/main`, y no contiene ni un enunciado de `preguntas.json` ni un nombre de `futbolistas.json` (se buscan una frase de cada uno que no aparezca en el resto del código).
+- **CA-24** (regresión) Dado el cambio, entonces `npm run build` y `npx tsx` de `scripts/reto-del-dia.test.ts`, `scripts/retos.test.ts`, `scripts/retar-desde-final.test.ts`, `scripts/continuar-carrera.test.ts` y `scripts/contador-carreras.test.ts` pasan sin cambiar ninguna aserción.
+- **CA-25** (alcance) Dado `git diff --stat origin/main`, entonces solo aparecen `specs/reto-del-dia/*`, `src/main.ts`, `src/retos/index.ts` y `src/style.css`; `package.json`, `package-lock.json`, `privacidad.html` y `src/retos/dia/*` no cambian.
+
+### Fuera de alcance (adenda)
+- Racha, fecha o estado del reto en el Home. Siguiente paso posible: mover el registro (`desdeTexto`, `validar`, `registrar`, `rachaVigente`) a un módulo que no importe los bancos, para que el Home lo lea sin subir `selecciones` al paquete principal. Eso pide su propia spec o una adenda.
+- Una segunda fila del reto en la sección "Retos Fútbol" de más abajo. Hay una sola fila, arriba.
+
+### Seguridad (OWASP Top 10)
+- **A03 Inyección:** el marcado de la fila es un literal fijo, sin datos del usuario ni del almacenamiento (RF-29). *Cumplido:* la fila es un literal pasado a `go()`, sin variables; el diff de `src/main.ts` no añade interpolaciones ni `innerHTML` (CA-22, revisado con `git diff`).
+- **A06 Componentes vulnerables:** cero dependencias nuevas (RF-29, CA-22). *Cumplido:* `git diff origin/main -- package.json package-lock.json` sale vacío, y `src/main.ts` no añade imports nuevos.
+- **A08 Integridad de datos:** el Home no lee ni escribe almacenamiento para el reto, y no hay datos remotos nuevos (RF-29, CA-22). *Cumplido:* el diff de `src/main.ts` no añade `localStorage` ni `fetch(`, y no importa nada de `./retos/dia`, `./retos/dedonde` ni `./retos/selecciones` (verificado con `grep`).
+- **Resto (A01, A02, A04, A05, A07, A09, A10):** no aplica; la fila no pide, guarda ni muestra nada del usuario.
