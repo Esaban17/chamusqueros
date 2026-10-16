@@ -148,8 +148,7 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
         opcion('Jugar en el mismo celular', 'Se lo pasan entre turnos. No suma al ranking.', () => {
           void import('./trivia').catch(() => {});   // RF-33: el modo de preguntas se baja al elegir este modo, así funciona aunque después se pierda la conexión
           inicio();
-        }),
-        opcion('Reto del día', 'Un reto nuevo cada día, igual para todos. Cuidá tu racha.', retoDelDia)),
+        })),
       enLinea, secundarios,
     );
     void infoEnLinea().then((ok) => {
@@ -159,15 +158,15 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
     });
   }
 
-  // ---------- Reto del día (specs/reto-del-dia): en solitario, un reto por fecha; se baja con import() solo aquí ----------
+  // ---------- Reto del día (specs/reto-del-dia): se entra solo desde el botón del Home (destino 'dia') y se vuelve al Home ----------
   function retoDelDia() {
     detener();
     enPartida = false;
     const id = generacion;
     const host = h('div', { class: 'rt-juego' });
     marco(host);
-    void import('./dia/ui').then((m) => { if (id === generacion) cancelar = m.montarRetoDelDia(host, entrada); }).catch(() => {
-      if (id === generacion) pantalla(titulo('No se pudo cargar el reto del día'), h('p', {}, 'Revisá tu conexión e intentá de nuevo.'), boton('Volver a Retos', entrada));
+    void import('./dia/ui').then((m) => { if (id === generacion) cancelar = m.montarRetoDelDia(host, salir); }).catch(() => {
+      if (id === generacion) pantalla(titulo('No se pudo cargar el reto del día'), h('p', {}, 'Revisá tu conexión e intentá de nuevo.'), boton('Volver al inicio', salir));
     });
   }
 

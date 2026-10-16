@@ -169,3 +169,6 @@ Reemplaza el aspecto y el texto de RF-25, RF-28 y RF-30 (y sus CA-16, CA-19, CA-
 - La fila pasa a ser un botón grande (`btn big dia`) que solo dice **"Reto diario"**, en dorado (`--gold`), distinto del fondo de la página y de los otros dos botones. Sin ícono, subtítulo ni "Jugar ›".
 - El botón de Retos del Home dice solo **"Duelos"** (`btn big retos`), sin subtítulo, en sus dos apariciones. La pantalla de Retos por dentro no cambia.
 - Contraste del texto: blanco sobre `#a87508` 5,1:1 (claro); `#08131f` sobre `#f0c14b` 11:1 (oscuro).
+
+### Ajuste del usuario 2 (2026-10-15)
+La opción "Reto del día" sale de la entrada de Retos: el botón "Reto diario" del Home es la única entrada. Por eso "Volver a Retos" pasa a "Volver al inicio" y lleva al Home (también desde el aviso de error de carga). Reemplaza la parte de RF-27/CA-18 que hablaba de volver a la entrada de Retos.

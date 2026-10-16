@@ -33,7 +33,7 @@ export function montarRetoDelDia(contenedor: HTMLElement, alVolver: () => void):
     nota.textContent = llega === null ? '' : `Jugá hoy para llegar a ${llega}`;
   };
   const volver = () => {
-    const b = h('button', { type: 'button', class: 'btn big secondary' }, 'Volver a Retos');
+    const b = h('button', { type: 'button', class: 'btn big secondary' }, 'Volver al inicio');
     b.onclick = alVolver;
     return b;
   };
@@ -108,7 +108,7 @@ export function montarRetoDelDia(contenedor: HTMLElement, alVolver: () => void):
         volver());
       zona.append(res);
       res.querySelector('h2')!.focus({ preventScroll: true });
-      res.scrollIntoView();   // el resultado y "Volver a Retos" quedan a la vista sin tener que desplazarse
+      res.scrollIntoView();   // el resultado y "Volver al inicio" quedan a la vista sin tener que desplazarse
     };
     reto.opciones.forEach((o, i) => o.boton.addEventListener('click', () => responder(i)));
     raiz.addEventListener('keydown', (e) => {
