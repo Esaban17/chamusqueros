@@ -226,7 +226,7 @@ function home() {
   const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
   const number = last.number ?? 10;
   const go = (what: 'start' | 'ranking' | 'retos' | 'perfil' | 'ranking-retos' | 'dia', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
-  const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);opacity:.85">Duelos de 2: en un solo celular o en línea</span>', cls);
+  const retos = () => go('retos', 'Duelos', 'btn big retos');
   render(`
     <div class="brand">Chamus<span>queros</span></div>
     <section class="hero center">
@@ -236,8 +236,8 @@ function home() {
     ${guardada && guardada !== 'descartada'
       ? `${bloqueContinuar(guardada.career)}${go('start', 'Empezar mi carrera', 'btn big secondary')}`
       : `${guardada ? `<p class="aviso" role="status">${AVISO_DESCARTADA}</p>` : ''}${go('start', 'Empezar mi carrera')}`}
-    ${go('dia', '<svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="reto-texto"><small>Reto del día</small><b>Un reto nuevo cada día. Cuidá tu racha.</b></span><span class="link">Jugar ›</span>', 'record reto-dia')}
-    ${retos('btn retos')}
+    ${go('dia', 'Reto diario', 'btn big dia')}
+    ${retos()}
     ${top
       ? `<div class="record">
           <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/></svg>
@@ -290,7 +290,7 @@ function home() {
         <li><b>Ping pong de club:</b> lo mismo con los futbolistas de un club.</li>
         <li><b>Preguntas:</b> 5 preguntas de fútbol para cada uno.</li>
       </ul>
-      ${retos('btn retos')}
+      ${retos()}
       <div class="row">${go('perfil', 'Mi perfil ›', 'link')}${go('ranking-retos', 'Ranking de Retos ›', 'link')}</div>
     </section>
 
