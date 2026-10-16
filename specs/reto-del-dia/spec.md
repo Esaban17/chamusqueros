@@ -163,3 +163,9 @@ Medidas con el almacenamiento vacío, salvo donde se diga.
 - **A06 Componentes vulnerables:** cero dependencias nuevas (RF-29, CA-22). *Cumplido:* `git diff origin/main -- package.json package-lock.json` sale vacío, y `src/main.ts` no añade imports nuevos.
 - **A08 Integridad de datos:** el Home no lee ni escribe almacenamiento para el reto, y no hay datos remotos nuevos (RF-29, CA-22). *Cumplido:* el diff de `src/main.ts` no añade `localStorage` ni `fetch(`, y no importa nada de `./retos/dia`, `./retos/dedonde` ni `./retos/selecciones` (verificado con `grep`).
 - **Resto (A01, A02, A04, A05, A07, A09, A10):** no aplica; la fila no pide, guarda ni muestra nada del usuario.
+
+### Ajuste del usuario (2026-10-15, tras verlo en producción)
+Reemplaza el aspecto y el texto de RF-25, RF-28 y RF-30 (y sus CA-16, CA-19, CA-20 y CA-21):
+- La fila pasa a ser un botón grande (`btn big dia`) que solo dice **"Reto diario"**, en dorado (`--gold`), distinto del fondo de la página y de los otros dos botones. Sin ícono, subtítulo ni "Jugar ›".
+- El botón de Retos del Home dice solo **"Duelos"** (`btn big retos`), sin subtítulo, en sus dos apariciones. La pantalla de Retos por dentro no cambia.
+- Contraste del texto: blanco sobre `#a87508` 5,1:1 (claro); `#08131f` sobre `#f0c14b` 11:1 (oscuro).
