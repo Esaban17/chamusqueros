@@ -1,0 +1,23 @@
+/* Reto del día (prefijo rd-). Usa las variables de style.css (claro y oscuro) y no tiene animaciones. Los botones salen de .btn, .rq-op y .dd-op (48 px o más). */
+.rd, .rd-zona, .rd-reto, .rd-res, .rd-stats { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rd :is(h1, h2, h3, p, li) { overflow-wrap: anywhere; }
+.rd :is(h1, h2):focus { outline: none; }
+.rd :is(h1, h2):focus-visible { outline: 3px solid var(--celeste); outline-offset: 4px; border-radius: 4px; }
+.rd-fecha { color: var(--muted); font-size: 17px; }
+.rd-racha { font: 900 28px/1.1 var(--display); text-transform: uppercase; }
+.rd-nota, .rd-aviso { color: var(--muted); font-size: 15px; }
+.rd-nota:empty { display: none; }
+.rd-aviso { color: var(--ink); font-weight: 700; }
+.rd-res { border: 2px solid var(--line); border-radius: 12px; padding: 14px; background: var(--surface); }
+.rd-res h2 { font-size: 24px; font-weight: 800; }
+.rd-res h2.rd-bien { color: var(--good); }
+.rd-res h2.rd-mal { color: var(--bad); }
+.rd-linea { font-size: 18px; font-weight: 700; }
+.rd-stats h3 { font-size: 15px; font-weight: 700; color: var(--muted); }
+.rd-cifras, .rd-dias { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.rd-cifras { font-weight: 600; }
+.rd-dias li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface-2); }
+.rd-e { font-weight: 700; white-space: nowrap; }
+.rd-e.rd-ok { color: var(--good); }
+.rd-e.rd-mal { color: var(--bad); }
+.rd-e.rd-nada { color: var(--muted); }

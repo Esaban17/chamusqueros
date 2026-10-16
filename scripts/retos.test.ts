@@ -73,6 +73,8 @@ for (const [seq, terminado, ganador] of casos) {
 assert.deepEqual([0, 1, 2].map(abre), [0, 1, 0], 'abren 1, 2, 1');
 
 // RF-28 y RF-29: nada de marcado ni de almacenamiento en el código de Retos (búsqueda de texto)
+// Excepciones aprobadas: online/ (identidad y perfil, specs/retos-en-linea) y dia/ (Reto del día, specs/reto-del-dia) son subcarpetas y esta búsqueda
+// solo recorre los archivos de primer nivel de src/retos/; cada una tiene su propia prueba (online-cliente.test.ts y reto-del-dia.test.ts, que fija localStorage en dia/almacen.ts).
 const prohibidas = ['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'localStorage', 'sessionStorage', 'indexedDB', 'document.cookie', 'eval('];
 const raiz = fileURLToPath(new URL('../src/retos/', import.meta.url));
 const archivos = readdirSync(raiz).filter((f) => /\.(ts|css)$/.test(f));

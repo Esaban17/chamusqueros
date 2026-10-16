@@ -20,6 +20,9 @@ export const LIMITES = {
   token: { max: 30, ms: HORA },           // /api/ably-token por dispositivo
   tokenIp: { max: 120, ms: HORA },
   rankingIp: { max: 60, ms: MIN },
+  carrerasIp: { max: 60, ms: HORA },      // contador de carreras por IP: 2 avisos por carrera; cabe un aula
+  carreraGet: { max: 150, ms: MIN },      // GET /api/ranking (carreras) por IP: un salón de 40 mirando el ranking 3 veces, con margen
+  carreraPost: { max: 150, ms: HORA },    // POST /api/ranking por IP: 40 dispositivos x 3 carreras por hora = 120, más 25 % de margen
 } as const;
 export const SALAS_POR_HORA = 5;           // por dispositivo, contadas en Neon (api/_bd.ts: contarSalas)
 

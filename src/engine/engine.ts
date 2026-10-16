@@ -9,7 +9,7 @@ import {
   ORDEN_ROLES, animoBase, bonoEntrenador, contratadoDe, famaRestante, fisicoExtra, gastadoDe, itemById, poseidos, probEvitaLesion, riesgoSocial, saldoDe,
   tarifaTotal, validar, type Rol,
 } from './tienda';
-import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type Rng } from './rng';
+import { chance, clamp, createRng, pick, poisson, randInt, randRange, weightedPick, type RngConEstado } from './rng';
 import { AJUSTES, armarAgenda, claseDe, decisionesDe, escalar, escalarMj, pRetiroDe, type Clase, type Item } from './ritmo';
 import {
   type AwardKind,
@@ -149,8 +149,25 @@ export type Rechazo = { ok: false; motivo: string };
 /** Dinero de la carrera: la suma de lo ganado en cada temporada (no hay un saldo aparte que pueda descuadrarse). */
 export const earned = (p: Player) => p.seasons.reduce((t, r) => t + r.salary, 0);
 
+/** Todo lo que decide el futuro de una carrera además del jugador: lo que se guarda para retomarla (ver guardado.ts). */
+export interface EstadoMotor {
+  rng: number;
+  player: Player;
+  usedOnce: string[];
+  lastSeen: [string, number][];
+  recentCategories: EventCategory[];
+  suitor: string | null;
+  pending: GameEvent | null;
+  agenda: Item[];
+  hechas: number;
+  de: number;
+  ritmoK: number;
+  mjHecho: boolean;
+  escala: number;
+}
+
 export class Career {
-  readonly rng: Rng;
+  readonly rng: RngConEstado;
   readonly player: Player;
   /** Nacionalidad de origen: liga del debut, clubes de casa, moneda y textos de casa. La Selección está en nt. */
   readonly home: Country;
@@ -173,12 +190,28 @@ export class Career {
   /** Para `scripts/simulate.ts`: veces que se relajó el espaciado por falta de candidatas y ítems de historia que se saltaron. */
   readonly stats = { relajadas: 0, saltadas: 0 };
 
-  constructor(setup: PlayerSetup, seed = Date.now()) {
-    this.rng = createRng(seed);
+  constructor(setup: PlayerSetup, seed = Date.now(), estado?: EstadoMotor) {
+    this.rng = createRng(estado ? estado.rng : seed);
     const rng = this.rng;
     this.home = countryOf(setup.country);
     this.homeClubs = clubsOf(this.home.code);
     this.abroadClubs = ALL_CLUBS.filter((c) => c.country !== this.home.code && c.tier === 1).map((c) => viewClub(c, this.home));
+    if (estado) {
+      // Carrera guardada (guardado.ts la validó): no sortea el debut ni firma contrato, todo viene del estado.
+      this.player = estado.player;
+      this.usedOnce = new Set(estado.usedOnce);
+      this.lastSeen = new Map(estado.lastSeen);
+      this.recentCategories = estado.recentCategories;
+      this.suitor = estado.suitor ? viewClub(clubById(estado.suitor), this.home) : null;
+      this.pending = estado.pending;
+      this.agenda = estado.agenda;
+      this.hechas = estado.hechas;
+      this.de = estado.de;
+      this.ritmoK = estado.ritmoK;
+      this.mjHecho = estado.mjHecho;
+      this.escala = estado.escala;
+      return;
+    }
     const potential = Math.round(clamp(56 + ((rng() + rng() + rng()) / 3) * 36 + randRange(rng, -4, 4), 54, 94));
     this.player = {
       setup: { ...setup, country: this.home.code, avatar: { ...setup.avatar } },
@@ -213,6 +246,20 @@ export class Career {
     // Ascendencia oculta con un rng propio: no gasta el principal y las carreras sin ella siguen igual que antes.
     const herencia = sortearHerencia(createRng(seed ^ 0x9e3779b9), this.home.code);
     if (herencia) this.player.herencia = herencia;
+  }
+
+  /** El estado completo para guardarlo (devuelve referencias: quien guarda lo serializa enseguida). */
+  exportar(): EstadoMotor {
+    return {
+      rng: this.rng.estado(), player: this.player, usedOnce: [...this.usedOnce], lastSeen: [...this.lastSeen], recentCategories: this.recentCategories,
+      suitor: this.suitor?.id ?? null, pending: this.pending, agenda: this.agenda, hechas: this.hechas, de: this.de, ritmoK: this.ritmoK,
+      mjHecho: this.mjHecho, escala: this.escala,
+    };
+  }
+
+  /** Retoma una carrera desde un estado ya validado: el único camino de retomar (no pasa por el formulario ni por el contador). */
+  static restaurar(e: EstadoMotor): Career {
+    return new Career(e.player.setup, 0, e);
   }
 
   /** Selección que representa hoy el jugador: la de su origen, o la nueva si cambió (ver nacionalidad.ts). */

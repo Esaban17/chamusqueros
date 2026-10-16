@@ -4,12 +4,14 @@
 // y se bajan con import() solo al elegirlo (RF-35); aquí solo se importa el cliente HTTP, que es chico.
 import './retos.css';
 import { h, type Indice, type Pareja, type ResultadoReto } from './comun';
+import { botonesCompartir, textoResultado } from './compartir';
 import { COUNTRIES } from '../engine/countries';
 import { CLUBES, PAISES } from '../../api/_retos';
 import { CATEGORIAS, abre, marcadorCompleto, sanearNombres, type Categoria, type Jugada } from './pingpong';
 import { enfocarTitulo, jugarPingPong, type ConfigPing } from './ui-pingpong';
 import { infoEnLinea, salaGuardada } from './online/cliente';
 import type { Shell } from './online/shell';
+import type { RespuestaSala } from './online/protocolo';
 import { AVISOS, NOMBRE_CAT, banderaDe, nombreClub, nombrePais } from './online/textos';
 
 type CatLocal = Categoria | 'dedonde';
@@ -25,7 +27,7 @@ interface Sesion {
 }
 
 /** A dónde abre Retos: una sala por su link, el ranking o el perfil. Sin destino, la entrada (o la sala que este dispositivo tenía abierta). */
-export type Destino = { sala: string } | 'ranking' | 'perfil';
+export type Destino = { sala: string } | { creada: RespuestaSala } | 'ranking' | 'perfil' | 'retar';
 
 const WIKIDATA = 'https://www.wikidata.org/';
 const base = import.meta.env.BASE_URL;
@@ -141,18 +143,31 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
     const secundarios = h('div', { class: 'row' }, boton('Mi perfil', () => abrirPerfil(entrada), 'btn secondary'));
     pantalla(
       titulo('Retos Fútbol'),
-      h('p', { class: 'rt-intro' }, 'Elegí cómo jugar un duelo de fútbol de 2.'),
+      h('p', { class: 'rt-intro' }, 'Elegí cómo jugar.'),
       h('div', { class: 'rt-ops' },
         opcion('Jugar en el mismo celular', 'Se lo pasan entre turnos. No suma al ranking.', () => {
           void import('./trivia').catch(() => {});   // RF-33: el modo de preguntas se baja al elegir este modo, así funciona aunque después se pierda la conexión
           inicio();
-        })),
+        }),
+        opcion('Reto del día', 'Un reto nuevo cada día, igual para todos. Cuidá tu racha.', retoDelDia)),
       enLinea, secundarios,
     );
     void infoEnLinea().then((ok) => {
       if (!ok || id !== generacion) return;
       enLinea.append(opcion('Retar a alguien en línea', 'Cada uno en su celular: creás una sala y le mandás el enlace.', () => abrirEnLinea((sh, m) => m.crearSalaNueva(sh))));
       secundarios.append(boton('Ranking de Retos', () => abrirRanking(entrada), 'btn secondary'));
+    });
+  }
+
+  // ---------- Reto del día (specs/reto-del-dia): en solitario, un reto por fecha; se baja con import() solo aquí ----------
+  function retoDelDia() {
+    detener();
+    enPartida = false;
+    const id = generacion;
+    const host = h('div', { class: 'rt-juego' });
+    marco(host);
+    void import('./dia/ui').then((m) => { if (id === generacion) cancelar = m.montarRetoDelDia(host, entrada); }).catch(() => {
+      if (id === generacion) pantalla(titulo('No se pudo cargar el reto del día'), h('p', {}, 'Revisá tu conexión e intentá de nuevo.'), boton('Volver a Retos', entrada));
     });
   }
 
@@ -298,7 +313,7 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
       }
     } else {
       enPartida = false;
-      cuerpo.push(...botonesFinales(s));
+      cuerpo.push(...botonesFinales(s, textoResultado({ categoria: s.modo, puntos: r.puntos, ganador: r.ganador })));
     }
     pantalla(...cuerpo);
   }
@@ -312,14 +327,16 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
       h('p', { class: 'rt-marcador' }, `Categorías ganadas: ${j1} ${m.victorias[0]} · ${j2} ${m.victorias[1]}`),
       h('ul', { class: 'rt-lista' }, ...s.resultados.map((r, i) =>
         h('li', {}, `${nombreCat(s, s.categorias[i])}: ${r.ganador === null ? 'empate' : `gana ${s.jugadores[r.ganador]}`} (${r.puntos[0]} a ${r.puntos[1]})`))),
-      ...botonesFinales(s),
+      ...botonesFinales(s, textoResultado({ categoria: 'completo', puntos: m.victorias, ganador: m.ganador })),
     );
   }
 
   /** RF-08: revancha (con otro sorteo si era al azar), cambiar de juego y volver al inicio. */
-  function botonesFinales(s: Sesion): Node[] {
+  function botonesFinales(s: Sesion, texto: string | null): Node[] {
+    const compartir = botonesCompartir(texto);
     return [
       boton('Revancha', () => empezar(s.modo, s.elegido)),
+      ...(compartir ? [compartir] : []),
       boton('Cambiar de juego', inicio, 'btn secondary'),
       boton('Volver al inicio', salir, 'btn secondary'),
     ];
@@ -329,6 +346,8 @@ export function montarRetos(app: HTMLElement, alSalir: () => void, destino?: Des
   const volverAlHome = () => { detener(); alSalir(); };
   if (destino === 'ranking') abrirRanking(volverAlHome);
   else if (destino === 'perfil') abrirPerfil(volverAlHome);
+  else if (destino === 'retar') abrirEnLinea((sh, m) => m.crearSalaNueva(sh));
+  else if (typeof destino === 'object' && 'creada' in destino) abrirEnLinea(async (sh, m) => m.entrarEnSala(sh, destino.creada));
   else if (destino) abrirEnLinea((sh, m) => m.unirseConLink(sh, destino.sala));
   else if (salaGuardada()) abrirEnLinea(async (sh, m) => (await m.reanudarSala(sh)) ?? void sh.entrada());   // RF-08: volver a la sala de siempre
   else entrada();

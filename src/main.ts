@@ -19,6 +19,7 @@ import {
 import { DEFAULT_AVATAR, NT_KIT, avatarSVG } from './ui/avatar';
 import { avatarDeCodigo, avatarEditorHtml, montarEditorAvatar } from './ui/avatar-editor';
 import { CODIGO_RE } from './retos/online/protocolo';
+import type { RespuestaSala } from './retos/online/protocolo';
 import { drawCareerCard } from './ui/card';
 import { ESTILOS, cartaSVG, type DatosCarta } from './ui/carta-svg';
 import { celebrate } from './ui/celebrate';
@@ -27,12 +28,16 @@ import { esc } from './ui/esc';
 import { bindTienda, comprasDestacadasHtml, estadoInicial, tiendaHtml } from './ui/tienda';
 import { flag } from './ui/flags';
 import { AWARD_LABEL, ICON, palmares, porSeleccion, titleLabel, trophyImg, type TrofeoImg, type TrophyIcon } from './ui/palmares';
+import { contarCarrera } from './contador-carreras';
+import { AVISO_DESCARTADA, AVISO_FORMULARIO, bloqueContinuar, borrarCarrera, guardarCarrera, hayCarreraGuardada, leerCarrera } from './continuar-carrera';
 
 const app = document.getElementById('app')!;
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || location.origin;
 // Donación con Recurrente: poné aquí el enlace de "Cobro flexible" (app de Recurrente → Cobrar → ⋯ → Cobro flexible → copiar enlace).
 // ponytail: vacía no se muestra ningún enlace de donación; así la rama se puede publicar antes de tener la cuenta.
 const DONATE_URL: string = '';
+// Retar desde la final (specs/retar-desde-final RF-15): false apaga el bloque entero; cada sala cuesta Neon, Vercel y Ably.
+const RETAR_DESDE_FINAL = true;
 const BEST_KEY = 'chamusqueros:mejores';
 const LAST_SETUP_KEY = 'chamusqueros:ultimo';
 const PLAYER_KEY = 'chamusqueros:id';
@@ -165,8 +170,10 @@ async function rankingScreen() {
       bindCrests(dialog);
       dialog.showModal();
     };
-  } catch {
-    box.innerHTML = '<p class="season-empty">No pudimos cargar el ranking. Probá de nuevo en un rato.</p>';
+  } catch (e) {
+    box.innerHTML = (e as Error).message === 'ranking 429'
+      ? '<p class="season-empty">Hay mucha gente mirando el ranking. Probá de nuevo en un ratito.</p>'
+      : '<p class="season-empty">No pudimos cargar el ranking. Probá de nuevo en un rato.</p>';
   }
 }
 
@@ -210,6 +217,7 @@ const DEMO_CARD: RankRow = {
 };
 
 function home() {
+  const guardada = leerCarrera();
   // ponytail: localStorage lo puede editar el usuario; solo se valida lo mínimo para que la portada no se rompa.
   const raw = store<unknown>(BEST_KEY, []);
   const best = (Array.isArray(raw) ? (raw as Partial<BestCareer>[]) : []).filter((b) => b && typeof b === 'object').slice(0, 3);
@@ -218,14 +226,16 @@ function home() {
   const name = [last.firstName, last.lastName].filter(Boolean).join(' ') || 'Tu nombre';
   const number = last.number ?? 10;
   const go = (what: 'start' | 'ranking' | 'retos' | 'perfil' | 'ranking-retos', label: string, cls = 'btn big') => `<button class="${cls}" data-go="${what}">${label}</button>`;
-  const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);opacity:.85">Duelos de 2: en un solo celular o en línea</span>', cls);
+  const retos = (cls: string) => go('retos', 'Retos Fútbol<span style="display:block;font:500 14px/1.3 var(--body);opacity:.85">Duelos de 2 y un reto nuevo cada día</span>', cls);
   render(`
     <div class="brand">Chamus<span>queros</span></div>
     <section class="hero center">
       <h1>Convertite <span>en leyenda</span></h1>
       <p>Creá a tu futbolista y viví su carrera entera, decisión por decisión.</p>
     </section>
-    ${go('start', 'Empezar mi carrera')}
+    ${guardada && guardada !== 'descartada'
+      ? `${bloqueContinuar(guardada.career)}${go('start', 'Empezar mi carrera', 'btn big secondary')}`
+      : `${guardada ? `<p class="aviso" role="status">${AVISO_DESCARTADA}</p>` : ''}${go('start', 'Empezar mi carrera')}`}
     ${retos('btn retos')}
     ${top
       ? `<div class="record">
@@ -298,14 +308,14 @@ function home() {
     ${footer()}
   `);
   const destino = {
-    start: createForm, ranking: rankingScreen, retos: () => abrirRetos(), perfil: abrirPerfil, 'ranking-retos': () => abrirRetos('ranking'),
+    start: createForm, continuar: continuarCarrera, ranking: rankingScreen, retos: () => abrirRetos(), perfil: abrirPerfil, 'ranking-retos': () => abrirRetos('ranking'),
   };
   app.querySelectorAll<HTMLElement>('[data-go]').forEach((b) => (b.onclick = destino[b.dataset.go as keyof typeof destino]));
 }
 
 // Retos Fútbol y el perfil viven en su propio paquete: solo se descargan cuando alguien los abre.
 /** Adonde abre Retos: el ranking, o una sala por su código (link `?sala=`). */
-type DestinoRetos = 'ranking' | { sala: string };
+type DestinoRetos = 'ranking' | 'retar' | { sala: string } | { creada: RespuestaSala };
 const sinPaquete = () => alert('No se pudo cargar. Revisá tu conexión e intentá de nuevo.');
 function abrirRetos(destino?: DestinoRetos, alSalir: () => void = home) {
   import('./retos/index')
@@ -383,6 +393,7 @@ function createForm() {
       ], last.mode ?? 'intensa')}
         <p class="season-empty">Decisiones por temporada. Cada temporada trae además un minijuego.</p></div>
       <p class="error" id="error" role="alert"></p>
+      ${hayCarreraGuardada() ? `<p class="aviso">${AVISO_FORMULARIO}</p>` : ''}
       <button class="btn big" type="submit">Debutar</button>
     </form>
     <button class="btn secondary" id="back">Volver</button>
@@ -424,6 +435,9 @@ function createForm() {
     };
     save(LAST_SETUP_KEY, setup);
     career = new Career(setup);
+    contarCarrera('iniciada');
+    borrarCarrera();
+    guardarCarrera(career, null);
     lastResolution = null;
     debut();
   });
@@ -459,6 +473,18 @@ function debut() {
     freshSeasons = 0;
     gameScreen();
   };
+}
+
+/** Retoma la carrera guardada donde quedó (RF-07). No pasa por el formulario ni por el contador: retomar no cuenta como carrera iniciada. */
+function continuarCarrera() {
+  const g = leerCarrera();
+  if (!g || g === 'descartada') return home();
+  career = g.career;
+  lastResolution = g.desenlace;
+  freshSeasons = 0;
+  if (career.isOver && !lastResolution) return finish();
+  if (!career.pendingEvent && !lastResolution && !career.player.seasons.length) return debut();
+  gameScreen();
 }
 
 /** Sigue la temporada: la siguiente decisión o, si ya no queda nada, simula la temporada y muestra su resumen (uno por temporada). */
@@ -560,7 +586,7 @@ function seasonCard(r: SeasonRecord) {
     }),
   ];
   return `<section class="panel season-card">
-    <span class="eyebrow">Temporada ${r.label} · ${r.age} años</span>
+    <span class="eyebrow">Temporada ${esc(r.label)} · ${r.age} años</span>
     <p class="club-line">${crest(club, true)}<span>${esc(cap(club.name))}</span><span class="tier">${esc(tierTag(club))}</span></p>
     <div class="totals">${stats.map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('')}</div>
     <p class="meta money">Ganaste <b>${esc(cash(r.salary))}</b> en la temporada</p>
@@ -618,6 +644,7 @@ function playerHead() {
 function tiendaScreen(volver: () => void) {
   const estado = estadoInicial();
   const draw = (keepScroll: boolean) => {
+    guardarCarrera(career!, lastResolution);
     render(`${playerHead()}${tiendaHtml(career!, estado, cash)}`, keepScroll);
     bindTienda(document.getElementById('tienda')!, career!, estado, () => draw(true), volver);
   };
@@ -650,7 +677,7 @@ function seasonRow(r: SeasonRecord, fresh: boolean) {
     r.note ? `<span class="chip">${esc(r.note)}</span>` : '',
   ].filter(Boolean);
   return `<div class="season${r.injured ? ' injured' : ''}${fresh ? ' fresh' : ''}">
-    <span class="year">${r.label}</span>
+    <span class="year">${esc(r.label)}</span>
     <span class="club">${crest(club, true)}<span>${esc(club.name)}${tier ? ` <small>${esc(tier)}</small>` : ''}</span></span>
     <span>${r.apps}</span><span>${r.goals}</span><span>${r.assists}</span>
     ${chips.length ? `<div class="season-titles">${chips.join('')}</div>` : ''}
@@ -695,6 +722,7 @@ function progresoText(g: Career['progreso'], category: string, age: number) {
 }
 
 function gameScreen() {
+  guardarCarrera(career!, lastResolution);
   const ev = career!.pendingEvent;
   const res = lastResolution;
   // Una temporada sin ninguna decisión ni minijuego (no debería pasar): se simula y sigue.
@@ -733,7 +761,7 @@ function gameScreen() {
       document.getElementById('mg')!,
       ev.minigame,
       career!.rng,
-      (score) => (lastResolution = career!.choose(0, score)),
+      (score) => guardarCarrera(career!, (lastResolution = career!.choose(0, score))),
       () => {
         freshSeasons = 0;
         gameScreen();
@@ -753,6 +781,8 @@ function shareText(s: CareerSummary) {
 }
 
 function finish() {
+  contarCarrera('terminada');
+  borrarCarrera();
   const p = career!.player;
   const s = summarize(p);
   const best = store<BestCareer[]>(BEST_KEY, []);
@@ -776,6 +806,7 @@ function finish() {
     </div>
     <p class="toast" id="toast" role="status"></p>
     <section class="panel" id="rankBox"><span class="eyebrow">Ranking global</span><p class="season-empty">Guardando tu carrera…</p></section>
+    ${RETAR_DESDE_FINAL ? `<section class="panel" id="retarBox"><p>Salís de esta pantalla al crear la sala: antes, guardá la imagen de tu carta.</p><button class="btn secondary" id="retar" type="button">Retar a alguien en línea</button><p class="toast" id="retarAviso" role="status"></p></section>` : ''}
     <section class="panel">
       <div class="totals">
         <div><b>${s.apps}</b><span>Partidos</span></div>
@@ -812,7 +843,7 @@ function finish() {
     pos: p.setup.position, ovr: p.peakRating, club: p.seasons.at(-1)?.clubId ?? p.clubId, dept: p.setup.dept, foot: p.setup.foot,
     apps: s.apps, goals: s.goals, assists: s.assists, country: career!.nt.code, // la Selección actual (la de origen si nunca cambió)
   };
-  rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number), card })
+  const guardar = (): void => { rankingApi({ name: fullName(), score: s.score, titles: s.titles.length, caps: p.caps, avatar: avatarCode(p.setup.avatar, p.setup.number), card })
     .then((rows) => {
       const me = rows.find((r) => r.me)!;
       rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>
@@ -821,10 +852,21 @@ function finish() {
       document.getElementById('seeRank')!.onclick = rankingScreen;
     })
     .catch((e: Error) => {
+      if (e.message === 'ranking 429') {
+        rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>
+          <p>Hay mucha gente en el ranking y tu carrera todavía no se pudo guardar. Tu carta sigue lista. Probá de nuevo en un ratito.</p>
+          <button class="btn secondary" id="retryRank">Reintentar</button>`;
+        document.getElementById('retryRank')!.onclick = () => {
+          rankBox.innerHTML = '<span class="eyebrow">Ranking global</span><p class="season-empty">Guardando tu carrera…</p>';
+          guardar();
+        };
+        return;
+      }
       if (e.message !== 'Nombre no permitido') return rankBox.remove();
       rankBox.innerHTML = `<span class="eyebrow">Ranking global</span>
         <p>Esta carrera no entró al ranking: el nombre <b>${esc(fullName())}</b> no está permitido. Revisá los <a href="${import.meta.env.BASE_URL}terminos.html">términos</a>.</p>`;
-    });
+    }); };
+  guardar();
 
   const canvas = document.createElement('canvas');
   const toast = (msg: string) => (document.getElementById('toast')!.textContent = msg);
@@ -863,7 +905,26 @@ function finish() {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
     toast('Si no se descargó, mantené presionada la tarjeta para guardarla.');
   };
+  if (RETAR_DESDE_FINAL) document.getElementById('retar')!.onclick = retarDesdeFinal;
   document.getElementById('again')!.onclick = createForm;
+}
+
+/** Retar desde la final (specs/retar-desde-final): un clic crea la sala; sin clic no se pide nada. Sin parámetros: nada de la carrera viaja. */
+function retarDesdeFinal() {
+  const btn = document.getElementById('retar') as HTMLButtonElement;
+  const aviso = document.getElementById('retarAviso')!;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  aviso.textContent = 'Creando la sala…';
+  import('./retos/online/desde-final')
+    .then((m) => m.crearDesdeFinal())
+    .then((r) => {
+      if (r.t === 'sala') return abrirRetos({ creada: r.respuesta });
+      if (r.t === 'apodo') return abrirRetos('retar');
+      aviso.textContent = r.mensaje;
+      if (!r.definitivo) { btn.disabled = false; btn.focus(); }
+    })
+    .catch(() => { aviso.textContent = 'No se pudo crear la sala. Probá de nuevo.'; btn.disabled = false; btn.focus(); });
 }
 
 // Un link `?sala=XXXXXX` válido abre Retos directo en esa sala; al salir se limpia la URL para que no la reabra.
