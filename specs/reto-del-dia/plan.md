@@ -12,14 +12,14 @@ Un módulo nuevo en una **subcarpeta**, `src/retos/dia/`, que Retos baja con `im
 | `src/retos/dia/ui.ts` + `dia.css` | `montarRetoDelDia(contenedor, alVolver): () => void`. Pinta con `h()`. | DOM |
 | `scripts/reto-del-dia.test.ts` | Prueba de `puro.ts` (CA-1 a CA-7) y búsqueda de texto sobre `src/retos/dia/` (CA-9). | — |
 
-Se modifican solo estos archivos existentes (los tres últimos por decisión del orquestador, ver spec "Decisiones"):
+*[enmendado por la adenda 2026-10-15; ver abajo]* Se modifican solo estos archivos existentes (los tres últimos por decisión del orquestador, ver spec "Decisiones"):
 - `src/retos/index.ts`: una opción en `entrada()` y una función `retoDelDia()` (15 líneas añadidas, nada movido ni reformateado).
 - `privacidad.html`: una viñeta.
-- `src/main.ts`: una sola línea, el texto de la segunda línea del botón de Retos ("Duelos de 2 y un reto nuevo cada día").
+- `src/main.ts`: una sola línea, el texto de la segunda línea del botón de Retos ("Duelos de 2 y un reto nuevo cada día"). *[enmendado por la adenda 2026-10-15; ver abajo]*
 - `src/retos/online/cliente.ts`: solo el comentario del encabezado.
 - `scripts/retos.test.ts`: solo un comentario que nombra a `src/retos/dia/` como excepción aprobada.
 
-**No se toca** nada más de `src/main.ts`, `package.json`, `package-lock.json`, `api/`, `src/retos/trivia*.ts`, `dedonde.ts`, `comun.ts`, ni ningún archivo de `scripts/` existente.
+**No se toca** nada más de `src/main.ts`, `package.json`, `package-lock.json`, `api/`, `src/retos/trivia*.ts`, `dedonde.ts`, `comun.ts`, ni ningún archivo de `scripts/` existente. *[enmendado por la adenda 2026-10-15: `src/main.ts` cambia más de una línea; ver abajo]*
 
 ### Por qué una subcarpeta
 `scripts/retos.test.ts` (línea 76) recorre `src/retos/*.ts|css` de primer nivel y falla si encuentra `localStorage`. El filtro `/\.(ts|css)$/` descarta una carpeta llamada `dia`, y `scripts/online-cliente.test.ts` solo barre `src/retos/online/` y `ui-dedonde.ts`: las dos pruebas pasan sin cambiar ninguna aserción (se comprobó con `readdirSync` sobre el árbol actual). La excepción no se esquiva en silencio: `retos.test.ts` gana un comentario que dice que `dia/` es la excepción aprobada por esta spec, igual que `online/`. La alternativa, relajar esas pruebas, debilita una regla que hoy es global. Dentro de `dia/`, la regla "`localStorage` en un solo archivo" la hace cumplir la prueba nueva (CA-9).
@@ -194,3 +194,38 @@ La viñeta del duelo no se cambia (sigue siendo cierta). `terminos.html` no camb
 - **El reloj del dispositivo es la única fuente de la fecha:** un reloj mal puesto da un reto distinto o descarta el registro (RF-14). Aceptado: sin servidor no hay otra fuente.
 - **La descarga del módulo falla sin conexión:** mensaje y "Volver a Retos"; una vez bajado, el reto no necesita red (salvo las banderas).
 - **Efecto en retención no medible** con lo que hay hoy (sin analítica): se entrega la mecánica y se deja a las decisiones del backlog (`medir-base`) la medición.
+
+## Adenda 2026-10-15: entrada desde el Home
+
+Deriva de la adenda de `spec.md` (RF-25 a RF-30, CA-16 a CA-25); sus decisiones no se reabren. No hay archivos nuevos. No cambian `puro.ts`, `almacen.ts`, `ui.ts`, `package.json`, `package-lock.json` ni `privacidad.html` (ya describe lo que guarda el reto).
+
+### Cambios
+| Archivo | Cambio | RF |
+|---|---|---|
+| `src/main.ts` | (a) `DestinoRetos` (línea 318) gana `'dia'`. (b) En `home()`, una fila inline antes de `${retos('btn retos')}` de la línea 239, sin condición (a diferencia de `.record`, que depende de `top`): `<button type="button" class="record reto-dia" data-go="reto-dia">` con el SVG de calendario (`aria-hidden`), `<span class="reto-texto"><small>Reto del día</small><b>Un reto nuevo cada día. Cuidá tu racha.</b></span>` y `<span class="link">Jugar ›</span>`. Dentro de `<button>` solo cabe contenido de frase: por eso `<span>` y no `<div>`, y ningún botón dentro del botón. (c) En el objeto `destino`: `'reto-dia': () => abrirRetos('dia')`. No se toca `go()`. (d) Línea 229 (closure `retos`): vuelve a "Duelos de 2: en un solo celular o en línea". Es una sola cadena, que cubre las dos apariciones (líneas 239 y 292). | RF-25, RF-26, RF-28 |
+| `src/retos/index.ts` | (a) `Destino` (línea 30) gana `'dia'`. (b) En "Apertura" (líneas 346-353): `else if (destino === 'dia') retoDelDia();` **antes** de `else if (destino)` (línea 351), que trata cualquier valor verdadero como `{ sala }`. | RF-26, RF-27 |
+| `src/style.css` | Junto a `.record` (líneas 253-260): `button.record { width: 100%; font: inherit; color: inherit; text-align: left; cursor: pointer; }` y `button.reto-dia .reto-texto { display: flex; flex-direction: column; flex: 1; min-width: 0; line-height: 1.25; }`, `button.reto-dia b { white-space: normal; }`. Nada más. | RF-25, RF-30 |
+
+Sin `'dia'` en los dos tipos, `abrirRetos('dia')` no compila; por eso T-11 va antes que T-12.
+
+### Cobertura
+| RF | Dónde |
+|---|---|
+| RF-25 | fila en `main.ts`, antes de la línea 239, sin condición |
+| RF-26 | `destino['reto-dia']` en `main.ts`; rama `dia` en `index.ts`. Si la descarga falla, `sinPaquete` muestra el mismo aviso que el botón |
+| RF-27 | `retoDelDia()` ya existente: "Salir" llama a `alSalir` (que es `home`); "Volver a Retos" llama a `entrada`. Sin cambios |
+| RF-28 | closure `retos` de `main.ts` (línea 229) |
+| RF-29 | ningún `import` nuevo ni `localStorage` en `main.ts`; CA-22 y CA-23 |
+| RF-30 | `button.reto-dia b` en `style.css` |
+
+### Verificación
+1. `npm run build`: JS del paquete principal, comprimido, contra `origin/main` (CA-23), y búsqueda de una frase de `preguntas.json` y de un nombre de `futbolistas.json` en ese JS.
+2. `npx tsx` de `scripts/reto-del-dia.test.ts`, `retos.test.ts`, `retar-desde-final.test.ts`, `continuar-carrera.test.ts` y `contador-carreras.test.ts` (CA-24). `retar-desde-final.test.ts` fija la firma de `abrirRetos` y el cuerpo de `retarDesdeFinal`, que esta adenda no toca. Si una falla, se corrige el código, no la aserción.
+3. Navegador (`npm run dev`), 390×844 y 360×640, con y sin carrera guardada: CA-16 a CA-20; tocar la fila, "Volver a Retos" y "Salir"; pestaña de red (CA-22); con la red cortada, el aviso de RF-26.
+4. `git diff --stat origin/main` (CA-25).
+
+### Riesgos
+- **Primer pantallazo (estimado desde el CSS, no medido):** la fila suma su alto (56 px mínimo de `.record`) más los 20 px de separación de `#app`. "Tu récord", que va después del botón de Retos, puede quedar fuera de 844 px. No es requisito; se informa en CA-16. La fila nueva sí tiene que entrar.
+- **Altura:** con dos líneas, la fila crece por encima de 56 px. CA-19 mide el mínimo; se informa el alto real.
+- **Paquete principal:** marcado y dos reglas de CSS. CA-23 lo mide con tope de 1.000 bytes comprimidos; no se estima.
+- **Sin red:** la primera descarga es el paquete de Retos, y `abrirRetos` la captura con `sinPaquete` (alerta), no con la pantalla de Retos. Es el mismo comportamiento que el botón "Retos Fútbol".
